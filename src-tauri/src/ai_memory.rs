@@ -1,13 +1,37 @@
-//!
+//! ai-memory as a service Alethe manages: the copy it installs, the one it finds, and the child it
+//! runs. Shaped after `router9.rs`, which does the same job for 9router.
 
-//!
+pub const AI_MEMORY_VERSION: &str = "2.4.0";
+const RELEASES: &str = "https://github.com/akitaonrails/ai-memory/releases/download";
 
-//!   via `--mcp-config <path>` no `buildAgentLaunch`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReleaseAsset {
+    pub file: String,
+    pub url: String,
+    pub sha256_url: String,
+}
 
-//!
+/// The asset for this machine, or `None` when upstream publishes no build for it.
+///
+/// Windows on ARM is the real case: every other platform Alethe supports has one.
+pub fn release_asset(os: &str, arch: &str) -> Option<ReleaseAsset> {
+    let file = match (os, arch) {
+        ("windows", "x86_64") => "ai-memory-windows-x86_64.zip",
+        ("linux", "x86_64") => "ai-memory-linux-x86_64.tar.gz",
+        ("linux", "aarch64") => "ai-memory-linux-aarch64.tar.gz",
+        ("macos", "x86_64") => "ai-memory-macos-x86_64.tar.gz",
+        ("macos", "aarch64") => "ai-memory-macos-aarch64.tar.gz",
+        _ => return None,
+    };
+    let url = format!("{RELEASES}/v{AI_MEMORY_VERSION}/{file}");
+    Some(ReleaseAsset {
+        file: file.to_string(),
+        sha256_url: format!("{url}.sha256"),
+        url,
+    })
+}
 
 use std::net::{TcpStream, ToSocketAddrs};
-use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
 
@@ -192,4 +216,34 @@ pub fn ai_memory_codex_config_write(repo: String, command: Option<String>) -> Re
     ));
 
     std::fs::write(&path, body).map_err(|e| format!("write_failed:{e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_platform_alethe_supports_gets_the_matching_asset() {
+        for (os, arch, expected) in [
+            ("windows", "x86_64", "ai-memory-windows-x86_64.zip"),
+            ("linux", "x86_64", "ai-memory-linux-x86_64.tar.gz"),
+            ("linux", "aarch64", "ai-memory-linux-aarch64.tar.gz"),
+            ("macos", "x86_64", "ai-memory-macos-x86_64.tar.gz"),
+            ("macos", "aarch64", "ai-memory-macos-aarch64.tar.gz"),
+        ] {
+            let asset = release_asset(os, arch).unwrap_or_else(|| panic!("{os}/{arch}"));
+            assert_eq!(asset.file, expected);
+            assert!(asset.url.ends_with(expected), "{}", asset.url);
+            assert_eq!(asset.sha256_url, format!("{}.sha256", asset.url));
+            assert!(asset.url.starts_with("https://"), "{}", asset.url);
+        }
+    }
+
+    #[test]
+    fn a_machine_upstream_does_not_build_for_gets_no_asset() {
+        // Windows on ARM: the release has no such build. Returning None is what lets the UI say so
+        // instead of offering a button that downloads a 404.
+        assert!(release_asset("windows", "aarch64").is_none());
+        assert!(release_asset("freebsd", "x86_64").is_none());
+    }
 }
