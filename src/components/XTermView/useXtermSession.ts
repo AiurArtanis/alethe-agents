@@ -167,7 +167,9 @@ export function useXtermSession(params: {
   onLaunchErrorRef: MutableRefObject<((error: unknown) => void) | undefined>
   onAgentCompleteRef: MutableRefObject<(() => void) | undefined>
   setBootPhase: Dispatch<SetStateAction<BootPhase>>
-  setMemoryWait?: Dispatch<SetStateAction<{ availableMb: number; waitedMs: number; thresholdMb: number } | null>>
+  setMemoryWait?: Dispatch<
+    SetStateAction<{ availableMb: number; waitedMs: number; thresholdMb: number } | null>
+  >
   setCommandNotFound: Dispatch<SetStateAction<string | null>>
   setLinkActions: Dispatch<SetStateAction<LinkActionState | null>>
   setRetryKey: Dispatch<SetStateAction<number>>
@@ -259,16 +261,17 @@ export function useXtermSession(params: {
       command,
       cwd,
     )
-    const memoryWaitListener = listen<{ available_mb: number; waited_ms: number; threshold_mb: number }>(
-      `pty://spawn-wait/${ptyId}`,
-      (event) => {
-        setMemoryWait?.({
-          availableMb: event.payload.available_mb,
-          waitedMs: event.payload.waited_ms,
-          thresholdMb: event.payload.threshold_mb,
-        })
-      },
-    )
+    const memoryWaitListener = listen<{
+      available_mb: number
+      waited_ms: number
+      threshold_mb: number
+    }>(`pty://spawn-wait/${ptyId}`, (event) => {
+      setMemoryWait?.({
+        availableMb: event.payload.available_mb,
+        waitedMs: event.payload.waited_ms,
+        thresholdMb: event.payload.threshold_mb,
+      })
+    })
     void memoryWaitListener.then((off) => {
       if (disposed) off()
       else unlistenMemoryWait = off

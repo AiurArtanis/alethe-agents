@@ -395,14 +395,13 @@ export function XTermView({
     [setCliPath],
   )
 
-  const bootLabel =
-    memoryWait
-      ? t('term.bootMemoryWait', {
-          available: Math.round(memoryWait.availableMb),
-          threshold: Math.round(memoryWait.thresholdMb),
-          seconds: Math.floor(memoryWait.waitedMs / 1000),
-        })
-      : bootPhase === 'preparing'
+  const bootLabel = memoryWait
+    ? t('term.bootMemoryWait', {
+        available: Math.round(memoryWait.availableMb),
+        threshold: Math.round(memoryWait.thresholdMb),
+        seconds: Math.floor(memoryWait.waitedMs / 1000),
+      })
+    : bootPhase === 'preparing'
       ? t('term.bootPreparing')
       : bootPhase === 'queued'
         ? t('term.bootQueued')

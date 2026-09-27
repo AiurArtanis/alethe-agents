@@ -247,9 +247,7 @@ export function VoiceCommand() {
         if (entryId) {
           useVoiceHistoryStore.getState().settle(entryId, { status: 'failed', error: reason })
         }
-        useUiStore
-          .getState()
-          .pushToast({ title: t('voice.failedToast'), body: reason })
+        useUiStore.getState().pushToast({ title: t('voice.failedToast'), body: reason })
       }
     },
     [close, t],
@@ -383,9 +381,7 @@ export function VoiceCommand() {
           summary: t('voice.lifecycle.failed'),
           error: reason,
         })
-        useUiStore
-          .getState()
-          .pushToast({ title: t('voice.failedToast'), body: reason })
+        useUiStore.getState().pushToast({ title: t('voice.failedToast'), body: reason })
       }
     })()
   }, [close, modelId, route, t])
@@ -513,9 +509,7 @@ export function VoiceCommand() {
               disabled={busy}
               aria-pressed={recording}
               aria-label={recording ? t('voice.bar.stopRecording') : t('voice.bar.startRecording')}
-              title={
-                recording ? t('voice.bar.stopRecording') : t('voice.bar.startRecordingTitle')
-              }
+              title={recording ? t('voice.bar.stopRecording') : t('voice.bar.startRecordingTitle')}
             >
               {busy ? (
                 <Loader2 size={17} className={styles.spin} aria-hidden />

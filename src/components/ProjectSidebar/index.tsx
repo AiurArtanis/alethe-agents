@@ -434,8 +434,7 @@ function CleanProjectSidebar() {
   const ungroupedProjects = ungroupedOrder
     .map((id) => projectsById.get(id))
     .filter(
-      (p): p is Project =>
-        p !== undefined && !p.archived && (revealHiddenProjects || !p.hidden),
+      (p): p is Project => p !== undefined && !p.archived && (revealHiddenProjects || !p.hidden),
     )
 
   const groupsByParent = useMemo(() => {
@@ -456,9 +455,8 @@ function CleanProjectSidebar() {
     const projectsInGroup = g.projectIds
       .map((id) => projectsById.get(id))
       .filter(
-      (p): p is Project =>
-        p !== undefined && !p.archived && (revealHiddenProjects || !p.hidden),
-    )
+        (p): p is Project => p !== undefined && !p.archived && (revealHiddenProjects || !p.hidden),
+      )
     const childGroups = groupsByParent.get(g.id) ?? []
     return (
       <GroupNode

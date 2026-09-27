@@ -1419,7 +1419,8 @@ export const en = {
   'term.bootQueued': 'Waiting for a spawn slot…',
   'term.bootSpawning': 'Starting process…',
   'term.bootAttaching': 'Connecting to terminal…',
-  'term.bootMemoryWait': 'Waiting for memory ({available} MB free; {threshold} MB needed) · {seconds}s',
+  'term.bootMemoryWait':
+    'Waiting for memory ({available} MB free; {threshold} MB needed) · {seconds}s',
   'term.chooseFolder': 'Choose folder',
   'term.nameOptional': 'Name (optional)',
   'term.folderCwd': 'Folder (cwd)',
@@ -2966,8 +2967,7 @@ export const en = {
   'voice.bar.decidingHint': 'Asking Jev what to do',
   'voice.bar.runnableHint': 'Enter runs this plan | Esc cancels',
   'voice.bar.idleHint': 'Click the mic or hold F9 to speak | Enter decides | Esc cancels',
-  'voice.bar.noKeyHint':
-    'The key is stored in preferences and this bar stops asking',
+  'voice.bar.noKeyHint': 'The key is stored in preferences and this bar stops asking',
   'voice.bar.micSilent': 'No signal from this microphone.',
   'voice.bar.micLabel': 'Microphone',
   'voice.bar.micDefault': 'System default',
@@ -3005,8 +3005,7 @@ export const en = {
   'voice.history.tabTitle': 'Jev history',
   'voice.history.clear': 'Clear history',
   'voice.history.emptyTitle': 'No commands yet',
-  'voice.history.emptyBody':
-    'Press Ctrl+Shift+Space, say what you want, and it shows up here.',
+  'voice.history.emptyBody': 'Press Ctrl+Shift+Space, say what you want, and it shows up here.',
   'voice.history.silence': '(silence)',
   'voice.history.status.deciding': 'deciding',
   'voice.history.status.ran': 'ran',

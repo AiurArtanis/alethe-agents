@@ -141,7 +141,11 @@ export function KimiIcon({ size = 16 }: { size?: number }) {
       strokeWidth="1.5"
     >
       <rect x="2" y="2" width="12" height="12" rx="3" />
-      <path d="M6 12V4.8M6 8.4l3.4-3.6M6 8.4l3.6 3.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M6 12V4.8M6 8.4l3.4-3.6M6 8.4l3.6 3.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   )
 }
