@@ -125,6 +125,12 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 - The Features preferences page now matches the grouped, searchable feature selector used during
   onboarding, with consistent Browser and Playwright controls.
 
+### Fixed
+
+- On Linux, closing a terminal could end every process of your user session instead of only that
+  terminal's processes, depending on the process ID it got. Terminals are now stopped directly
+  through the system call, so only their own processes are affected.
+
 ## [1.7.0] — 2026-09-20
 
 The release where Alethe stops being one fixed app and becomes a platform. Features now load as

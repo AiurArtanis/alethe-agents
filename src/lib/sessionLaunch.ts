@@ -69,23 +69,12 @@ function stripCursorSessionArgs(args: string[]): string[] {
   )
 }
 
-   
-                                                                            
-                                                                             
-                                                               
-   
 export function buildAgentLaunch(
   agent: AgentType,
   baseArgs: readonly string[] = [],
   sessionId?: string,
   createUuid: () => string = () => crypto.randomUUID(),
-                                                                                 
-                                                                                
-                                                                               
-                                                                        
-                                                                              
-                                                                                  
-                                                                                   
+
   mcpConfigPaths?: readonly string[],
   hooksSettingsPath?: string,
 ): AgentLaunch {
@@ -123,10 +112,7 @@ export function buildAgentLaunch(
 
   if (agent === 'opencode') {
     const clean = stripOpenCodeSessionArgs([...baseArgs])
-                                                                        
-                                                                            
-                                                                         
-                                   
+
     return {
       args: sessionId ? ['--session', sessionId, ...clean] : clean,
       sessionId,
@@ -159,10 +145,6 @@ export function buildAgentLaunch(
       createdSession: false,
     }
   }
-
-                                                                                  
-                                                                                 
-                                                                       
 
   // Grok Build resumes by ID (`--resume`); interactive TUI does not mint IDs via --session-id.
   if (agent === 'grok') {

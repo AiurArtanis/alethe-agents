@@ -1441,7 +1441,8 @@ export const ptBR: Record<MessageKey, string> = {
   'term.bootQueued': 'Aguardando uma vaga para iniciar…',
   'term.bootSpawning': 'Iniciando processo…',
   'term.bootAttaching': 'Conectando ao terminal…',
-  'term.bootMemoryWait': 'Aguardando memória ({available} MB livres; necessário {threshold} MB) · {seconds}s',
+  'term.bootMemoryWait':
+    'Aguardando memória ({available} MB livres; necessário {threshold} MB) · {seconds}s',
   'term.chooseFolder': 'Escolher pasta',
   'term.nameOptional': 'Nome (opcional)',
   'term.folderCwd': 'Pasta (cwd)',
@@ -2994,9 +2995,9 @@ export const ptBR: Record<MessageKey, string> = {
   'voice.bar.transcribingHint': 'Transcrevendo seu áudio',
   'voice.bar.decidingHint': 'Perguntando ao Jev o que fazer',
   'voice.bar.runnableHint': 'Enter executa esse plano | Esc cancela',
-  'voice.bar.idleHint': 'Clique no microfone ou segure o F9 para falar | Enter decide | Esc cancela',
-  'voice.bar.noKeyHint':
-    'A chave fica guardada nas preferências e esta barra para de pedir',
+  'voice.bar.idleHint':
+    'Clique no microfone ou segure o F9 para falar | Enter decide | Esc cancela',
+  'voice.bar.noKeyHint': 'A chave fica guardada nas preferências e esta barra para de pedir',
   'voice.bar.micSilent': 'Sem sinal deste microfone.',
   'voice.bar.micLabel': 'Microfone',
   'voice.bar.micDefault': 'Padrão do sistema',
@@ -3034,8 +3035,7 @@ export const ptBR: Record<MessageKey, string> = {
   'voice.history.tabTitle': 'Histórico do Jev',
   'voice.history.clear': 'Limpar histórico',
   'voice.history.emptyTitle': 'Nenhum comando ainda',
-  'voice.history.emptyBody':
-    'Aperte Ctrl+Shift+Espaço, diga o que você quer, e isso aparece aqui.',
+  'voice.history.emptyBody': 'Aperte Ctrl+Shift+Espaço, diga o que você quer, e isso aparece aqui.',
   'voice.history.silence': '(silêncio)',
   'voice.history.status.deciding': 'decidindo',
   'voice.history.status.ran': 'executado',
