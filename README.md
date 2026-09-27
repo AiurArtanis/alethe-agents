@@ -402,6 +402,7 @@ Thanks to everyone helping shape Alethe.
   <a href="https://github.com/claude"><img src="https://github.com/claude.png?size=100" width="80" height="80" alt="claude" title="claude" /></a>
   <a href="https://github.com/aryansk"><img src="https://github.com/aryansk.png?size=100" width="80" height="80" alt="aryansk" title="aryansk" /></a>
   <a href="https://github.com/sousaakira"><img src="https://github.com/sousaakira.png?size=100" width="80" height="80" alt="sousaakira" title="sousaakira" /></a>
+  <a href="https://github.com/AiurArtanis"><img src="https://github.com/AiurArtanis.png?size=100" width="80" height="80" alt="AiurArtanis" title="AiurArtanis" /></a>
   <!-- contributors:end -->
 </p>
 
