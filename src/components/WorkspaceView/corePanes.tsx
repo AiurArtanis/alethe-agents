@@ -7,6 +7,7 @@ import { paneContributions } from '../../lib/plugins'
 import { DiffPane } from '../DiffPane'
 import { ImagePane } from '../ImagePane'
 import { OrchestratorPane } from '../OrchestratorPane'
+import { PluginDetailPane } from '../PluginDetailPane'
 import { TerminalPane } from '../TerminalPane'
 import { VideoPane } from '../VideoPane'
 import { WebPane } from '../WebPane'
@@ -59,4 +60,5 @@ export function registerCorePanes(): void {
   paneContributions.add('core', { id: 'image', component: ImagePane })
   paneContributions.add('core', { id: 'diff', component: DiffPane })
   paneContributions.add('core', { id: 'orchestrator', component: OrchestratorPane })
+  paneContributions.add('core', { id: 'plugin', component: PluginDetailPane })
 }
