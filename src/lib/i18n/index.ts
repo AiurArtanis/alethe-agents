@@ -7,7 +7,6 @@ import { zhCN } from './messages/zh-CN'
 
 export type { MessageKey }
 
-                                                                            
 export type Locale = 'en' | 'pt-BR' | 'zh-CN'
 
 export const DEFAULT_LOCALE: Locale = 'en'

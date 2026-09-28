@@ -219,7 +219,8 @@ export function PreferencesModal() {
         target: 'optional-features',
         label: t('prefs.features'),
         description: t('prefs.featuresDesc'),
-        keywords: 'features recursos modules módulos todo task tarefa git source control sidebar 功能 模块 待办',
+        keywords:
+          'features recursos modules módulos todo task tarefa git source control sidebar 功能 模块 待办',
       },
       {
         category: 'plugins',
