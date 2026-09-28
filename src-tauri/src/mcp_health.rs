@@ -126,9 +126,9 @@ fn cli_for(agent: McpAgent) -> Option<(&'static str, Vec<&'static str>)> {
         McpAgent::Claude => Some(("claude", vec!["mcp", "list"])),
         McpAgent::Codex => Some(("codex", vec!["mcp", "list", "--json"])),
         McpAgent::Opencode => Some(("opencode", vec!["mcp", "list"])),
-        // `agy` has no mcp subcommand at all, `cursor-agent mcp list` has no stable output
-        // contract to read a status out of, and Kimi only exposes `/mcp` inside its TUI — all
-        // three are config-only here.
+        // `agy mcp list` only lists the configured servers (no JSON, no connection status),
+        // `cursor-agent mcp list` has no stable output contract to read a status out of, and Kimi
+        // only exposes `/mcp` inside its TUI — all three are config-only here.
         McpAgent::Antigravity | McpAgent::Cursor | McpAgent::Kimi => None,
     }
 }
