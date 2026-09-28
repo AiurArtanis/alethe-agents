@@ -92,6 +92,8 @@ export const zhCN: Record<MessageKey, string> = {
   'agent.antigravity.desc': '谷歌反重力命令行工具',
   'agent.kiro.desc': 'AWS 代理 CLI',
   'agent.kimi.desc': 'Moonshot AI 编码命令行工具',
+  'agent.grok.desc': 'xAI Grok Build 编码智能体',
+  'agent.codewhale.desc': '开源编码智能体（支持任意模型）',
   /* ---- image input ---- */
   'image.placeholder': 'https://example.com/icon.png',
   'image.urlOrUpload': '使用 URL 或上传本地图片。',
