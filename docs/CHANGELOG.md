@@ -16,6 +16,18 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   default dark theme, and its card, backdrop and progress indicator follow the design system
   tokens used across the rest of the app.
 
+### Fixed
+
+- Agent and 9router install and uninstall dialogs can now be cancelled while an installer runs, so
+  one stuck on a prompt no longer locks the dialog and every other install until Alethe restarts.
+- npm installs now work on a fresh Windows, where the default PowerShell execution policy refused
+  to run the `npm.ps1` shipped with Node.js; the relaxed policy only applies to the installer's own
+  shell.
+- WinGet and Chocolatey installs no longer stop on a confirmation prompt the dialog could not
+  answer, such as WinGet's source agreement on its first run.
+- Installing Node.js through WinGet, Scoop or Chocolatey is no longer cut short as soon as `npm`
+  appears on disk; Alethe now waits for the package manager to finish.
+
 ## [1.7.0] — 2026-09-20
 
 The release where Alethe stops being one fixed app and becomes a platform. Features now load as
