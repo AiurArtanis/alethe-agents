@@ -15,6 +15,8 @@ export type AgentHookPayload = {
   tool_input?: Record<string, unknown>
   tool_response?: Record<string, unknown>
   tool_use_id?: string
+  /** UserPromptSubmit: what was submitted, including Claude's own task notifications. */
+  prompt?: string
   last_assistant_message?: string
   agent_transcript_path?: string
   /** Eventos de team (Fase 4). */
@@ -68,6 +70,30 @@ const SPAWNER_TOOLS = new Set(['Agent', 'Task'])
 
 function str(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null
+}
+
+const TASK_NOTIFICATION = /<task-notification>([\s\S]*?)<\/task-notification>/g
+const FINAL_TASK_STATUSES = new Set(['completed', 'failed', 'killed'])
+
+function notificationTag(block: string, name: string): string | null {
+  return str(block.match(new RegExp(`<${name}>([\\s\\S]*?)</${name}>`))?.[1]?.trim())
+}
+
+/**
+ * Background tasks a prompt reports as finished. Claude Code submits a `<task-notification>` block
+ * as a prompt of its own when a background task ends, whether it completed, failed or was killed.
+ * Only a prompt that is itself a notification counts: one quoting it among other text is a user's.
+ */
+function finishedBackgroundTasks(
+  prompt: string | undefined,
+): Array<{ id: string; summary: string | null }> {
+  if (!prompt?.trimStart().startsWith('<task-notification>')) return []
+  return [...prompt.matchAll(TASK_NOTIFICATION)].flatMap(([, block]) => {
+    const id = notificationTag(block, 'task-id')
+    const status = notificationTag(block, 'status')
+    if (!id || !status || !FINAL_TASK_STATUSES.has(status)) return []
+    return [{ id, summary: notificationTag(block, 'summary') }]
+  })
 }
 
 export function summarizeTool(toolName: string, input?: Record<string, unknown>): string {
@@ -131,6 +157,28 @@ export const useAgentCanvasStore = create<AgentCanvasState>((set, get) => ({
   ingest: (raw) => {
     const event = raw.hook_event_name
     set({ lastEventAt: Date.now() })
+
+    // The only signal a background shell that ends on its own ever sends: without it, the node
+    // stays running until the agent happens to stop the task itself (#239).
+    if (event === 'UserPromptSubmit') {
+      const finished = finishedBackgroundTasks(raw.prompt)
+      if (finished.length === 0) return
+      const plannerId = raw.plannerId ?? null
+      set((s) => ({
+        nodes: s.nodes.map((node) => {
+          if (node.kind !== 'background' || node.plannerId !== plannerId) return node
+          const task = finished.find((entry) => node.id === `background:${entry.id}`)
+          if (!task || node.status !== 'running') return node
+          return {
+            ...node,
+            status: 'done',
+            endedAt: Date.now(),
+            result: task.summary ?? node.result,
+          }
+        }),
+      }))
+      return
+    }
 
     if (event === 'SubagentStart') {
       const id = raw.agent_id
