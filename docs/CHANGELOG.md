@@ -127,7 +127,9 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 - A background command started by a Claude planner no longer stays running on the orchestration
   board after it finishes. The board only noticed a background task when the agent stopped it,
   so one that ended on its own kept its timer counting indefinitely; it now ends when Claude
-  reports the task as completed, failed or killed.
+  reports the task as completed, failed or killed. At the end of each of the planner's turns, any
+  background command or subagent Claude no longer lists as running is ended too, which also clears
+  a subagent that was interrupted before reporting that it stopped.
 
 ### Fixed
 

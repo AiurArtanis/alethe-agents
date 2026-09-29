@@ -17,6 +17,9 @@ export type AgentHookPayload = {
   tool_use_id?: string
   /** UserPromptSubmit: what was submitted, including Claude's own task notifications. */
   prompt?: string
+  /** Stop: the shells and subagents still running when the main agent's turn ends. */
+  background_tasks?: Array<{ id?: string; type?: string; status?: string }>
+  stop_hook_active?: boolean
   last_assistant_message?: string
   agent_transcript_path?: string
   /** Eventos de team (Fase 4). */
@@ -168,13 +171,43 @@ export const useAgentCanvasStore = create<AgentCanvasState>((set, get) => ({
         nodes: s.nodes.map((node) => {
           if (node.kind !== 'background' || node.plannerId !== plannerId) return node
           const task = finished.find((entry) => node.id === `background:${entry.id}`)
-          if (!task || node.status !== 'running') return node
+          if (!task) return node
+          // The end of the turn can close the shell a moment before its notification arrives.
+          if (node.status !== 'running') {
+            return node.result ? node : { ...node, result: task.summary ?? null }
+          }
           return {
             ...node,
             status: 'done',
             endedAt: Date.now(),
             result: task.summary ?? node.result,
           }
+        }),
+      }))
+      return
+    }
+
+    // The end of the main agent's turn lists what it still has running. A shell or subagent of
+    // this planner missing from that list has ended, even when its own stop event never came (a
+    // subagent interrupted mid-run). Teammates outlive a turn, and a CLI that sends no list says
+    // nothing about what ended, so both are left alone.
+    if (event === 'Stop') {
+      if (raw.agent_id || !Array.isArray(raw.background_tasks)) return
+      const running = new Set(raw.background_tasks.map((task) => task?.id))
+      const plannerId = raw.plannerId ?? null
+      const sourceAgent = raw.sourceAgent ?? 'claude'
+      set((s) => ({
+        nodes: s.nodes.map((node) => {
+          if (node.status !== 'running' || node.plannerId !== plannerId) return node
+          if (node.sourceAgent !== sourceAgent) return node
+          const taskId =
+            node.kind === 'background'
+              ? node.id.slice('background:'.length)
+              : node.kind === 'subagent'
+                ? node.id
+                : null
+          if (!taskId || running.has(taskId)) return node
+          return { ...node, status: 'done', endedAt: Date.now() }
         }),
       }))
       return

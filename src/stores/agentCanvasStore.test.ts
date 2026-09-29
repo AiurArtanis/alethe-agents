@@ -102,4 +102,79 @@ describe('background shells', () => {
 
     expect(backgroundNode('b3f3vq4c2')?.status).toBe('running')
   })
+
+  it('keeps the summary of a shell the end of the turn already closed', () => {
+    startBackgroundShell('b979hdyeo')
+    ingest({ hook_event_name: 'Stop', plannerId: 'pty-1', background_tasks: [] })
+
+    ingest({
+      hook_event_name: 'UserPromptSubmit',
+      plannerId: 'pty-1',
+      prompt: taskNotification('b979hdyeo', 'completed', 'exit code 0'),
+    })
+
+    expect(backgroundNode('b979hdyeo')).toMatchObject({ status: 'done', result: 'exit code 0' })
+  })
+})
+
+describe('end of turn reconciliation', () => {
+  const node = (id: string) => useAgentCanvasStore.getState().nodes.find((entry) => entry.id === id)
+
+  function startSubagent(agentId: string, plannerId = 'pty-1') {
+    ingest({
+      hook_event_name: 'SubagentStart',
+      plannerId,
+      agent_id: agentId,
+      agent_type: 'general-purpose',
+    })
+  }
+
+  // The `Stop` payload Claude Code sends at the end of the main agent's turn (#239).
+  function endTurn(
+    stillRunning: Array<{ id: string; type: string }> | undefined,
+    plannerId = 'pty-1',
+  ) {
+    ingest({
+      hook_event_name: 'Stop',
+      plannerId,
+      background_tasks: stillRunning?.map((task) => ({ ...task, status: 'running' })),
+    })
+  }
+
+  it('ends every worker of the planner that is no longer running when its turn ends', () => {
+    startBackgroundShell('finished-shell')
+    startBackgroundShell('b979hdyeo')
+    startSubagent('interrupted-subagent')
+    startSubagent('aabd7e32566606b35')
+    ingest({
+      hook_event_name: 'PreToolUse',
+      plannerId: 'pty-1',
+      tool_name: 'Agent',
+      tool_input: { name: 'reviewer', team_name: 'crew', prompt: 'review' },
+    })
+
+    endTurn([
+      { id: 'b979hdyeo', type: 'shell' },
+      { id: 'aabd7e32566606b35', type: 'subagent' },
+    ])
+
+    expect(backgroundNode('finished-shell')?.status).toBe('done')
+    expect(node('interrupted-subagent')?.status).toBe('done')
+    expect(node('interrupted-subagent')?.endedAt).toEqual(expect.any(Number))
+    expect(backgroundNode('b979hdyeo')?.status).toBe('running')
+    expect(node('aabd7e32566606b35')?.status).toBe('running')
+    // Teammates outlive a turn by design.
+    expect(node('teammate:reviewer')?.status).toBe('running')
+  })
+
+  it('leaves workers alone without a task list or when another planner ends its turn', () => {
+    startBackgroundShell('b979hdyeo')
+    startSubagent('a24fd0f1f6c372afb')
+
+    endTurn(undefined)
+    endTurn([], 'pty-2')
+
+    expect(backgroundNode('b979hdyeo')?.status).toBe('running')
+    expect(node('a24fd0f1f6c372afb')?.status).toBe('running')
+  })
 })
