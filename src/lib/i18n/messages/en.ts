@@ -637,6 +637,27 @@ export const en = {
   'aiMemory.notInstalledTitle': 'AI Memory is on, but ai-memory was not found',
   'aiMemory.notInstalledBody':
     'Install the ai-memory server so agents can share long-term memory. Agents will start normally without it.',
+  // ai-memory's sub-panel, under its switch in Features.
+  'aiMemory.panelCaptures':
+    'Every prompt and tool call from agents Alethe launches is recorded, as markdown in a git repository plus a search index — both on this machine, both readable without Alethe.',
+  'aiMemory.install': 'Install ai-memory',
+  'aiMemory.installing': 'Installing…',
+  'aiMemory.installedManaged': 'Installed by Alethe',
+  'aiMemory.installedExternal': 'Using the copy you installed',
+  'aiMemory.at': 'at {path}',
+  'aiMemory.missing': 'Not installed yet — install it and the agents can start using it.',
+  'aiMemory.unsupported':
+    'ai-memory publishes no build for this platform yet, so Alethe cannot install it here.',
+  'aiMemory.openRepo': 'Open the project',
+  'aiMemory.start': 'Start',
+  'aiMemory.stop': 'Stop',
+  'aiMemory.running': 'Answering on {endpoint}',
+  'aiMemory.stopped': 'Not running',
+  'aiMemory.portBusy':
+    'Something already answers on {endpoint} and Alethe did not start it — most likely your own copy. Alethe will leave it alone.',
+  'aiMemory.counts': '{pages} pages · {sessions} sessions · {observations} observations',
+  'aiMemory.installError': 'ai-memory could not be installed.',
+  'aiMemory.startError': 'ai-memory could not be started.',
 
   /* ---- global todo sidebar ---- */
   'todo.title': 'Todo',

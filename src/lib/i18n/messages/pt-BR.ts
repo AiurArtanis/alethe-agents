@@ -648,6 +648,27 @@ export const ptBR: Record<MessageKey, string> = {
   'aiMemory.notInstalledTitle': 'AI Memory está ligado, mas o ai-memory não foi encontrado',
   'aiMemory.notInstalledBody':
     'Instale o servidor ai-memory para os agentes compartilharem memória de longo prazo. Os agentes iniciam normalmente sem ele.',
+  // ai-memory's sub-panel, under its switch in Features.
+  'aiMemory.panelCaptures':
+    'Todo prompt e toda chamada de ferramenta dos agentes que o Alethe inicia são registrados, como markdown num repositório git mais um índice de busca — os dois nesta máquina, os dois legíveis sem o Alethe.',
+  'aiMemory.install': 'Instalar o ai-memory',
+  'aiMemory.installing': 'Instalando…',
+  'aiMemory.installedManaged': 'Instalado pelo Alethe',
+  'aiMemory.installedExternal': 'Usando a cópia que você instalou',
+  'aiMemory.at': 'em {path}',
+  'aiMemory.missing': 'Ainda não instalado — instale e os agentes já podem usar.',
+  'aiMemory.unsupported':
+    'O ai-memory ainda não publica build para esta plataforma, então o Alethe não consegue instalar aqui.',
+  'aiMemory.openRepo': 'Abrir o projeto',
+  'aiMemory.start': 'Iniciar',
+  'aiMemory.stop': 'Parar',
+  'aiMemory.running': 'Respondendo em {endpoint}',
+  'aiMemory.stopped': 'Parado',
+  'aiMemory.portBusy':
+    'Algo já responde em {endpoint} e não foi o Alethe que iniciou — provavelmente a sua própria cópia. O Alethe não vai mexer nela.',
+  'aiMemory.counts': '{pages} páginas · {sessions} sessões · {observations} observações',
+  'aiMemory.installError': 'Não foi possível instalar o ai-memory.',
+  'aiMemory.startError': 'Não foi possível iniciar o ai-memory.',
 
   /* ---- global todo sidebar ---- */
   'todo.title': 'Tarefas',

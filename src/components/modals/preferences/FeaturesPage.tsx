@@ -7,6 +7,7 @@ import { useUiStore } from '../../../stores/uiStore'
 import { FEATURE_ICONS } from '../../icons/featureIcons'
 import controls from '../controls.module.css'
 import styles from '../PreferencesModal.module.css'
+import { AiMemoryPanel } from './AiMemoryPanel'
 
 export function FeaturesPage() {
   const t = useT()
@@ -88,6 +89,11 @@ export function FeaturesPage() {
                       </span>
                     </label>
                   ) : null}
+                </div>
+              ) : null}
+              {feature.id === 'aiMemory' && enabled ? (
+                <div className={styles.featureSubPanel}>
+                  <AiMemoryPanel />
                 </div>
               ) : null}
             </Fragment>

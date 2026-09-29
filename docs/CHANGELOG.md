@@ -10,6 +10,15 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ## [Unreleased]
 
+### Added
+
+- **Turning on AI Memory now takes you to a working install.** The switch in Preferences → Features
+  grew a panel beneath it: whether ai-memory is there, a button to install it — the download checked
+  against the hash the project publishes — and whether it is running, with what it has stored. And
+  the agents Alethe launches now *record* to that memory as well as reading from it, so asking one
+  what happened last week has something to find. Turning the switch on is what starts any of it, and
+  what it records stays on your machine as markdown in a git repository you can read without Alethe.
+
 ## [1.7.0] — 2026-09-20
 
 The release where Alethe stops being one fixed app and becomes a platform. Features now load as
