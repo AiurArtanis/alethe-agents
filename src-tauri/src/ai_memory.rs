@@ -39,13 +39,16 @@ pub fn release_asset(os: &str, arch: &str) -> Option<ReleaseAsset> {
 }
 
 use std::net::{TcpStream, ToSocketAddrs};
+use std::path::PathBuf;
 use std::process::Command;
 use std::time::Duration;
 
 use serde::Serialize;
 use serde_json::Value;
+use tauri::AppHandle;
 
 use crate::git_control::{hide_console, repository_root};
+use crate::paths::profile_data_dir;
 
 const DEFAULT_COMMAND: &str = "ai-memory";
 
@@ -54,15 +57,48 @@ const DEFAULT_ENDPOINT: &str = "127.0.0.1:49374";
 
 const MCP_KEY: &str = "ai-memory";
 
+pub fn binary_name() -> &'static str {
+    if cfg!(windows) {
+        "ai-memory.exe"
+    } else {
+        "ai-memory"
+    }
+}
+
+pub fn install_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(profile_data_dir(app)?.join("tools").join("ai-memory"))
+}
+
+/// The copy Alethe installed, if it is there.
+pub fn managed_binary(app: &AppHandle) -> Option<String> {
+    let path = install_dir(app).ok()?.join(binary_name());
+    path.is_file().then(|| path.to_string_lossy().to_string())
+}
+
+/// Which binary to run: what the caller asked for, else the managed copy by full path, else the
+/// bare name for `PATH` to resolve.
+///
+/// The managed copy lives in the profile folder, so it has to travel as a path — the bare name
+/// would not resolve for the agents the config writers hand it to.
+pub fn pick_command(managed: Option<String>, explicit: Option<String>) -> String {
+    explicit
+        .or(managed)
+        .unwrap_or_else(|| DEFAULT_COMMAND.to_string())
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AiMemoryStatus {
     installed: bool,
-    /// Servidor respondendo no endpoint loopback.
+    /// The server answers on the loopback endpoint.
     running: bool,
     command: String,
     endpoint: String,
     version: Option<String>,
+    /// This is the copy Alethe installed, not one found on `PATH`.
+    managed: bool,
+    /// Upstream publishes a build for this machine. False on Windows ARM64.
+    supported: bool,
 }
 
 fn short_hash(input: &str) -> String {
@@ -85,8 +121,9 @@ fn mcp_server_spec(command: &str) -> Value {
 
 /// causa do health-check.
 #[tauri::command]
-pub fn ai_memory_detect(command: Option<String>) -> Result<AiMemoryStatus, String> {
-    let cmd = command.unwrap_or_else(|| DEFAULT_COMMAND.to_string());
+pub fn ai_memory_detect(app: AppHandle, command: Option<String>) -> Result<AiMemoryStatus, String> {
+    let managed = managed_binary(&app);
+    let cmd = pick_command(managed.clone(), command);
 
     let mut probe = Command::new(&cmd);
     probe.arg("--version");
@@ -104,6 +141,8 @@ pub fn ai_memory_detect(command: Option<String>) -> Result<AiMemoryStatus, Strin
     Ok(AiMemoryStatus {
         installed,
         running,
+        managed: managed.as_deref() == Some(cmd.as_str()),
+        supported: release_asset(std::env::consts::OS, std::env::consts::ARCH).is_some(),
         command: cmd,
         endpoint: DEFAULT_ENDPOINT.to_string(),
         version,
@@ -118,9 +157,13 @@ fn endpoint_alive(endpoint: &str) -> bool {
 }
 
 #[tauri::command]
-pub fn ai_memory_mcp_config_path(repo: String, command: Option<String>) -> Result<String, String> {
+pub fn ai_memory_mcp_config_path(
+    app: AppHandle,
+    repo: String,
+    command: Option<String>,
+) -> Result<String, String> {
     let root = repository_root(&repo)?;
-    let cmd = command.unwrap_or_else(|| DEFAULT_COMMAND.to_string());
+    let cmd = pick_command(managed_binary(&app), command);
     let config = serde_json::json!({
 
         "mcpServers": { (MCP_KEY): mcp_server_spec(&cmd) }
@@ -137,6 +180,7 @@ pub fn ai_memory_mcp_config_path(repo: String, command: Option<String>) -> Resul
 
 #[tauri::command]
 pub fn ai_memory_opencode_config_write(
+    app: AppHandle,
     repo: String,
     command: Option<String>,
 ) -> Result<(), String> {
@@ -144,7 +188,7 @@ pub fn ai_memory_opencode_config_write(
         .lock()
         .map_err(|_| "opencode.json lock poisoned".to_string())?;
     let root = repository_root(&repo)?;
-    let cmd = command.unwrap_or_else(|| DEFAULT_COMMAND.to_string());
+    let cmd = pick_command(managed_binary(&app), command);
     let path = root.join("opencode.json");
 
     let mut config: serde_json::Map<String, Value> = if path.is_file() {
@@ -182,9 +226,13 @@ pub fn ai_memory_opencode_config_write(
 }
 
 #[tauri::command]
-pub fn ai_memory_codex_config_write(repo: String, command: Option<String>) -> Result<(), String> {
+pub fn ai_memory_codex_config_write(
+    app: AppHandle,
+    repo: String,
+    command: Option<String>,
+) -> Result<(), String> {
     let root = repository_root(&repo)?;
-    let cmd = command.unwrap_or_else(|| DEFAULT_COMMAND.to_string());
+    let cmd = pick_command(managed_binary(&app), command);
     let codex_dir = root.join(".codex");
     std::fs::create_dir_all(&codex_dir).map_err(|e| format!("mkdir_failed:{e}"))?;
     let path = codex_dir.join("config.toml");
@@ -252,5 +300,28 @@ mod tests {
         // instead of offering a button that downloads a 404.
         assert!(release_asset("windows", "aarch64").is_none());
         assert!(release_asset("freebsd", "x86_64").is_none());
+    }
+
+    #[test]
+    fn an_explicit_command_always_wins() {
+        // The caller named a binary; nothing may second-guess that.
+        assert_eq!(
+            pick_command(Some("/profile/ai-memory".into()), Some("/usr/bin/ai-memory".into())),
+            "/usr/bin/ai-memory"
+        );
+        assert_eq!(pick_command(None, Some("/usr/bin/ai-memory".into())), "/usr/bin/ai-memory");
+    }
+
+    #[test]
+    fn the_copy_alethe_installed_travels_as_a_full_path() {
+        // It lives in the profile folder, which is not on PATH: handing the agent the bare name
+        // would give it a command it cannot resolve, and memory would silently never work.
+        assert_eq!(pick_command(Some("/profile/ai-memory".into()), None), "/profile/ai-memory");
+    }
+
+    #[test]
+    fn with_nothing_installed_the_bare_name_is_tried() {
+        // PATH may still hold one the person installed themselves.
+        assert_eq!(pick_command(None, None), DEFAULT_COMMAND);
     }
 }
