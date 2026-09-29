@@ -11,6 +11,12 @@
 pub const AI_MEMORY_VERSION: &str = "2.4.0";
 const RELEASES: &str = "https://github.com/akitaonrails/ai-memory/releases/download";
 
+/// Sized for what ai-memory actually is: a ~46 MB binary plus hook scripts, with room to grow.
+/// Generous next to a plugin's limits, and still nowhere near unbounded.
+pub const MAX_DOWNLOAD_BYTES: usize = 64 * 1024 * 1024;
+pub const MAX_UNPACKED_BYTES: u64 = 192 * 1024 * 1024;
+pub const MAX_ENTRIES: usize = 4_000;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ReleaseAsset {
     pub file: String,
@@ -273,6 +279,7 @@ pub fn ai_memory_codex_config_write(
     std::fs::write(&path, body).map_err(|e| format!("write_failed:{e}"))
 }
 
+use std::io::Read;
 use std::path::Path;
 
 use crate::plugin_package::safe_entry_path;
@@ -282,10 +289,28 @@ use crate::plugin_package::safe_entry_path;
 /// The same rule `extract_zip` applies, through the same `safe_entry_path`: an archive from the
 /// internet does not choose where its files land.
 pub fn extract_tar_gz(bytes: &[u8], destination: &Path) -> Result<(), String> {
+    extract_tar_gz_bounded(bytes, destination, MAX_ENTRIES, MAX_UNPACKED_BYTES)
+}
+
+/// Bounded variant of extract_tar_gz, with configurable limits for different callers.
+/// Counts actual bytes written (not header claims) and refuses when entry count or
+/// unpacked bytes exceed the limits.
+pub fn extract_tar_gz_bounded(
+    bytes: &[u8],
+    destination: &Path,
+    max_entries: usize,
+    max_bytes: u64,
+) -> Result<(), String> {
     let decoder = flate2::read::GzDecoder::new(bytes);
     let mut archive = tar::Archive::new(decoder);
     std::fs::create_dir_all(destination).map_err(|e| format!("mkdir_failed:{e}"))?;
+    let mut entry_count: usize = 0;
+    let mut written: u64 = 0;
     for entry in archive.entries().map_err(|e| format!("tar_read_failed:{e}"))? {
+        entry_count += 1;
+        if entry_count > max_entries {
+            return Err("tar_too_many_entries".to_string());
+        }
         let mut entry = entry.map_err(|e| format!("tar_read_failed:{e}"))?;
         let name = entry.path().map_err(|e| format!("tar_read_failed:{e}"))?;
         let target = destination.join(safe_entry_path(&name.to_string_lossy())?);
@@ -299,7 +324,15 @@ pub fn extract_tar_gz(bytes: &[u8], destination: &Path) -> Result<(), String> {
         if let Some(parent) = target.parent() {
             std::fs::create_dir_all(parent).map_err(|e| format!("mkdir_failed:{e}"))?;
         }
-        entry.unpack(&target).map_err(|e| format!("tar_unpack_failed:{e}"))?;
+        let mut body = Vec::new();
+        entry
+            .read_to_end(&mut body)
+            .map_err(|e| format!("tar_read_failed:{e}"))?;
+        written = written.saturating_add(body.len() as u64);
+        if written > max_bytes {
+            return Err("tar_too_large".to_string());
+        }
+        std::fs::write(&target, &body).map_err(|e| format!("write_failed:{e}"))?;
     }
     Ok(())
 }
@@ -440,8 +473,102 @@ mod tests {
         assert!(dir.join("ai-memory").is_file());
 
         let evil = create_evil_tar_gz();
-        assert!(extract_tar_gz(&evil, &dir).is_err(), "an entry leaving the directory is refused");
+        let err = extract_tar_gz(&evil, &dir).unwrap_err();
+        assert!(err.contains("escaping_entry"), "path check fired: {err}");
         assert!(!dir.parent().unwrap().join("escaped").exists());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_tarball_with_too_many_entries_is_refused() {
+        use std::io::Write;
+
+        fn tar_gz(count: usize) -> Vec<u8> {
+            let mut tar = tar::Builder::new(Vec::new());
+            for i in 0..count {
+                let name = format!("file{i}");
+                let mut header = tar::Header::new_gnu();
+                header.set_size(1);
+                header.set_mode(0o644);
+                header.set_cksum();
+                tar.append_data(&mut header, &name, &b"x"[..]).unwrap();
+            }
+            let raw = tar.into_inner().unwrap();
+            let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+            gz.write_all(&raw).unwrap();
+            gz.finish().unwrap()
+        }
+
+        let dir = std::env::temp_dir().join(format!("alethe-aimem-tar-many-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+
+        // Create an archive with 5 entries, but test with a limit of 3
+        let tarball = tar_gz(5);
+        let err = extract_tar_gz_bounded(&tarball, &dir, 3, MAX_UNPACKED_BYTES).unwrap_err();
+        assert_eq!(err, "tar_too_many_entries", "entry cap is enforced: {err}");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_tarball_exceeding_unpacked_bytes_is_refused() {
+        use std::io::Write;
+
+        fn tar_gz(entries: &[(&str, &[u8])]) -> Vec<u8> {
+            let mut tar = tar::Builder::new(Vec::new());
+            for (name, body) in entries {
+                let mut header = tar::Header::new_gnu();
+                header.set_size(body.len() as u64);
+                header.set_mode(0o644);
+                header.set_cksum();
+                tar.append_data(&mut header, name, *body).unwrap();
+            }
+            let raw = tar.into_inner().unwrap();
+            let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+            gz.write_all(&raw).unwrap();
+            gz.finish().unwrap()
+        }
+
+        let dir = std::env::temp_dir().join(format!("alethe-aimem-tar-size-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+
+        // Create an archive with 100 bytes of data, but test with a limit of 50 bytes
+        let tarball = tar_gz(&[("file1", &[0u8; 100])]);
+        let err = extract_tar_gz_bounded(&tarball, &dir, MAX_ENTRIES, 50).unwrap_err();
+        assert_eq!(err, "tar_too_large", "unpacked bytes cap is enforced: {err}");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_plugin_extraction_path_is_unchanged() {
+        // Verify that extract_zip still rejects archives exceeding the plugin cap,
+        // and that the plugin download limit is untouched.
+        use crate::plugin_package::{extract_zip, MAX_DOWNLOAD_BYTES as PLUGIN_MAX_DL, MAX_UNPACKED_BYTES as PLUGIN_MAX_UP, MAX_ENTRIES as PLUGIN_MAX_ENTRIES};
+
+        let dir = std::env::temp_dir().join(format!("alethe-plugin-cap-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+
+        // Create a zip that's over the plugin unpacked limit
+        let mut buffer = Vec::new();
+        {
+            let mut writer = zip::ZipWriter::new(std::io::Cursor::new(&mut buffer));
+            let options: zip::write::FileOptions = Default::default();
+            use std::io::Write;
+            writer.start_file("file.bin", options).unwrap();
+            // Write more than PLUGIN_MAX_UP bytes
+            writer.write_all(&vec![0u8; (PLUGIN_MAX_UP + 1) as usize]).unwrap();
+            writer.finish().unwrap();
+        }
+
+        let result = extract_zip(&buffer, &dir);
+        assert!(result.is_err(), "plugin cap still enforced");
+
+        // Verify the plugin constants are what we expect
+        assert_eq!(PLUGIN_MAX_DL, 8 * 1024 * 1024, "plugin download limit unchanged");
+        assert_eq!(PLUGIN_MAX_UP, 32 * 1024 * 1024, "plugin unpacked limit unchanged");
+        assert_eq!(PLUGIN_MAX_ENTRIES, 2_000, "plugin entry limit unchanged");
 
         let _ = std::fs::remove_dir_all(&dir);
     }
