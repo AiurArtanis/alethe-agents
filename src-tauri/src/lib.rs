@@ -3,6 +3,7 @@ mod agent_cost;
 mod agent_events;
 mod agent_library;
 mod ai_memory;
+mod ai_memory_hooks;
 mod antigravity_sessions;
 mod antigravity_usage;
 mod backup;

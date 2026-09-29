@@ -34,15 +34,23 @@ export function listenCodexAppServer(
 }
 
 /**
- * Caminho do settings.json de hooks gerado pro Claude Code (agent_events.rs).
+ * Path of the hooks settings.json generated for Claude Code (agent_events.rs).
  * `orchestrator: false` writes the session-tracking-only variant (SessionStart/UserPromptSubmit),
  * without the subagent and tool-call hooks the orchestrator canvas needs.
+ * `aiMemory` carries the live capture consent: when enabled, ai-memory's own hooks are merged into
+ * this same file rather than into the person's own settings.
  */
 export async function agentHooksSettingsPath(
   plannerId: string,
   orchestrator = true,
+  aiMemory: { enabled: boolean; port: number } | null = null,
 ): Promise<string> {
-  return invoke<string>('agent_hooks_settings_path', { plannerId, orchestrator })
+  return invoke<string>('agent_hooks_settings_path', {
+    plannerId,
+    orchestrator,
+    aiMemoryEnabled: aiMemory?.enabled ?? false,
+    aiMemoryPort: aiMemory?.port ?? null,
+  })
 }
 
 /**

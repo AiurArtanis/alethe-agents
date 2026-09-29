@@ -409,6 +409,44 @@ pub(crate) fn base_command(cmd: &str, data_dir: Option<&str>) -> Command {
     command
 }
 
+/// The `hooks` object `install-hooks` prints for claude-code.
+///
+/// Never `--apply`: Alethe writes these into its own per-terminal file, not into the person's
+/// settings.
+pub fn hook_config(app: &AppHandle, port: u16) -> Result<Value, String> {
+    let (cmd, data_dir) = command_for(app, None);
+    let output = base_command(&cmd, data_dir.as_deref())
+        .arg("install-hooks")
+        .arg("--agent")
+        .arg("claude-code")
+        .arg("--server-url")
+        .arg(format!("http://127.0.0.1:{port}"))
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .output()
+        .map_err(|e| format!("ai_memory_install_hooks:{e}"))?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    // The command prints comment lines before the JSON body.
+    let start = stdout.find('{').ok_or_else(|| "ai_memory_hooks_no_json".to_string())?;
+    let parsed: Value = serde_json::from_str(stdout[start..].trim())
+        .map_err(|e| format!("ai_memory_hooks_bad_json:{e}"))?;
+    parsed
+        .get("hooks")
+        .cloned()
+        .ok_or_else(|| "ai_memory_hooks_missing_key".to_string())
+}
+
+/// The hooks to merge, or `None` when consent is off or the binary is not there.
+///
+/// A failure here is not worth failing a terminal launch over: no hooks means no capture, and the
+/// panel is where a person finds out why.
+pub(crate) fn claude_hooks(app: &AppHandle, enabled: bool, port: u16) -> Option<Value> {
+    if !enabled {
+        return None;
+    }
+    hook_config(app, port).ok()
+}
+
 /// Runs after extraction, so a failure partway through — a cap tripped, a corrupt archive — leaves
 /// nothing behind either. Without this, only the "binary missing" path cleaned up, and a plain
 /// extraction error would leave whatever was written so far sitting in `dir`; harmless in practice,
