@@ -43,11 +43,13 @@ describe('Router9InstallModal', () => {
     const onClose = vi.fn()
     render(<Router9InstallModal action="install" open onClose={onClose} />)
 
+    // Opening the modal already resets once; only the reset done by Cancel counts.
+    router9.reset.mockClear()
     const cancel = screen.getByRole('button', { name: 'Cancel' })
     expect(cancel).toBeEnabled()
     fireEvent.click(cancel)
 
-    expect(router9.reset).toHaveBeenCalled()
+    expect(router9.reset).toHaveBeenCalledTimes(1)
     expect(onClose).toHaveBeenCalled()
   })
 })

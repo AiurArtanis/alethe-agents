@@ -1,15 +1,19 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const install = vi.hoisted(() => ({ reset: vi.fn(), status: 'running' }))
+const install = vi.hoisted(() => ({ reset: vi.fn() }))
 
 vi.mock('../../hooks/useAgentInstall', () => ({
-  useAgentInstall: () => ({
-    status: install.status,
-    log: 'Do you agree to all the source agreements terms? [Y] Yes [N] No:',
-    install: vi.fn(),
-    reset: install.reset,
-  }),
+  // The Node toolchain run is idle, so only the agent's own run can answer the Cancel click.
+  useAgentInstall: (_agent: string, lockKey?: string) =>
+    lockKey === 'node-toolchain'
+      ? { status: 'idle', log: '', install: vi.fn(), reset: vi.fn() }
+      : {
+          status: 'running',
+          log: 'Do you agree to all the source agreements terms? [Y] Yes [N] No:',
+          install: vi.fn(),
+          reset: install.reset,
+        },
   useAgentOperationBusy: () => 'copilot',
 }))
 
@@ -39,11 +43,13 @@ describe('AgentInstallModal', () => {
     const onClose = vi.fn()
     render(<AgentInstallModal agent="copilot" label="Copilot" open onClose={onClose} />)
 
+    // Opening the modal already resets once; only the reset done by Cancel counts.
+    install.reset.mockClear()
     const cancel = screen.getByRole('button', { name: 'Cancel' })
     expect(cancel).toBeEnabled()
     fireEvent.click(cancel)
 
-    expect(install.reset).toHaveBeenCalled()
+    expect(install.reset).toHaveBeenCalledTimes(1)
     expect(onClose).toHaveBeenCalled()
   })
 })
