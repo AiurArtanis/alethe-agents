@@ -124,6 +124,9 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 - Opening a pull request now uses the system browser instead of creating an unexpected app surface.
 - The Features preferences page now matches the grouped, searchable feature selector used during
   onboarding, with consistent Browser and Playwright controls.
+- Terminal links to files in your home folder now open. A `~\` path was cut down to a path inside
+  the terminal's folder, and neither `~/` nor `~\` was expanded to the home folder, so opening such
+  a link in its folder, in VS Code, in a pane or in a preview reported that the path did not exist.
 
 ### Fixed
 
