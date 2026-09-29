@@ -12,6 +12,11 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Added
 
+- **Delegated workers can run on a chosen model, effort and read-only sandbox.** A planner can now
+  pass `model`, `effort` and `readOnly` when it delegates, so work such as an independent review on
+  another model runs as a worker on the orchestration board instead of outside Alethe. The worker
+  card shows the model, the effort and a read-only mark, and a worker picked up again keeps them.
+  `effort` and `readOnly` apply to Codex workers; asking for them on a Claude worker is refused.
 - **Grok Build and Codewhale are now native agents.** Grok Build (xAI, `grok` CLI) and
   Codewhale (`codewhale` CLI) appear in every agent picker with their own icons and accent
   colors. Install entries cover the official Grok PowerShell/npm installers and
