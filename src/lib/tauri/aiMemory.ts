@@ -19,16 +19,16 @@ export async function aiMemoryDetect(command?: string): Promise<AiMemoryStatus> 
   return invoke<AiMemoryStatus>('ai_memory_detect', { command })
 }
 
-export async function aiMemoryMcpConfigPath(repo: string, command?: string): Promise<string> {
-  return invoke<string>('ai_memory_mcp_config_path', { repo, command })
+// These three no longer take a `command`: they register ai-memory's MCP server as a loopback HTTP
+// endpoint, which needs a port, not a binary to spawn — see `mcp_server_spec` in `ai_memory.rs`.
+export async function aiMemoryMcpConfigPath(repo: string): Promise<string> {
+  return invoke<string>('ai_memory_mcp_config_path', { repo })
 }
 
-                                                                                                                                  
-export async function aiMemoryOpenCodeConfigWrite(repo: string, command?: string): Promise<void> {
-  await invoke('ai_memory_opencode_config_write', { repo, command })
+export async function aiMemoryOpenCodeConfigWrite(repo: string): Promise<void> {
+  await invoke('ai_memory_opencode_config_write', { repo })
 }
 
-                                                                                                                                                               
-export async function aiMemoryCodexConfigWrite(repo: string, command?: string): Promise<void> {
-  await invoke('ai_memory_codex_config_write', { repo, command })
+export async function aiMemoryCodexConfigWrite(repo: string): Promise<void> {
+  await invoke('ai_memory_codex_config_write', { repo })
 }

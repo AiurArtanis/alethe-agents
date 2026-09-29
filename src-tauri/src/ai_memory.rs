@@ -122,18 +122,44 @@ fn short_hash(input: &str) -> String {
     format!("{:x}", hasher.finish())
 }
 
-/// interface oficial for pinada (stdio via `ai-memory mcp` vs. transporte
-/// HTTP/SSE no endpoint loopback). Por ora usa o bridge stdio, coerente com o
+/// The loopback URL an agent's MCP client should reach ai-memory's server on.
+fn mcp_url(port: u16) -> String {
+    format!("http://127.0.0.1:{port}/mcp")
+}
 
-/// o root como argumento.
-fn mcp_server_spec(command: &str) -> Value {
+/// Claude's MCP registration for ai-memory: the loopback HTTP endpoint `serve` binds, not a `mcp`
+/// subcommand — there isn't one. Upstream's CLI (`crates/ai-memory-cli/src/cli.rs`) offers `serve`,
+/// `install-mcp` and `mcp-bridge`; the only other `Mcp` token is a value of `uninstall --only`. This
+/// mirrors what `install-mcp` itself recommends, and only answers once `ai-memory serve` is actually
+/// running — before that, an agent reaching for it sees a connection refused, the same as any other
+/// MCP server pointed at a port nothing is listening on yet.
+fn mcp_server_spec(port: u16) -> Value {
     serde_json::json!({
-        "command": command,
-        "args": [ "mcp" ]
+        "type": "http",
+        "url": mcp_url(port),
     })
 }
 
-/// causa do health-check.
+/// OpenCode's shape for the same HTTP registration: a "remote" server entry, not a spawned command.
+fn opencode_mcp_entry(port: u16) -> Value {
+    serde_json::json!({
+        "type": "remote",
+        "url": mcp_url(port),
+        "enabled": true,
+    })
+}
+
+/// Codex's `[mcp_servers.<name>]` block for the same HTTP registration: a bare `url`, no `command`
+/// or `args` to spawn.
+fn codex_mcp_block(port: u16) -> String {
+    format!("[mcp_servers.{MCP_KEY}]\nurl = \"{}\"\n", mcp_url(port))
+}
+
+/// Detects whether ai-memory is installed and reachable, and what kind of copy it is.
+///
+/// `installed` comes from running `--version`; `running` from the loopback health check below, so a
+/// copy that is installed but not started yet is reported as exactly that, not as a detection
+/// failure.
 #[tauri::command]
 pub fn ai_memory_detect(
     app: AppHandle,
@@ -183,16 +209,10 @@ fn endpoint_alive(endpoint: &str) -> bool {
 }
 
 #[tauri::command]
-pub fn ai_memory_mcp_config_path(
-    app: AppHandle,
-    repo: String,
-    command: Option<String>,
-) -> Result<String, String> {
+pub fn ai_memory_mcp_config_path(repo: String) -> Result<String, String> {
     let root = repository_root(&repo)?;
-    let cmd = pick_command(managed_binary(&app), command);
     let config = serde_json::json!({
-
-        "mcpServers": { (MCP_KEY): mcp_server_spec(&cmd) }
+        "mcpServers": { (MCP_KEY): mcp_server_spec(DEFAULT_PORT) }
     });
     let file_name = format!(
         "alethe-ai-memory-mcp-{}.json",
@@ -205,16 +225,11 @@ pub fn ai_memory_mcp_config_path(
 }
 
 #[tauri::command]
-pub fn ai_memory_opencode_config_write(
-    app: AppHandle,
-    repo: String,
-    command: Option<String>,
-) -> Result<(), String> {
+pub fn ai_memory_opencode_config_write(repo: String) -> Result<(), String> {
     let _guard = crate::provider_common::opencode_json_lock()
         .lock()
         .map_err(|_| "opencode.json lock poisoned".to_string())?;
     let root = repository_root(&repo)?;
-    let cmd = pick_command(managed_binary(&app), command);
     let path = root.join("opencode.json");
 
     let mut config: serde_json::Map<String, Value> = if path.is_file() {
@@ -237,14 +252,7 @@ pub fn ai_memory_opencode_config_write(
         .entry("mcp".to_string())
         .or_insert_with(|| Value::Object(serde_json::Map::new()));
     if let Value::Object(mcp_map) = mcp {
-        mcp_map.insert(
-            MCP_KEY.to_string(),
-            serde_json::json!({
-                "type": "local",
-                "command": [cmd, "mcp"],
-                "enabled": true,
-            }),
-        );
+        mcp_map.insert(MCP_KEY.to_string(), opencode_mcp_entry(DEFAULT_PORT));
     }
 
     let body = serde_json::to_string_pretty(&Value::Object(config)).map_err(|e| e.to_string())?;
@@ -252,13 +260,8 @@ pub fn ai_memory_opencode_config_write(
 }
 
 #[tauri::command]
-pub fn ai_memory_codex_config_write(
-    app: AppHandle,
-    repo: String,
-    command: Option<String>,
-) -> Result<(), String> {
+pub fn ai_memory_codex_config_write(repo: String) -> Result<(), String> {
     let root = repository_root(&repo)?;
-    let cmd = pick_command(managed_binary(&app), command);
     let codex_dir = root.join(".codex");
     std::fs::create_dir_all(&codex_dir).map_err(|e| format!("mkdir_failed:{e}"))?;
     let path = codex_dir.join("config.toml");
@@ -269,12 +272,17 @@ pub fn ai_memory_codex_config_write(
         String::new()
     };
 
-    let header = format!("[mcp_servers.\"{MCP_KEY}\"]");
+    let header = format!("[mcp_servers.{MCP_KEY}]");
+    // The pre-fix writer quoted the key (`[mcp_servers."ai-memory"]`), which is unnecessary — a bare
+    // `ai-memory` is a valid TOML key — but still has to be recognised and stripped here too, so an
+    // upgrade replaces the old `command`/`args` section instead of leaving it behind next to the new
+    // `url` one.
+    let legacy_header = format!("[mcp_servers.\"{MCP_KEY}\"]");
     let mut kept_lines: Vec<&str> = Vec::new();
     let mut skipping = false;
     for line in existing.lines() {
         let trimmed = line.trim();
-        if trimmed == header {
+        if trimmed == header || trimmed == legacy_header {
             skipping = true;
             continue;
         }
@@ -290,11 +298,8 @@ pub fn ai_memory_codex_config_write(
         body.push('\n');
     }
 
-    let toml_escape = |s: &str| s.replace('\\', "\\\\").replace('"', "\\\"");
-    let cmd_toml = toml_escape(&cmd);
-    body.push_str(&format!(
-        "\n{header}\ncommand = \"{cmd_toml}\"\nargs = [\"mcp\"]\n",
-    ));
+    body.push('\n');
+    body.push_str(&codex_mcp_block(DEFAULT_PORT));
 
     std::fs::write(&path, body).map_err(|e| format!("write_failed:{e}"))
 }
@@ -400,6 +405,14 @@ pub fn parse_counts(stdout: &str) -> Counts {
     counts
 }
 
+/// The `ai-memory serve` child Alethe started, if any.
+///
+/// This is process-global — one child for the whole app — while the data directory it was launched
+/// with (`managed_data_dir`) is per-profile. Switching profiles does not restart Alethe
+/// (`ProfilesModal.tsx`'s `switchProfile` only re-hydrates the store from the new profile's
+/// `projects.json`), so a server started under profile A keeps running, and keeps holding its port,
+/// after a switch to profile B. Not fixed here — flagged so the next change to profile switching
+/// accounts for it.
 #[derive(Default)]
 pub struct AiMemoryProcess(pub Mutex<Option<Child>>);
 
@@ -433,16 +446,18 @@ pub(crate) fn base_command(cmd: &str, data_dir: Option<&str>) -> Command {
 /// One 3-second budget for waiting on `install-hooks` to answer.
 const HOOK_CONFIG_TIMEOUT: Duration = Duration::from_secs(3);
 
-/// `hook_config`'s answer per port. It depends only on the binary and the port it is told to report
-/// to — never on anything that changes between terminal launches — so it is safe to compute once and
-/// reuse rather than shelling out to the CLI again on every capture-enabled launch.
+/// `hook_config`'s answer per (command, data directory, port) — everything it actually depends on.
+/// None of the three changes between terminal launches on their own, so it is safe to compute once
+/// and reuse rather than shelling out to the CLI again on every capture-enabled launch.
 ///
-/// The key is the port, not the binary: an entry does not know which copy of `ai-memory` it was
-/// generated from, so it goes stale the moment `pick_command` starts resolving to a different one.
-/// Nothing here catches that automatically — `invalidate_hook_config_cache` has to be called whenever
-/// the installed binary changes.
-fn hook_config_cache() -> &'static Mutex<HashMap<u16, Value>> {
-    static CACHE: OnceLock<Mutex<HashMap<u16, Value>>> = OnceLock::new();
+/// Keying by port alone used to conflate two profiles that both use the default port: the resolved
+/// command and `managed_data_dir` are per-profile, but switching profiles does not restart Alethe, so
+/// a cache keyed only by port would keep handing a newly-opened terminal in profile B the hooks
+/// generated for profile A — silently recording captures into the wrong store.
+type HookConfigKey = (String, Option<String>, u16);
+
+fn hook_config_cache() -> &'static Mutex<HashMap<HookConfigKey, Value>> {
+    static CACHE: OnceLock<Mutex<HashMap<HookConfigKey, Value>>> = OnceLock::new();
     CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
@@ -450,8 +465,8 @@ fn hook_config_cache() -> &'static Mutex<HashMap<u16, Value>> {
 ///
 /// An install changes which binary `pick_command` resolves to, and its data directory with it, so a
 /// cached entry generated from the old copy would keep sending capture to a store the panel is no
-/// longer reading. Clears the whole map rather than one port: the binary changed, so every entry is
-/// stale regardless of which port it was keyed by.
+/// longer reading. Clears the whole map rather than one entry: the binary changed, so every entry is
+/// stale regardless of which key it was stored under.
 pub(crate) fn invalidate_hook_config_cache() {
     if let Ok(mut cache) = hook_config_cache().lock() {
         cache.clear();
@@ -465,12 +480,13 @@ pub(crate) fn invalidate_hook_config_cache() {
 /// terminal launch, so the wait happens on its own thread with a fixed budget; the child is killed
 /// either way once that budget is up.
 pub fn hook_config(app: &AppHandle, port: u16) -> Result<Value, String> {
-    if let Some(cached) = hook_config_cache().lock().ok().and_then(|cache| cache.get(&port).cloned())
+    let (cmd, data_dir) = command_for(app, None);
+    let key: HookConfigKey = (cmd.clone(), data_dir.clone(), port);
+    if let Some(cached) = hook_config_cache().lock().ok().and_then(|cache| cache.get(&key).cloned())
     {
         return Ok(cached);
     }
 
-    let (cmd, data_dir) = command_for(app, None);
     let mut child = base_command(&cmd, data_dir.as_deref())
         .arg("install-hooks")
         .arg("--agent")
@@ -510,7 +526,7 @@ pub fn hook_config(app: &AppHandle, port: u16) -> Result<Value, String> {
         .ok_or_else(|| "ai_memory_hooks_missing_key".to_string())?;
 
     if let Ok(mut cache) = hook_config_cache().lock() {
-        cache.insert(port, hooks.clone());
+        cache.insert(key, hooks.clone());
     }
     Ok(hooks)
 }
@@ -583,8 +599,14 @@ pub async fn ai_memory_install(app: AppHandle) -> Result<String, String> {
     Ok(binary.to_string_lossy().to_string())
 }
 
+/// Reports the store's counts, or `None` when ai-memory could not answer.
+///
+/// `status` fetches `/admin/status` over HTTP: with the server unreachable it writes to stderr and
+/// exits non-zero with empty stdout, which `parse_counts` cannot tell apart from a real, empty store.
+/// The exit status is the only signal that distinguishes them, so it has to be checked here rather
+/// than left for the parser — an unreachable server must read as "could not ask", not as zero.
 #[tauri::command]
-pub fn ai_memory_counts(app: AppHandle, command: Option<String>) -> Result<Counts, String> {
+pub fn ai_memory_counts(app: AppHandle, command: Option<String>) -> Result<Option<Counts>, String> {
     let (cmd, data_dir) = command_for(&app, command);
     let output = base_command(&cmd, data_dir.as_deref())
         .arg("status")
@@ -592,7 +614,10 @@ pub fn ai_memory_counts(app: AppHandle, command: Option<String>) -> Result<Count
         .stderr(Stdio::null())
         .output()
         .map_err(|e| format!("ai_memory_status:{e}"))?;
-    Ok(parse_counts(&String::from_utf8_lossy(&output.stdout)))
+    if !output.status.success() {
+        return Ok(None);
+    }
+    Ok(Some(parse_counts(&String::from_utf8_lossy(&output.stdout))))
 }
 
 #[tauri::command]
@@ -653,39 +678,89 @@ mod tests {
 
     // `hook_config` itself needs a real `AppHandle` (no mock-app pattern exists in this codebase),
     // so the process-spawning and timeout parts of it are verified by reading, not by a test here.
-    // The cache it consults, however, is reachable on its own. Both properties are asserted in one
-    // test, not two: `hook_config_cache()` is a single process-wide static, and cargo runs tests in
-    // parallel by default, so a separate `invalidate_hook_config_cache` test clearing the whole map
-    // could race a concurrent test's insert-then-read on a different port. One test means no
+    // The cache it consults, however, is reachable on its own. All its properties are asserted in one
+    // test, not several: `hook_config_cache()` is a single process-wide static, and cargo runs tests
+    // in parallel by default, so a separate `invalidate_hook_config_cache` test clearing the whole map
+    // could race a concurrent test's insert-then-read on a different key. One test means no
     // interleaving is possible.
     #[test]
-    fn the_hook_config_cache_persists_until_an_install_invalidates_it() {
-        let port = 65001;
-        assert!(hook_config_cache().lock().unwrap().get(&port).is_none());
+    fn the_hook_config_cache_is_keyed_by_command_and_data_dir_and_persists_until_an_install_invalidates_it(
+    ) {
+        let profile_a: HookConfigKey =
+            ("/profile-a/ai-memory".into(), Some("/profile-a/ai-memory-data".into()), 65001);
+        // Same port as `profile_a`, different command and data directory: a cache keyed by port
+        // alone would collide with the entry below and hand profile B's terminals profile A's hooks.
+        let profile_b_same_port: HookConfigKey =
+            ("/profile-b/ai-memory".into(), Some("/profile-b/ai-memory-data".into()), 65001);
+
+        assert!(hook_config_cache().lock().unwrap().get(&profile_a).is_none());
 
         hook_config_cache()
             .lock()
             .unwrap()
-            .insert(port, serde_json::json!({ "Stop": [] }));
+            .insert(profile_a.clone(), serde_json::json!({ "Stop": [] }));
+        hook_config_cache()
+            .lock()
+            .unwrap()
+            .insert(profile_b_same_port.clone(), serde_json::json!({ "Stop": ["b"] }));
 
-        // A fresh call to the accessor still sees the earlier insert: it is the same static map.
+        // A fresh call to the accessor still sees both inserts: it is the same static map, and the
+        // two profiles do not collide despite sharing a port.
         assert_eq!(
-            hook_config_cache().lock().unwrap().get(&port).cloned(),
+            hook_config_cache().lock().unwrap().get(&profile_a).cloned(),
             Some(serde_json::json!({ "Stop": [] })),
         );
+        assert_eq!(
+            hook_config_cache().lock().unwrap().get(&profile_b_same_port).cloned(),
+            Some(serde_json::json!({ "Stop": ["b"] })),
+        );
 
-        // A real install calls this once the new binary is confirmed in place. The entry keyed by
-        // this port must not survive it: it was generated from whichever binary `pick_command`
-        // resolved to before the install, which may no longer be the one it resolves to now.
+        // A real install calls this once the new binary is confirmed in place. Neither entry must
+        // survive it: each was generated from whichever binary `pick_command` resolved to before the
+        // install, which may no longer be the one it resolves to now.
         invalidate_hook_config_cache();
         assert!(
-            hook_config_cache().lock().unwrap().get(&port).is_none(),
+            hook_config_cache().lock().unwrap().get(&profile_a).is_none(),
+            "the entry must not survive an install",
+        );
+        assert!(
+            hook_config_cache().lock().unwrap().get(&profile_b_same_port).is_none(),
             "the entry must not survive an install",
         );
         assert!(
             hook_config_cache().lock().unwrap().is_empty(),
-            "the whole map is cleared, not just this port",
+            "the whole map is cleared, not just these two entries",
         );
+    }
+
+    #[test]
+    fn claude_gets_the_http_endpoint_not_a_nonexistent_mcp_subcommand() {
+        let spec = mcp_server_spec(49374);
+        assert_eq!(spec["type"], "http");
+        assert_eq!(spec["url"], "http://127.0.0.1:49374/mcp");
+        assert!(
+            spec.get("args").is_none(),
+            "ai-memory has no `mcp` subcommand to pass args to: {spec}"
+        );
+        assert!(spec.get("command").is_none(), "{spec}");
+    }
+
+    #[test]
+    fn opencode_gets_a_remote_url_entry_not_a_command_array() {
+        let entry = opencode_mcp_entry(49374);
+        assert_eq!(entry["type"], "remote");
+        assert_eq!(entry["url"], "http://127.0.0.1:49374/mcp");
+        assert_eq!(entry["enabled"], true);
+        assert!(entry.get("command").is_none(), "{entry}");
+    }
+
+    #[test]
+    fn codex_gets_a_bare_url_under_its_own_unquoted_table_header() {
+        let block = codex_mcp_block(49374);
+        assert!(block.contains("[mcp_servers.ai-memory]"), "{block}");
+        assert!(block.contains("url = \"http://127.0.0.1:49374/mcp\""), "{block}");
+        assert!(!block.contains("command"), "{block}");
+        assert!(!block.contains("args"), "{block}");
     }
 
     #[test]
