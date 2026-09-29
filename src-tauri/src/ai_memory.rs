@@ -58,7 +58,7 @@ use crate::paths::profile_data_dir;
 
 const DEFAULT_COMMAND: &str = "ai-memory";
 
-/// health-check de "running".
+/// Used for the "is it running" health-check.
 const DEFAULT_ENDPOINT: &str = "127.0.0.1:49374";
 
 const MCP_KEY: &str = "ai-memory";
@@ -409,6 +409,17 @@ pub(crate) fn base_command(cmd: &str, data_dir: Option<&str>) -> Command {
     command
 }
 
+/// Runs after extraction, so a failure partway through — a cap tripped, a corrupt archive — leaves
+/// nothing behind either. Without this, only the "binary missing" path cleaned up, and a plain
+/// extraction error would leave whatever was written so far sitting in `dir`; harmless in practice,
+/// since the next install removes `dir` first, but no failure path should rely on the next one.
+fn cleanup_on_extract_failure(dir: &Path, result: Result<(), String>) -> Result<(), String> {
+    if result.is_err() {
+        let _ = std::fs::remove_dir_all(dir);
+    }
+    result
+}
+
 /// Downloads the asset for this platform, checks it against the hash the release publishes, and
 /// unpacks it into the profile folder. Returns the path to the binary.
 #[tauri::command]
@@ -427,11 +438,12 @@ pub async fn ai_memory_install(app: AppHandle) -> Result<String, String> {
 
     let dir = install_dir(&app)?;
     let _ = std::fs::remove_dir_all(&dir);
-    if asset.file.ends_with(".zip") {
-        extract_zip_bounded(&bytes, &dir, MAX_ENTRIES, MAX_UNPACKED_BYTES)?;
+    let extraction = if asset.file.ends_with(".zip") {
+        extract_zip_bounded(&bytes, &dir, MAX_ENTRIES, MAX_UNPACKED_BYTES)
     } else {
-        extract_tar_gz(&bytes, &dir)?;
-    }
+        extract_tar_gz(&bytes, &dir)
+    };
+    cleanup_on_extract_failure(&dir, extraction)?;
 
     let binary = dir.join(binary_name());
     if !binary.is_file() {
@@ -497,13 +509,20 @@ pub fn ai_memory_start(
     Ok(())
 }
 
+/// Kills the child Alethe started, if there is one. Shared by the command and by app exit, so
+/// quitting never leaves a server holding the port.
+pub fn stop_managed(state: &AiMemoryProcess) {
+    if let Ok(mut guard) = state.0.lock() {
+        if let Some(mut child) = guard.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
+
 #[tauri::command]
 pub fn ai_memory_stop(state: tauri::State<'_, AiMemoryProcess>) -> Result<(), String> {
-    let mut guard = state.0.lock().map_err(|_| "ai_memory_lock".to_string())?;
-    if let Some(mut child) = guard.take() {
-        let _ = child.kill();
-        let _ = child.wait();
-    }
+    stop_managed(state.inner());
     Ok(())
 }
 
@@ -773,5 +792,40 @@ mod tests {
         // the panel show an error for a healthy, empty service.
         let counts = parse_counts("ai-memory 2.4.0 (server)\n");
         assert_eq!((counts.pages, counts.sessions, counts.observations), (0, 0, 0));
+    }
+
+    #[test]
+    fn a_failed_extraction_leaves_nothing_behind() {
+        use std::io::Write;
+
+        fn tar_gz(count: usize) -> Vec<u8> {
+            let mut tar = tar::Builder::new(Vec::new());
+            for i in 0..count {
+                let name = format!("file{i}");
+                let mut header = tar::Header::new_gnu();
+                header.set_size(1);
+                header.set_mode(0o644);
+                header.set_cksum();
+                tar.append_data(&mut header, &name, &b"x"[..]).unwrap();
+            }
+            let raw = tar.into_inner().unwrap();
+            let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+            gz.write_all(&raw).unwrap();
+            gz.finish().unwrap()
+        }
+
+        let dir = std::env::temp_dir().join(format!("alethe-aimem-install-cleanup-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+
+        // 5 entries against a cap of 3: the entry-count check trips partway through, after the
+        // destination directory (and possibly some of its entries) already exist on disk.
+        let tarball = tar_gz(5);
+        let extraction = extract_tar_gz_bounded(&tarball, &dir, 3, MAX_UNPACKED_BYTES);
+        assert!(extraction.is_err(), "the cap should have tripped");
+        assert!(dir.exists(), "the failed extraction itself still leaves the partial dir behind");
+
+        let outcome = cleanup_on_extract_failure(&dir, extraction);
+        assert!(outcome.is_err(), "the error is still propagated, not swallowed");
+        assert!(!dir.exists(), "install's cleanup removes what the failed extraction left behind");
     }
 }

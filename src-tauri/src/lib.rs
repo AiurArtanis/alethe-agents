@@ -570,6 +570,7 @@ pub fn run() {
                     &_app_handle.state::<browser_session::BrowserSessionState>(),
                 );
                 router9::stop_managed(&_app_handle.state::<router9::Router9Process>());
+                ai_memory::stop_managed(&_app_handle.state::<ai_memory::AiMemoryProcess>());
             }
 
             if let tauri::RunEvent::Exit = event {
