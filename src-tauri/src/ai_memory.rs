@@ -1,5 +1,12 @@
-//! ai-memory as a service Alethe manages: the copy it installs, the one it finds, and the child it
-//! runs. Shaped after `router9.rs`, which does the same job for 9router.
+//! ai-memory: long-term memory for the agents Alethe launches.
+//!
+//! Two halves. The older one answers queries: `ai_memory_detect` finds the binary and health-checks
+//! its loopback endpoint, and the three config writers register its MCP server per agent — Claude
+//! through an ephemeral `--mcp-config` so nothing is left pointing at a dead endpoint, Codex and
+//! OpenCode through config files in the repository. `useXtermSession` calls them at launch.
+//!
+//! The newer one manages the service itself — which release to fetch for this machine, and the
+//! `serve` child — shaped after `router9.rs`, which does the same job for 9router.
 
 pub const AI_MEMORY_VERSION: &str = "2.4.0";
 const RELEASES: &str = "https://github.com/akitaonrails/ai-memory/releases/download";
