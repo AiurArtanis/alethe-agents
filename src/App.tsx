@@ -53,6 +53,7 @@ import { AsciiEffect } from './components/ui/ascii-effect'
 import { WorkspaceView } from './components/WorkspaceView'
 import { useAgentBrowserOffers } from './hooks/useAgentBrowserOffers'
 import { useAgentHookBridge } from './hooks/useAgentHookBridge'
+import { useAiMemoryAutoStart } from './hooks/useAiMemoryAutoStart'
 import { useCliOpenRequests } from './hooks/useCliOpenRequests'
 import { useCloseConfirmation } from './hooks/useCloseConfirmation'
 import { useDiscordPresence } from './hooks/useDiscordPresence'
@@ -293,6 +294,7 @@ export default function App() {
   }, [activeProfileId, hydrated, restoreMarkdownSidebarHistory])
 
   useRouter9AutoStart(hydrated)
+  useAiMemoryAutoStart(hydrated)
 
   useEffect(() => {
     void ghosttyKillAll().catch(() => {
