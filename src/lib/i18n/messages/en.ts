@@ -651,7 +651,9 @@ export const en = {
     'ai-memory publishes no build for this platform yet, so Alethe cannot install it here.',
   'aiMemory.openRepo': 'Open the project',
   'aiMemory.start': 'Start',
+  'aiMemory.starting': 'Starting…',
   'aiMemory.stop': 'Stop',
+  'aiMemory.stopping': 'Stopping…',
   'aiMemory.running': 'Answering on {endpoint}',
   'aiMemory.stopped': 'Not running',
   'aiMemory.portBusy':
@@ -659,6 +661,13 @@ export const en = {
   'aiMemory.counts': '{pages} pages · {sessions} sessions · {observations} observations',
   'aiMemory.installError': 'ai-memory could not be installed.',
   'aiMemory.startError': 'ai-memory could not be started.',
+  'aiMemory.stopError': 'ai-memory could not be stopped.',
+  'aiMemory.error.portInUse':
+    'Something else is already answering on that port — most likely your own copy of ai-memory. Leave it running and use that one instead.',
+  'aiMemory.error.unsupportedPlatform':
+    'ai-memory publishes no build for this platform, so there is nothing to install here.',
+  'aiMemory.error.binaryMissing':
+    'The download finished but no ai-memory binary was in it. Try installing again.',
 
   /* ---- global todo sidebar ---- */
   'todo.title': 'Todo',

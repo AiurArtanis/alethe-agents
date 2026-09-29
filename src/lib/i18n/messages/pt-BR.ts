@@ -662,7 +662,9 @@ export const ptBR: Record<MessageKey, string> = {
     'O ai-memory ainda não publica build para esta plataforma, então o Alethe não consegue instalar aqui.',
   'aiMemory.openRepo': 'Abrir o projeto',
   'aiMemory.start': 'Iniciar',
+  'aiMemory.starting': 'Iniciando…',
   'aiMemory.stop': 'Parar',
+  'aiMemory.stopping': 'Parando…',
   'aiMemory.running': 'Respondendo em {endpoint}',
   'aiMemory.stopped': 'Parado',
   'aiMemory.portBusy':
@@ -670,6 +672,13 @@ export const ptBR: Record<MessageKey, string> = {
   'aiMemory.counts': '{pages} páginas · {sessions} sessões · {observations} observações',
   'aiMemory.installError': 'Não foi possível instalar o ai-memory.',
   'aiMemory.startError': 'Não foi possível iniciar o ai-memory.',
+  'aiMemory.stopError': 'Não foi possível parar o ai-memory.',
+  'aiMemory.error.portInUse':
+    'Outra coisa já está respondendo nessa porta — provavelmente a sua própria cópia do ai-memory. Deixe-a rodando e use essa em vez de iniciar outra.',
+  'aiMemory.error.unsupportedPlatform':
+    'O ai-memory não publica build para esta plataforma, então não há o que instalar aqui.',
+  'aiMemory.error.binaryMissing':
+    'O download terminou, mas nenhum binário do ai-memory estava nele. Tente instalar de novo.',
 
   /* ---- global todo sidebar ---- */
   'todo.title': 'Tarefas',

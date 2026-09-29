@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  aiMemoryErrorMessage,
   type AiMemoryStatus,
   canStart,
   normalizePort,
   offerInstall,
   portOwnedByOther,
 } from './aiMemory'
+import type { TFunction } from './i18n'
 
 function status(patch: Partial<AiMemoryStatus> = {}): AiMemoryStatus {
   return {
@@ -73,5 +75,30 @@ describe('the port a person can type', () => {
     expect(normalizePort(0)).toBe(49374)
     expect(normalizePort(70000)).toBe(49374)
     expect(normalizePort(Number.NaN)).toBe(49374)
+  })
+})
+
+describe('turning a raw error code into a sentence', () => {
+  // Echoes the key back rather than a real translation: the mapping under test is code -> key,
+  // not key -> copy, which the locale files already guard at build time.
+  const t: TFunction = ((key: string) => key) as TFunction
+
+  it('names the port already being in use', () => {
+    expect(aiMemoryErrorMessage('ai_memory_port_in_use', t)).toBe('aiMemory.error.portInUse')
+  })
+
+  it('names an unsupported platform', () => {
+    expect(aiMemoryErrorMessage('ai_memory_unsupported_platform', t)).toBe(
+      'aiMemory.error.unsupportedPlatform',
+    )
+  })
+
+  it('names a binary that went missing after extraction', () => {
+    expect(aiMemoryErrorMessage('ai_memory_binary_missing', t)).toBe('aiMemory.error.binaryMissing')
+  })
+
+  it('falls back to the raw cause for anything unmapped, rather than swallowing it', () => {
+    expect(aiMemoryErrorMessage('some_future_code', t)).toBe('some_future_code')
+    expect(aiMemoryErrorMessage(new Error('boom'), t)).toBe('Error: boom')
   })
 })

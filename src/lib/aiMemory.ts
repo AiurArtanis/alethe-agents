@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 
 export type { AiMemoryStatus } from './tauri/aiMemory'
+import type { MessageKey, TFunction } from './i18n'
 import type { AiMemoryStatus } from './tauri/aiMemory'
 
 export const AI_MEMORY_DEFAULT_PORT = 49374
@@ -37,6 +38,30 @@ export async function aiMemoryStop(): Promise<void> {
   await invoke('ai_memory_stop')
 }
 
-export async function aiMemoryCounts(): Promise<AiMemoryCounts> {
-  return invoke<AiMemoryCounts>('ai_memory_counts', {})
+/**
+ * `null` means ai-memory could not be asked — the server is unreachable, `status` exited non-zero —
+ * which is not the same thing as a store that has nothing in it yet. Callers must tell the two apart
+ * rather than falling back to zeros for both.
+ */
+export async function aiMemoryCounts(): Promise<AiMemoryCounts | null> {
+  return invoke<AiMemoryCounts | null>('ai_memory_counts', {})
+}
+
+/** Rust error codes this panel can name, mapped to a real sentence for each locale. */
+const AI_MEMORY_ERROR_MESSAGE_KEYS: Record<string, MessageKey> = {
+  ai_memory_port_in_use: 'aiMemory.error.portInUse',
+  ai_memory_unsupported_platform: 'aiMemory.error.unsupportedPlatform',
+  ai_memory_binary_missing: 'aiMemory.error.binaryMissing',
+}
+
+/**
+ * A sentence for a raw error code a `ai_memory_*` command rejected with, or the raw code itself when
+ * it names nothing recognised — never swallowed, just not translated.
+ */
+export function aiMemoryErrorMessage(cause: unknown, t: TFunction): string {
+  const raw = String(cause)
+  for (const [code, key] of Object.entries(AI_MEMORY_ERROR_MESSAGE_KEYS)) {
+    if (raw.includes(code)) return t(key)
+  }
+  return raw
 }
