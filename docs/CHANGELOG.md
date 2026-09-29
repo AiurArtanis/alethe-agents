@@ -12,12 +12,16 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Added
 
-- **Turning on AI Memory now takes you to a working install.** The switch in Preferences → Features
-  grew a panel beneath it: whether ai-memory is there, a button to install it — the download checked
-  against the hash the project publishes — and whether it is running, with what it has stored. And
-  the agents Alethe launches now *record* to that memory as well as reading from it, so asking one
-  what happened last week has something to find. Turning the switch on is what starts any of it, and
-  what it records stays on your machine as markdown in a git repository you can read without Alethe.
+- **Turning on AI Memory now takes you to a working install, and recall actually works.** The switch
+  in Preferences → Features grew a panel beneath it: whether ai-memory is there, a button to install
+  it — the download checked against the hash the project publishes — and whether it is running, with
+  what it has stored. The agents Alethe launches now *record* to that memory and can *recall* it
+  through its MCP server, so asking one what happened last week has something to find. The service now
+  starts on its own once the feature is on and a binary is installed — on this launch and every one
+  after — instead of staying off until someone opens the panel and clicks Start by hand. Start and Stop
+  show while they are working, and the panel says when it could not check the store rather than
+  showing an empty one. What it records stays on your machine as markdown in a git repository you can
+  read without Alethe.
 
 ## [1.7.0] — 2026-09-20
 
