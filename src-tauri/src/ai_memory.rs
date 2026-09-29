@@ -416,9 +416,26 @@ const HOOK_CONFIG_TIMEOUT: Duration = Duration::from_secs(3);
 /// `hook_config`'s answer per port. It depends only on the binary and the port it is told to report
 /// to — never on anything that changes between terminal launches — so it is safe to compute once and
 /// reuse rather than shelling out to the CLI again on every capture-enabled launch.
+///
+/// The key is the port, not the binary: an entry does not know which copy of `ai-memory` it was
+/// generated from, so it goes stale the moment `pick_command` starts resolving to a different one.
+/// Nothing here catches that automatically — `invalidate_hook_config_cache` has to be called whenever
+/// the installed binary changes.
 fn hook_config_cache() -> &'static Mutex<HashMap<u16, Value>> {
     static CACHE: OnceLock<Mutex<HashMap<u16, Value>>> = OnceLock::new();
     CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Drops every cached `hook_config` answer.
+///
+/// An install changes which binary `pick_command` resolves to, and its data directory with it, so a
+/// cached entry generated from the old copy would keep sending capture to a store the panel is no
+/// longer reading. Clears the whole map rather than one port: the binary changed, so every entry is
+/// stale regardless of which port it was keyed by.
+pub(crate) fn invalidate_hook_config_cache() {
+    if let Ok(mut cache) = hook_config_cache().lock() {
+        cache.clear();
+    }
 }
 
 /// The `hooks` object `install-hooks` prints for claude-code.
@@ -539,6 +556,10 @@ pub async fn ai_memory_install(app: AppHandle) -> Result<String, String> {
         perms.set_mode(perms.mode() | 0o755);
         std::fs::set_permissions(&binary, perms).map_err(|e| format!("chmod_failed:{e}"))?;
     }
+    // The cached hook config names the binary it was generated from. An install changes which copy
+    // `pick_command` resolves to, and its data directory with it, so the old entries would send
+    // capture to a store the panel is no longer reading.
+    invalidate_hook_config_cache();
     Ok(binary.to_string_lossy().to_string())
 }
 
@@ -612,11 +633,13 @@ mod tests {
 
     // `hook_config` itself needs a real `AppHandle` (no mock-app pattern exists in this codebase),
     // so the process-spawning and timeout parts of it are verified by reading, not by a test here.
-    // The cache it consults, however, is reachable on its own: this proves it is a genuine shared
-    // cache — the same static entry survives across calls — rather than something re-created per
-    // lookup, which is the behaviour `hook_config` relies on to avoid re-running the CLI.
+    // The cache it consults, however, is reachable on its own. Both properties are asserted in one
+    // test, not two: `hook_config_cache()` is a single process-wide static, and cargo runs tests in
+    // parallel by default, so a separate `invalidate_hook_config_cache` test clearing the whole map
+    // could race a concurrent test's insert-then-read on a different port. One test means no
+    // interleaving is possible.
     #[test]
-    fn the_hook_config_cache_is_a_persistent_shared_cache() {
+    fn the_hook_config_cache_persists_until_an_install_invalidates_it() {
         let port = 65001;
         assert!(hook_config_cache().lock().unwrap().get(&port).is_none());
 
@@ -629,6 +652,19 @@ mod tests {
         assert_eq!(
             hook_config_cache().lock().unwrap().get(&port).cloned(),
             Some(serde_json::json!({ "Stop": [] })),
+        );
+
+        // A real install calls this once the new binary is confirmed in place. The entry keyed by
+        // this port must not survive it: it was generated from whichever binary `pick_command`
+        // resolved to before the install, which may no longer be the one it resolves to now.
+        invalidate_hook_config_cache();
+        assert!(
+            hook_config_cache().lock().unwrap().get(&port).is_none(),
+            "the entry must not survive an install",
+        );
+        assert!(
+            hook_config_cache().lock().unwrap().is_empty(),
+            "the whole map is cleared, not just this port",
         );
     }
 
