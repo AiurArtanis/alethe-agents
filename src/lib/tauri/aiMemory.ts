@@ -11,6 +11,8 @@ export type AiMemoryStatus = {
   managed: boolean
   /** Upstream publishes a build for this machine. False on Windows ARM64. */
   supported: boolean
+  /** The server behind `endpoint`, if any, is the child process Alethe itself started. */
+  ours: boolean
 }
 
 export async function aiMemoryDetect(command?: string): Promise<AiMemoryStatus> {

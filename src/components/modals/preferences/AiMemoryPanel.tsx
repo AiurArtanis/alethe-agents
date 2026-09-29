@@ -25,18 +25,26 @@ export function AiMemoryPanel() {
   const [status, setStatus] = useState<AiMemoryStatus | null>(null)
   const [counts, setCounts] = useState<AiMemoryCounts | null>(null)
   const [busy, setBusy] = useState<'install' | 'start' | 'stop' | null>(null)
-  // Whether the running server is the child Alethe started. Without this, a server the person runs
-  // themselves would be reported as ours and Stop would look like it controls it.
-  const [ours, setOurs] = useState(false)
 
-  const refresh = useCallback(async () => {
+  // `shouldApply` lets the mount effect skip both setters once the panel has unmounted — the detect
+  // call can resolve after that (a subprocess spawn plus a loopback connect with up to a 250ms
+  // timeout, longer under antivirus scanning). Calls from `run` below omit it: the action just
+  // completed on a control the panel is still rendering.
+  const refresh = useCallback(async (shouldApply: () => boolean = () => true) => {
     const next = await aiMemoryDetect().catch(() => null)
+    if (!shouldApply()) return
     setStatus(next)
-    setCounts(next?.installed ? await aiMemoryCounts().catch(() => null) : null)
+    const nextCounts = next?.installed ? await aiMemoryCounts().catch(() => null) : null
+    if (!shouldApply()) return
+    setCounts(nextCounts)
   }, [])
 
   useEffect(() => {
-    void refresh()
+    let cancelled = false
+    void refresh(() => !cancelled)
+    return () => {
+      cancelled = true
+    }
   }, [refresh])
 
   const run = async (
@@ -47,8 +55,6 @@ export function AiMemoryPanel() {
     setBusy(kind)
     try {
       await action()
-      if (kind === 'start') setOurs(true)
-      if (kind === 'stop') setOurs(false)
       await refresh()
     } catch (cause) {
       pushToast({ title: t(errorKey), body: String(cause) })
@@ -62,11 +68,13 @@ export function AiMemoryPanel() {
       <p className={styles.captures}>{t('aiMemory.panelCaptures')}</p>
 
       <p className={styles.state}>
-        {status?.installed
-          ? `${t(status.managed ? 'aiMemory.installedManaged' : 'aiMemory.installedExternal')} — ${t('aiMemory.at', { path: status.command })}`
-          : status?.supported === false
-            ? t('aiMemory.unsupported')
-            : t('aiMemory.missing')}
+        {status === null
+          ? t('aiMemory.checking')
+          : status.installed
+            ? `${t(status.managed ? 'aiMemory.installedManaged' : 'aiMemory.installedExternal')} — ${t('aiMemory.at', { path: status.command })}`
+            : status.supported === false
+              ? t('aiMemory.unsupported')
+              : t('aiMemory.missing')}
       </p>
 
       {status?.installed ? (
@@ -84,7 +92,7 @@ export function AiMemoryPanel() {
         </p>
       ) : null}
 
-      {portOwnedByOther(status, ours) ? (
+      {portOwnedByOther(status) ? (
         <p className={styles.warning}>
           {t('aiMemory.portBusy', { endpoint: status?.endpoint ?? '' })}
         </p>
@@ -101,7 +109,7 @@ export function AiMemoryPanel() {
             {busy === 'install' ? t('aiMemory.installing') : t('aiMemory.install')}
           </button>
         ) : null}
-        {status?.running && ours ? (
+        {status?.running && status.ours ? (
           <button
             type="button"
             className={controls.btn}

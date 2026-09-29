@@ -105,6 +105,14 @@ pub struct AiMemoryStatus {
     managed: bool,
     /// Upstream publishes a build for this machine. False on Windows ARM64.
     supported: bool,
+    /// The server behind `endpoint`, if one is running, is the child Alethe itself started.
+    ///
+    /// This has to come from the tracked child handle, not from anything a screen remembers: the
+    /// handle outlives any particular window being open, while a frontend flag does not survive the
+    /// panel unmounting. Without it, reopening Preferences after starting ai-memory and closing the
+    /// dialog would forget that Alethe owns the process and hide the Stop button for a server it is
+    /// still running.
+    ours: bool,
 }
 
 fn short_hash(input: &str) -> String {
@@ -127,7 +135,11 @@ fn mcp_server_spec(command: &str) -> Value {
 
 /// causa do health-check.
 #[tauri::command]
-pub fn ai_memory_detect(app: AppHandle, command: Option<String>) -> Result<AiMemoryStatus, String> {
+pub fn ai_memory_detect(
+    app: AppHandle,
+    state: tauri::State<'_, AiMemoryProcess>,
+    command: Option<String>,
+) -> Result<AiMemoryStatus, String> {
     let managed = managed_binary(&app);
     let cmd = pick_command(managed.clone(), command);
 
@@ -143,6 +155,13 @@ pub fn ai_memory_detect(app: AppHandle, command: Option<String>) -> Result<AiMem
     };
 
     let running = endpoint_alive(DEFAULT_ENDPOINT);
+    // Same aliveness check `ai_memory_start` uses to decide a tracked child is still running. A
+    // poisoned lock means we cannot claim the server is ours, so `false`.
+    let ours = state
+        .0
+        .lock()
+        .map(|mut guard| matches!(guard.as_mut().map(|child| child.try_wait()), Some(Ok(None))))
+        .unwrap_or(false);
 
     Ok(AiMemoryStatus {
         installed,
@@ -152,6 +171,7 @@ pub fn ai_memory_detect(app: AppHandle, command: Option<String>) -> Result<AiMem
         command: cmd,
         endpoint: DEFAULT_ENDPOINT.to_string(),
         version,
+        ours,
     })
 }
 

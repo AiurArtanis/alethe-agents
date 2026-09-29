@@ -640,6 +640,7 @@ export const en = {
   // ai-memory's sub-panel, under its switch in Features.
   'aiMemory.panelCaptures':
     'Every prompt and tool call from agents Alethe launches is recorded, as markdown in a git repository plus a search index — both on this machine, both readable without Alethe.',
+  'aiMemory.checking': 'Checking…',
   'aiMemory.install': 'Install ai-memory',
   'aiMemory.installing': 'Installing…',
   'aiMemory.installedManaged': 'Installed by Alethe',

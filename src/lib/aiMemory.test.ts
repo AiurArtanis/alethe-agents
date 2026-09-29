@@ -17,6 +17,7 @@ function status(patch: Partial<AiMemoryStatus> = {}): AiMemoryStatus {
     version: null,
     managed: false,
     supported: true,
+    ours: false,
     ...patch,
   }
 }
@@ -54,15 +55,15 @@ describe('whether starting is offered', () => {
 describe('who owns the endpoint', () => {
   it('names a server Alethe did not start', () => {
     // Most likely the person's own instance: a reason to leave it alone, not to fight for the bind.
-    expect(portOwnedByOther(status({ installed: true, running: true }), false)).toBe(true)
+    expect(portOwnedByOther(status({ installed: true, running: true, ours: false }))).toBe(true)
   })
 
   it('says nothing when the running server is ours', () => {
-    expect(portOwnedByOther(status({ installed: true, running: true }), true)).toBe(false)
+    expect(portOwnedByOther(status({ installed: true, running: true, ours: true }))).toBe(false)
   })
 
   it('says nothing when nothing is running', () => {
-    expect(portOwnedByOther(status({ installed: true }), false)).toBe(false)
+    expect(portOwnedByOther(status({ installed: true, ours: false }))).toBe(false)
   })
 })
 

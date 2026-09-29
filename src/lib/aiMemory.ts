@@ -17,8 +17,8 @@ export function canStart(status: AiMemoryStatus | null): boolean {
 }
 
 /** True when the endpoint answers and the server behind it is not the child Alethe started. */
-export function portOwnedByOther(status: AiMemoryStatus | null, weStartedIt: boolean): boolean {
-  return Boolean(status?.running) && !weStartedIt
+export function portOwnedByOther(status: AiMemoryStatus | null): boolean {
+  return Boolean(status?.running) && !status?.ours
 }
 
 export function normalizePort(port: number): number {

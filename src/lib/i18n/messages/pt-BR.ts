@@ -651,6 +651,7 @@ export const ptBR: Record<MessageKey, string> = {
   // ai-memory's sub-panel, under its switch in Features.
   'aiMemory.panelCaptures':
     'Todo prompt e toda chamada de ferramenta dos agentes que o Alethe inicia são registrados, como markdown num repositório git mais um índice de busca — os dois nesta máquina, os dois legíveis sem o Alethe.',
+  'aiMemory.checking': 'Verificando…',
   'aiMemory.install': 'Instalar o ai-memory',
   'aiMemory.installing': 'Instalando…',
   'aiMemory.installedManaged': 'Instalado pelo Alethe',
