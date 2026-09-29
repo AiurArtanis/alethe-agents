@@ -33,6 +33,7 @@ import { NewProjectModal } from './components/modals/NewProjectModal'
 import { NewSubTabModal } from './components/modals/NewSubTabModal'
 import { NewTerminalModal } from './components/modals/NewTerminalModal'
 import { OnboardingModal } from './components/modals/OnboardingModal'
+import { PluginMarketplaceModal } from './components/modals/PluginMarketplaceModal'
 import { PreferencesModal } from './components/modals/PreferencesModal'
 import { ProfilesModal } from './components/modals/ProfilesModal'
 import { RecentChatsModal } from './components/modals/RecentChatsModal'
@@ -740,6 +741,7 @@ export default function App() {
         <AddBrowserModal />
         <NewSubTabModal />
         <PreferencesModal />
+        <PluginMarketplaceModal />
         <ProfilesModal />
         <SyncModal />
         <FindJumpModal />

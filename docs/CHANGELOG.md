@@ -23,6 +23,14 @@ preferences; and three new agents — **Cursor CLI**, **Kiro CLI** and plain **W
 
 ### Added
 
+- **Plugins got a marketplace of their own.** Browsing left the settings modal for a window
+  built to hold a lot of plugins: search that ignores case and accents, filters by what a
+  plugin can do, sorting, and a tab for what you already have beside the one for what you
+  could install. A plugin's page explains, in words, what each capability lets it do —
+  which is where deciding to trust it belongs. Only the rows on screen are drawn, so a long
+  catalogue scrolls as smoothly as a short one. Preferences keeps installing from a folder
+  and the plugins' own settings.
+
 - **A plugin can now open its own tab.** A command a plugin contributes to Ctrl+P can reveal
   the plugin's own panel, and a plugin can open a modal it contributed — wherever you moved
   that panel to. Until now only the plugins that ship with Alethe could do this, which meant a
