@@ -273,6 +273,37 @@ pub fn ai_memory_codex_config_write(
     std::fs::write(&path, body).map_err(|e| format!("write_failed:{e}"))
 }
 
+use std::path::Path;
+
+use crate::plugin_package::safe_entry_path;
+
+/// Unpacks a `.tar.gz` release, refusing any entry whose path leaves `destination`.
+///
+/// The same rule `extract_zip` applies, through the same `safe_entry_path`: an archive from the
+/// internet does not choose where its files land.
+pub fn extract_tar_gz(bytes: &[u8], destination: &Path) -> Result<(), String> {
+    let decoder = flate2::read::GzDecoder::new(bytes);
+    let mut archive = tar::Archive::new(decoder);
+    std::fs::create_dir_all(destination).map_err(|e| format!("mkdir_failed:{e}"))?;
+    for entry in archive.entries().map_err(|e| format!("tar_read_failed:{e}"))? {
+        let mut entry = entry.map_err(|e| format!("tar_read_failed:{e}"))?;
+        let name = entry.path().map_err(|e| format!("tar_read_failed:{e}"))?;
+        let target = destination.join(safe_entry_path(&name.to_string_lossy())?);
+        if entry.header().entry_type().is_dir() {
+            std::fs::create_dir_all(&target).map_err(|e| format!("mkdir_failed:{e}"))?;
+            continue;
+        }
+        if !entry.header().entry_type().is_file() {
+            return Err("tar_entry_not_a_file".to_string());
+        }
+        if let Some(parent) = target.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| format!("mkdir_failed:{e}"))?;
+        }
+        entry.unpack(&target).map_err(|e| format!("tar_unpack_failed:{e}"))?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -323,5 +354,95 @@ mod tests {
     fn with_nothing_installed_the_bare_name_is_tried() {
         // PATH may still hold one the person installed themselves.
         assert_eq!(pick_command(None, None), DEFAULT_COMMAND);
+    }
+
+    #[test]
+    fn a_tarball_unpacks_and_refuses_an_entry_that_escapes() {
+        use std::io::Write;
+
+        fn tar_gz(entries: &[(&str, &[u8])]) -> Vec<u8> {
+            let mut tar = tar::Builder::new(Vec::new());
+            for (name, body) in entries {
+                let mut header = tar::Header::new_gnu();
+                header.set_size(body.len() as u64);
+                header.set_mode(0o644);
+                header.set_cksum();
+                tar.append_data(&mut header, name, *body).unwrap();
+            }
+            let raw = tar.into_inner().unwrap();
+            let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+            gz.write_all(&raw).unwrap();
+            gz.finish().unwrap()
+        }
+
+        fn create_evil_tar_gz() -> Vec<u8> {
+            let mut tar_bytes = Vec::new();
+            let mut header = [0u8; 512];
+
+            // Filename: ../escaped (null-terminated)
+            let name = b"../escaped\0";
+            header[..name.len()].copy_from_slice(name);
+
+            // File mode: 0000644 (octal for regular file, rw-r--r--)
+            "0000644\0".as_bytes().iter().enumerate().for_each(|(i, &b)| header[100 + i] = b);
+
+            // Owner's UID: 0
+            "0000000\0".as_bytes().iter().enumerate().for_each(|(i, &b)| header[108 + i] = b);
+
+            // Group GID: 0
+            "0000000\0".as_bytes().iter().enumerate().for_each(|(i, &b)| header[116 + i] = b);
+
+            // File size: 4 (in octal: 000000000004)
+            "000000000004".as_bytes().iter().enumerate().for_each(|(i, &b)| header[124 + i] = b);
+
+            // Modification time (use a fixed value: 1234567890 in octal)
+            "12345677720".as_bytes().iter().enumerate().for_each(|(i, &b)| header[136 + i] = b);
+
+            // Checksum field (start at offset 148, 8 bytes, filled with spaces during calc)
+            // Type flag (offset 156): '0' for regular file
+            header[156] = b'0';
+
+            // Calculate checksum (sum of all bytes, treating checksum field as spaces)
+            let mut checksum = 0u32;
+            for (i, &byte) in header.iter().enumerate() {
+                if i >= 148 && i < 156 {
+                    checksum += b' ' as u32;
+                } else {
+                    checksum += byte as u32;
+                }
+            }
+
+            // Write checksum field in octal with trailing space and null
+            let checksum_str = format!("{:06o} ", checksum);
+            checksum_str.as_bytes().iter().take(8).enumerate().for_each(|(i, &b)| header[148 + i] = b);
+
+            tar_bytes.extend_from_slice(&header);
+            tar_bytes.extend_from_slice(b"nope");
+
+            // Pad to 512-byte boundary
+            while tar_bytes.len() % 512 != 0 {
+                tar_bytes.push(0);
+            }
+
+            // Two zero blocks to mark end of archive
+            tar_bytes.extend_from_slice(&[0; 1024]);
+
+            // Gzip compress
+            let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+            gz.write_all(&tar_bytes).unwrap();
+            gz.finish().unwrap()
+        }
+
+        let dir = std::env::temp_dir().join(format!("alethe-aimem-tar-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+
+        extract_tar_gz(&tar_gz(&[("ai-memory", b"binary")]), &dir).expect("a plain tarball unpacks");
+        assert!(dir.join("ai-memory").is_file());
+
+        let evil = create_evil_tar_gz();
+        assert!(extract_tar_gz(&evil, &dir).is_err(), "an entry leaving the directory is refused");
+        assert!(!dir.parent().unwrap().join("escaped").exists());
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
