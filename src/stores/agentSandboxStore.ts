@@ -137,7 +137,13 @@ export const useAgentSandboxStore = create<AgentSandboxState>((set, get) => ({
   startDemo: async (cwd) => {
     get().stop()
     const generation = ++sandboxGeneration
-    const [endpoint, token, settingsPath] = await Promise.all([agentHooksEndpoint(), agentHooksToken(), agentHooksSettingsPath('sandbox-demo')])
+    // This demo sandbox is never recorded, deliberately: explicit `null` opts it out of capture
+    // regardless of the person's actual preference, rather than defaulting to it by accident.
+    const [endpoint, token, settingsPath] = await Promise.all([
+      agentHooksEndpoint(),
+      agentHooksToken(),
+      agentHooksSettingsPath('sandbox-demo', true, null),
+    ])
     if (generation !== sandboxGeneration) return
     set({
       active: true,

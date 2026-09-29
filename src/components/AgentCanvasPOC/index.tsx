@@ -29,7 +29,6 @@ import {
   personaIconFor,
 } from '../../lib/agentCanvasUtils'
 import { AGENT_LIBRARY } from '../../lib/agentLibrary'
-import { AI_MEMORY_DEFAULT_PORT } from '../../lib/aiMemory'
 import { fmtTokens, fmtUsd, shortModel } from '../../lib/costFormat'
 import { useT } from '../../lib/i18n'
 import { normalizeCwd } from '../../lib/platform'
@@ -65,13 +64,6 @@ import { useUsagePolling } from './hooks/useUsagePolling'
 import { SessionTerminalDock } from './SessionTerminalDock'
 import { TasksLayer } from './TasksLayer'
 import { type UsageTab } from './UsageDropdown'
-
-// Read at call time, not from `projects.json`: that file is saved with a debounce, so a terminal
-// opened right after the person turns capture off would otherwise still get the hooks.
-function aiMemoryPrefs() {
-  const prefs = useProjectsStore.getState().preferences
-  return { enabled: prefs.enabledFeatures.aiMemory, port: AI_MEMORY_DEFAULT_PORT }
-}
 
 /** Agent canvas view for embedded agent sessions and team activity. */
 
@@ -214,7 +206,7 @@ function AgentCanvasInner() {
   useEffect(() => {
     if (!session) return
     setHooksError(null)
-    Promise.all([agentHooksEndpoint(), agentHooksSettingsPath(session.ptyId, true, aiMemoryPrefs())])
+    Promise.all([agentHooksEndpoint(), agentHooksSettingsPath(session.ptyId)])
       .then(([endpoint, path]) => {
         console.log('[AgentCanvasPOC] hooks endpoint:', endpoint)
         console.log('[AgentCanvasPOC] hooks settings pronto em:', path)

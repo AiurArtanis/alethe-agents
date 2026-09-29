@@ -1,6 +1,9 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 
+import { useProjectsStore } from '../../stores/projectsStore'
+import { AI_MEMORY_DEFAULT_PORT } from '../aiMemory'
+
                                                                         
                                                                         
                                                  
@@ -34,16 +37,27 @@ export function listenCodexAppServer(
 }
 
 /**
+ * The live capture consent, read fresh (never from the debounced `projects.json` on disk) so a
+ * terminal opened right after the person flips the preference gets their current choice.
+ */
+function liveAiMemoryPrefs(): { enabled: boolean; port: number } {
+  const prefs = useProjectsStore.getState().preferences
+  return { enabled: prefs.enabledFeatures.aiMemory, port: AI_MEMORY_DEFAULT_PORT }
+}
+
+/**
  * Path of the hooks settings.json generated for Claude Code (agent_events.rs).
  * `orchestrator: false` writes the session-tracking-only variant (SessionStart/UserPromptSubmit),
  * without the subagent and tool-call hooks the orchestrator canvas needs.
  * `aiMemory` carries the live capture consent: when enabled, ai-memory's own hooks are merged into
- * this same file rather than into the person's own settings.
+ * this same file rather than into the person's own settings. It defaults to the live preference, so
+ * a call site that forgets the argument still gets the person's actual choice; pass `null` explicitly
+ * to opt a caller out of capture regardless of the preference (e.g. a demo sandbox).
  */
 export async function agentHooksSettingsPath(
   plannerId: string,
   orchestrator = true,
-  aiMemory: { enabled: boolean; port: number } | null = null,
+  aiMemory: { enabled: boolean; port: number } | null = liveAiMemoryPrefs(),
 ): Promise<string> {
   return invoke<string>('agent_hooks_settings_path', {
     plannerId,

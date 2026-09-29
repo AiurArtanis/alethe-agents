@@ -337,8 +337,9 @@ pub fn extract_tar_gz_bounded(
     Ok(())
 }
 
+use std::collections::HashMap;
 use std::process::{Child, Stdio};
-use std::sync::Mutex;
+use std::sync::{mpsc, Mutex, OnceLock};
 
 use crate::plugin_package::{download_bounded, extract_zip_bounded, is_sha256, verify_sha256};
 
@@ -409,13 +410,31 @@ pub(crate) fn base_command(cmd: &str, data_dir: Option<&str>) -> Command {
     command
 }
 
+/// One 3-second budget for waiting on `install-hooks` to answer.
+const HOOK_CONFIG_TIMEOUT: Duration = Duration::from_secs(3);
+
+/// `hook_config`'s answer per port. It depends only on the binary and the port it is told to report
+/// to — never on anything that changes between terminal launches — so it is safe to compute once and
+/// reuse rather than shelling out to the CLI again on every capture-enabled launch.
+fn hook_config_cache() -> &'static Mutex<HashMap<u16, Value>> {
+    static CACHE: OnceLock<Mutex<HashMap<u16, Value>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
 /// The `hooks` object `install-hooks` prints for claude-code.
 ///
 /// Never `--apply`: Alethe writes these into its own per-terminal file, not into the person's
-/// settings.
+/// settings. `Command::output()` cannot time out, and a wedged or very slow binary must not hang a
+/// terminal launch, so the wait happens on its own thread with a fixed budget; the child is killed
+/// either way once that budget is up.
 pub fn hook_config(app: &AppHandle, port: u16) -> Result<Value, String> {
+    if let Some(cached) = hook_config_cache().lock().ok().and_then(|cache| cache.get(&port).cloned())
+    {
+        return Ok(cached);
+    }
+
     let (cmd, data_dir) = command_for(app, None);
-    let output = base_command(&cmd, data_dir.as_deref())
+    let mut child = base_command(&cmd, data_dir.as_deref())
         .arg("install-hooks")
         .arg("--agent")
         .arg("claude-code")
@@ -423,17 +442,40 @@ pub fn hook_config(app: &AppHandle, port: u16) -> Result<Value, String> {
         .arg(format!("http://127.0.0.1:{port}"))
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
-        .output()
+        .spawn()
         .map_err(|e| format!("ai_memory_install_hooks:{e}"))?;
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut child_stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| "ai_memory_hooks_no_stdout".to_string())?;
+
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let mut bytes = Vec::new();
+        let _ = child_stdout.read_to_end(&mut bytes);
+        let _ = tx.send(bytes);
+    });
+    let received = rx.recv_timeout(HOOK_CONFIG_TIMEOUT);
+    // Reap the child whether it answered in time or not — a timed-out read must not leave it
+    // running forever.
+    let _ = child.kill();
+    let _ = child.wait();
+    let bytes = received.map_err(|_| "ai_memory_install_hooks_timeout".to_string())?;
+
+    let stdout = String::from_utf8_lossy(&bytes);
     // The command prints comment lines before the JSON body.
     let start = stdout.find('{').ok_or_else(|| "ai_memory_hooks_no_json".to_string())?;
     let parsed: Value = serde_json::from_str(stdout[start..].trim())
         .map_err(|e| format!("ai_memory_hooks_bad_json:{e}"))?;
-    parsed
+    let hooks = parsed
         .get("hooks")
         .cloned()
-        .ok_or_else(|| "ai_memory_hooks_missing_key".to_string())
+        .ok_or_else(|| "ai_memory_hooks_missing_key".to_string())?;
+
+    if let Ok(mut cache) = hook_config_cache().lock() {
+        cache.insert(port, hooks.clone());
+    }
+    Ok(hooks)
 }
 
 /// The hooks to merge, or `None` when consent is off or the binary is not there.
@@ -567,6 +609,28 @@ pub fn ai_memory_stop(state: tauri::State<'_, AiMemoryProcess>) -> Result<(), St
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // `hook_config` itself needs a real `AppHandle` (no mock-app pattern exists in this codebase),
+    // so the process-spawning and timeout parts of it are verified by reading, not by a test here.
+    // The cache it consults, however, is reachable on its own: this proves it is a genuine shared
+    // cache — the same static entry survives across calls — rather than something re-created per
+    // lookup, which is the behaviour `hook_config` relies on to avoid re-running the CLI.
+    #[test]
+    fn the_hook_config_cache_is_a_persistent_shared_cache() {
+        let port = 65001;
+        assert!(hook_config_cache().lock().unwrap().get(&port).is_none());
+
+        hook_config_cache()
+            .lock()
+            .unwrap()
+            .insert(port, serde_json::json!({ "Stop": [] }));
+
+        // A fresh call to the accessor still sees the earlier insert: it is the same static map.
+        assert_eq!(
+            hook_config_cache().lock().unwrap().get(&port).cloned(),
+            Some(serde_json::json!({ "Stop": [] })),
+        );
+    }
 
     #[test]
     fn every_platform_alethe_supports_gets_the_matching_asset() {

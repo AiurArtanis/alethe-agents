@@ -16,7 +16,6 @@ import {
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 
 import { preparePtyRuntimeLaunch } from '../../lib/agentRuntimeAdapter'
-import { AI_MEMORY_DEFAULT_PORT } from '../../lib/aiMemory'
 import { buildGhosttyCommand } from '../../lib/ghosttyCommand'
 import { useT } from '../../lib/i18n'
 import { shouldUseNativeBackend } from '../../lib/platform'
@@ -53,13 +52,6 @@ import { AgentIcon, VSCodeIcon } from '../icons/AgentIcons'
 import { SubTabsLane } from '../SubTabsLane'
 import { XTermView } from '../XTermView'
 import styles from './TerminalPane.module.css'
-
-// Read at call time, not from `projects.json`: that file is saved with a debounce, so a terminal
-// opened right after the person turns capture off would otherwise still get the hooks.
-function aiMemoryPrefs() {
-  const prefs = useProjectsStore.getState().preferences
-  return { enabled: prefs.enabledFeatures.aiMemory, port: AI_MEMORY_DEFAULT_PORT }
-}
 
 export type TerminalPaneProps = {
   projectId: string
@@ -240,7 +232,6 @@ export const TerminalPane = memo(function TerminalPane({
         ? await agentHooksSettingsPath(
             ptyId,
             useProjectsStore.getState().preferences.enabledFeatures.orchestrator,
-            aiMemoryPrefs(),
           ).catch(() => undefined)
         : undefined
     const launch = buildAgentLaunch(

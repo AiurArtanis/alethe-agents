@@ -13,7 +13,6 @@ import { AgentCompletionMonitor } from '../../lib/agentCompletionMonitor'
 import { deliverOpenCodePrompt } from '../../lib/agentPromptDelivery'
 import { agentLabel, resolveAgentCliCommand } from '../../lib/agentProviders'
 import { preparePtyRuntimeLaunch } from '../../lib/agentRuntimeAdapter'
-import { AI_MEMORY_DEFAULT_PORT } from '../../lib/aiMemory'
 import { claudeSessionFromHook } from '../../lib/claudeSessionTracking'
 import { getLocale, translate } from '../../lib/i18n'
 import { isOrchestratorShellPty } from '../../lib/orchestratorShells'
@@ -129,13 +128,6 @@ let aiMemoryMissingWarned = false
  */
 function plannerLabelFor(ptyId: string, agent: AgentType): string {
   return terminalNameForPty(useProjectsStore.getState().projects, ptyId) ?? agentLabel(agent)
-}
-
-// Read at call time, not from `projects.json`: that file is saved with a debounce, so a terminal
-// opened right after the person turns capture off would otherwise still get the hooks.
-function aiMemoryPrefs() {
-  const prefs = useProjectsStore.getState().preferences
-  return { enabled: prefs.enabledFeatures.aiMemory, port: AI_MEMORY_DEFAULT_PORT }
 }
 
 type BootPhase = 'preparing' | 'queued' | 'spawning' | 'attaching' | 'ready'
@@ -1200,11 +1192,9 @@ export function useXtermSession(params: {
         // /clear or /resume; with the orchestrator on, the same file also carries its subagent and
         // tool-call hooks so the canvas can hang them off this planner.
         if (command === 'claude') {
-          hooksSettingsPath = await agentHooksSettingsPath(
-            ptyId,
-            orchestratorEnabled,
-            aiMemoryPrefs(),
-          ).catch(() => undefined)
+          hooksSettingsPath = await agentHooksSettingsPath(ptyId, orchestratorEnabled).catch(
+            () => undefined,
+          )
           if (disposed) return
         }
 
