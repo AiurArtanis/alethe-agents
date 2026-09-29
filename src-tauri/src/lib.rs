@@ -169,6 +169,7 @@ pub fn run() {
         .manage(cli_launch::PendingOpen::default())
         .manage(orchestrator::OrchestratorState::default())
         .manage(router9::Router9Process::default())
+        .manage(ai_memory::AiMemoryProcess::default())
         .manage(speech::SpeechState::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
@@ -520,6 +521,10 @@ pub fn run() {
             ai_memory::ai_memory_mcp_config_path,
             ai_memory::ai_memory_opencode_config_write,
             ai_memory::ai_memory_codex_config_write,
+            ai_memory::ai_memory_install,
+            ai_memory::ai_memory_start,
+            ai_memory::ai_memory_stop,
+            ai_memory::ai_memory_counts,
             router9::router9_status,
             router9::router9_install_command,
             router9::router9_uninstall_command,

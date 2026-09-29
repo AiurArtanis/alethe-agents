@@ -337,6 +337,176 @@ pub fn extract_tar_gz_bounded(
     Ok(())
 }
 
+use std::process::{Child, Stdio};
+use std::sync::Mutex;
+
+use crate::plugin_package::{download_bounded, extract_zip_bounded, is_sha256, verify_sha256};
+
+pub const DEFAULT_PORT: u16 = 49374;
+
+/// The published `.sha256` is `<hash>  <filename>`; only the hash is ours to use.
+pub fn parse_sha256_file(body: &str) -> Option<String> {
+    let first = body.split_whitespace().next()?.to_ascii_lowercase();
+    is_sha256(&first).then_some(first)
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Counts {
+    pub sessions: u64,
+    pub observations: u64,
+    pub pages: u64,
+}
+
+/// Reads the counts out of `ai-memory status`.
+///
+/// Anything unrecognised stays zero: an empty store prints no count lines, and that is a healthy
+/// service with nothing in it, not a failure to report.
+pub fn parse_counts(stdout: &str) -> Counts {
+    let mut counts = Counts::default();
+    for line in stdout.lines() {
+        let Some((label, rest)) = line.trim().split_once(':') else { continue };
+        let Some(value) = rest.trim().split_whitespace().next().and_then(|v| v.parse().ok()) else {
+            continue;
+        };
+        match label.trim() {
+            "sessions" => counts.sessions = value,
+            "observations" => counts.observations = value,
+            "pages" => counts.pages = value,
+            _ => {}
+        }
+    }
+    counts
+}
+
+#[derive(Default)]
+pub struct AiMemoryProcess(pub Mutex<Option<Child>>);
+
+/// The data directory for a copy Alethe installed. A copy the person installed themselves keeps its
+/// data where they put it, so this is never passed for one of those.
+fn managed_data_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(profile_data_dir(app)?.join("ai-memory-data"))
+}
+
+/// The command to run and, only for a copy Alethe installed, the data directory to give it.
+pub(crate) fn command_for(app: &AppHandle, explicit: Option<String>) -> (String, Option<String>) {
+    let managed = managed_binary(app);
+    let cmd = pick_command(managed.clone(), explicit);
+    let data_dir = if managed.as_deref() == Some(cmd.as_str()) {
+        managed_data_dir(app).ok().map(|d| d.to_string_lossy().to_string())
+    } else {
+        None
+    };
+    (cmd, data_dir)
+}
+
+pub(crate) fn base_command(cmd: &str, data_dir: Option<&str>) -> Command {
+    let mut command = Command::new(cmd);
+    if let Some(dir) = data_dir {
+        command.arg("--data-dir").arg(dir);
+    }
+    hide_console(&mut command);
+    command
+}
+
+/// Downloads the asset for this platform, checks it against the hash the release publishes, and
+/// unpacks it into the profile folder. Returns the path to the binary.
+#[tauri::command]
+pub async fn ai_memory_install(app: AppHandle) -> Result<String, String> {
+    let asset = release_asset(std::env::consts::OS, std::env::consts::ARCH)
+        .ok_or_else(|| "ai_memory_unsupported_platform".to_string())?;
+
+    // The hash file is a line of text; the asset is tens of megabytes. Both go through the bounded
+    // helpers with ai-memory's own caps — the plugin ones would refuse this download.
+    let expected = parse_sha256_file(&String::from_utf8_lossy(
+        &download_bounded(&asset.sha256_url, 4 * 1024).await?,
+    ))
+    .ok_or_else(|| "ai_memory_bad_hash_file".to_string())?;
+    let bytes = download_bounded(&asset.url, MAX_DOWNLOAD_BYTES).await?;
+    verify_sha256(&bytes, &expected)?;
+
+    let dir = install_dir(&app)?;
+    let _ = std::fs::remove_dir_all(&dir);
+    if asset.file.ends_with(".zip") {
+        extract_zip_bounded(&bytes, &dir, MAX_ENTRIES, MAX_UNPACKED_BYTES)?;
+    } else {
+        extract_tar_gz(&bytes, &dir)?;
+    }
+
+    let binary = dir.join(binary_name());
+    if !binary.is_file() {
+        let _ = std::fs::remove_dir_all(&dir);
+        return Err("ai_memory_binary_missing".to_string());
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&binary)
+            .map_err(|e| format!("stat_failed:{e}"))?
+            .permissions();
+        perms.set_mode(perms.mode() | 0o755);
+        std::fs::set_permissions(&binary, perms).map_err(|e| format!("chmod_failed:{e}"))?;
+    }
+    Ok(binary.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn ai_memory_counts(app: AppHandle, command: Option<String>) -> Result<Counts, String> {
+    let (cmd, data_dir) = command_for(&app, command);
+    let output = base_command(&cmd, data_dir.as_deref())
+        .arg("status")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .output()
+        .map_err(|e| format!("ai_memory_status:{e}"))?;
+    Ok(parse_counts(&String::from_utf8_lossy(&output.stdout)))
+}
+
+#[tauri::command]
+pub fn ai_memory_start(
+    app: AppHandle,
+    state: tauri::State<'_, AiMemoryProcess>,
+    port: Option<u16>,
+) -> Result<(), String> {
+    let port = port.unwrap_or(DEFAULT_PORT);
+    let (cmd, data_dir) = command_for(&app, None);
+
+    let mut guard = state.0.lock().map_err(|_| "ai_memory_lock".to_string())?;
+    if let Some(child) = guard.as_mut() {
+        if matches!(child.try_wait(), Ok(None)) {
+            return Ok(());
+        }
+    }
+    // Something else holds the endpoint — most likely the person's own instance. Starting anyway
+    // would fail the bind and leave a dead child behind.
+    if endpoint_alive(&format!("127.0.0.1:{port}")) {
+        return Err("ai_memory_port_in_use".to_string());
+    }
+
+    let child = base_command(&cmd, data_dir.as_deref())
+        .arg("serve")
+        .arg("--transport")
+        .arg("http")
+        .arg("--bind")
+        .arg(format!("127.0.0.1:{port}"))
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| format!("ai_memory_spawn:{e}"))?;
+    *guard = Some(child);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn ai_memory_stop(state: tauri::State<'_, AiMemoryProcess>) -> Result<(), String> {
+    let mut guard = state.0.lock().map_err(|_| "ai_memory_lock".to_string())?;
+    if let Some(mut child) = guard.take() {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -571,5 +741,37 @@ mod tests {
         assert_eq!(PLUGIN_MAX_ENTRIES, 2_000, "plugin entry limit unchanged");
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_hash_file_is_read_from_its_first_field() {
+        // The published file is "<hash>  <filename>".
+        let body = "4b3b8757c16a6ae97a3a43f46baef012a400121017272fb4e799503d8c130a50  ai-memory-windows-x86_64.zip\n";
+        assert_eq!(
+            parse_sha256_file(body).as_deref(),
+            Some("4b3b8757c16a6ae97a3a43f46baef012a400121017272fb4e799503d8c130a50")
+        );
+        assert!(parse_sha256_file("").is_none());
+        assert!(parse_sha256_file("not-a-hash  file.zip").is_none());
+    }
+
+    #[test]
+    fn the_counts_come_from_the_binarys_own_status() {
+        // Real `ai-memory status` output, trimmed. Alethe reports what the service says about
+        // itself rather than keeping a tally of its own that can drift.
+        let out = "ai-memory 2.4.0 (server)\n  \
+                   pages:        3 (all versions: 4)\n  \
+                   sessions:     2\n  \
+                   observations: 17\n";
+        let counts = parse_counts(out);
+        assert_eq!((counts.pages, counts.sessions, counts.observations), (3, 2, 17));
+    }
+
+    #[test]
+    fn a_store_with_nothing_in_it_reads_as_zero_not_as_an_error() {
+        // A freshly reset store prints no count lines. Zero is the truth there; failing would make
+        // the panel show an error for a healthy, empty service.
+        let counts = parse_counts("ai-memory 2.4.0 (server)\n");
+        assert_eq!((counts.pages, counts.sessions, counts.observations), (0, 0, 0));
     }
 }
