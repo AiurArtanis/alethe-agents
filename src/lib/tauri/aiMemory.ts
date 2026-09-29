@@ -1,15 +1,16 @@
 import { invoke } from '@tauri-apps/api/core'
 
-                                                                         
-
 export type AiMemoryStatus = {
-                                                                      
   installed: boolean
-  /** Servidor respondendo no endpoint loopback. */
+  /** Something answers on the loopback endpoint — not necessarily a server Alethe started. */
   running: boolean
   command: string
   endpoint: string
-  version?: string
+  version: string | null
+  /** The binary is the copy Alethe installed, not one found on PATH. */
+  managed: boolean
+  /** Upstream publishes a build for this machine. False on Windows ARM64. */
+  supported: boolean
 }
 
 export async function aiMemoryDetect(command?: string): Promise<AiMemoryStatus> {
