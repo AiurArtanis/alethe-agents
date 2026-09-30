@@ -95,6 +95,7 @@ const EMPTY: OrchestratorSnapshot = {
   running: 0,
   queued: 0,
   concurrencyLimit: 0,
+  roles: [],
 }
 
 const LIVE_TICK_MS = 1_000
@@ -456,6 +457,9 @@ function WorkerNode({
           <span className={styles.metaStatus} title={statusTitle(job.status, t)}>
             {t(`orchestrator.status.${job.status}`)}
           </span>
+          {job.role && (
+            <span title={t('orchestrator.roleTitle', { role: job.role })}>{job.role}</span>
+          )}
           {(job.model || job.effort) && (
             <span title={modelTitle(job, t)}>
               {[job.model, job.effort].filter(Boolean).join(' · ')}
