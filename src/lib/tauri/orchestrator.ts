@@ -92,8 +92,6 @@ export type OrchestratorJob = {
   routing: OrchestratorRouting | null
   worktree: string | null
   pendingApproval: OrchestratorPendingApproval | null
-  /** The worker was told its time budget is nearly over and to write down what it has. */
-  askedToWrapUp?: boolean
   hasDiff: boolean
   summary: string
   /** Set only on the frontend, for a Claude/Codex native subagent reshaped into this type — it never
