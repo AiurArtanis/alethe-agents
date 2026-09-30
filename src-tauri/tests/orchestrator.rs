@@ -1502,3 +1502,38 @@ fn a_claude_worker_keeps_the_effort_it_was_delegated_with() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+// An executor role runs Claude on the model and effort the settings give it.
+#[test]
+fn a_claude_role_runs_on_its_model_and_effort() {
+    let dir = workspace("role-claude");
+    let core = Core::default();
+    core.apply_settings(settings(json!({
+        "roles": [{
+            "name": "executor-t2",
+            "agent": "claude",
+            "model": "claude-opus-5-5",
+            "effort": "high",
+            "readOnly": false,
+            "timeoutSeconds": 600
+        }],
+        "maxConcurrent": 4,
+        "defaultTimeoutSeconds": 900
+    })));
+
+    let delegated = call(
+        &core,
+        "alethe_delegate",
+        json!({ "tasks": ["implement it"], "cwd": dir.to_string_lossy(), "role": "executor-t2" }),
+    );
+    assert_eq!(delegated["accepted"], json!(1), "{delegated}");
+
+    let snapshot = core.snapshot();
+    let job = &snapshot["jobs"][0];
+    assert_eq!(job["agent"], "claude", "{job}");
+    assert_eq!(job["model"], "claude-opus-5-5", "{job}");
+    assert_eq!(job["effort"], "high", "{job}");
+    assert_eq!(job["readOnly"], false, "{job}");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
