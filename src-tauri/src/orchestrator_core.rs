@@ -240,6 +240,8 @@ struct Job {
     /// not reported to the planner as a finished turn.
     awaiting_steer: bool,
     next_request_id: i64,
+    /// Live only: the worker was told its budget is nearly over and to write down what it has.
+    asked_to_wrap_up: bool,
 }
 
 impl Job {
@@ -268,6 +270,7 @@ impl Job {
             "routing": self.routing,
             "worktree": self.worktree,
             "pendingApproval": self.pending,
+            "askedToWrapUp": self.asked_to_wrap_up,
             "hasDiff": self.diff.is_some(),
             "summary": tail(if self.report.is_empty() { &self.reply } else { &self.report }, 1200),
         })
@@ -361,6 +364,7 @@ impl Job {
             routing: None,
             awaiting_steer: false,
             next_request_id: 10,
+            asked_to_wrap_up: false,
         })
     }
 
@@ -771,6 +775,7 @@ impl Core {
                 return;
             };
             job.status = STATUS_RUNNING.to_string();
+            job.asked_to_wrap_up = false;
             job.started_at = Some(now_ms());
             job.ended_at = None;
             // Work that arrived while the worker was down leads; otherwise this is its first turn.
@@ -947,22 +952,49 @@ impl Core {
     fn arm_watchdog(&self, job_id: &str, timeout_ms: u64) {
         let core = self.clone();
         let job_id = job_id.to_string();
+        // A revived worker is armed again when it starts, so this watchdog answers only for the
+        // run that armed it.
+        let run = guard(&self.inner)
+            .jobs
+            .get(&job_id)
+            .and_then(|job| job.started_at);
         thread::spawn(move || {
-            thread::sleep(Duration::from_millis(timeout_ms));
-            let payload = {
+            // Four fifths in, the worker is told to write down what it has: a worker that spends
+            // the whole budget reading is stopped with nothing to show for it.
+            let warn_ms = timeout_ms / 5 * 4;
+            thread::sleep(Duration::from_millis(warn_ms));
+            // On a thread of its own: a worker that stopped reading its input can hold the write,
+            // and the stop below still has to happen on time.
+            let warner = core.clone();
+            let warned = job_id.clone();
+            thread::spawn(move || warner.wrap_up(&warned, run, timeout_ms, timeout_ms - warn_ms));
+            thread::sleep(Duration::from_millis(timeout_ms - warn_ms));
+            let (payload, written) = {
                 let inner = guard(&core.inner);
                 let Some(job) = inner.jobs.get(&job_id) else {
                     return;
                 };
-                if job.settled() {
+                if job.settled() || job.started_at != run {
                     return;
                 }
-                match (job.thread_id.clone(), job.active_turn_id.clone()) {
+                let payload = match (job.thread_id.clone(), job.active_turn_id.clone()) {
                     (Some(thread_id), Some(turn_id)) => {
                         Some(json!({ "threadId": thread_id, "turnId": turn_id }))
                     }
                     _ => None,
-                }
+                };
+                // The live stream holds what the worker said this turn and the report its last
+                // finished message, which for Codex is part of the stream. Neither is dropped.
+                let reply = job.reply.trim();
+                let report = job.report.trim();
+                let written = if reply.is_empty() {
+                    report.to_string()
+                } else if report.is_empty() || reply.contains(report) {
+                    tail(reply, REPLY_LIMIT)
+                } else {
+                    tail(&format!("{report}\n\n{reply}"), REPLY_LIMIT)
+                };
+                (payload, written)
             };
             if let Some(payload) = payload {
                 let staged = {
@@ -970,20 +1002,61 @@ impl Core {
                     stage_rpc(&mut inner, &job_id, "turn/interrupt", payload)
                 };
                 if let Ok((stdin, request)) = staged {
-                    let _ = send_rpc(&stdin, &request);
+                    // Detached for the same reason as the warning; the teardown below closes the
+                    // pipe either way.
+                    thread::spawn(move || {
+                        let _ = send_rpc(&stdin, &request);
+                    });
                 }
             }
+            let stopped = format!(
+                "worker passed its {}s budget and was stopped",
+                timeout_ms / 1000
+            );
             core.finish(
                 &job_id,
                 STATUS_FAILED,
                 Some("timeout".into()),
-                format!(
-                    "worker passed its {}s budget and was stopped",
-                    timeout_ms / 1000
-                ),
+                if written.is_empty() {
+                    stopped
+                } else {
+                    format!("{stopped}. What it had written by then:\n\n{written}")
+                },
                 true,
             );
         });
+    }
+
+    /// Tells a worker that is still mid-turn how little of its budget is left. Steering is the
+    /// same path the lead uses, so a worker with no turn to steer yet is simply left alone.
+    fn wrap_up(&self, job_id: &str, run: Option<u64>, budget_ms: u64, left_ms: u64) {
+        let running = guard(&self.inner)
+            .jobs
+            .get(job_id)
+            .is_some_and(|job| job.status == STATUS_RUNNING && job.started_at == run);
+        if !running {
+            return;
+        }
+        let mut arguments = Map::new();
+        arguments.insert("jobId".into(), json!(job_id));
+        arguments.insert(
+            "message".into(),
+            json!(format!(
+                "Time check from the orchestrator: about {}s of your {}s budget are left, and \
+                 anything you have not written when it ends is lost. Stop gathering now and write \
+                 your answer with what you have. Say plainly what is left undone.",
+                left_ms / 1000,
+                budget_ms / 1000
+            )),
+        );
+        if dispatch_tool(self, "alethe_steer", &arguments, None).is_err() {
+            return;
+        }
+        let mut inner = guard(&self.inner);
+        if let Some(job) = inner.jobs.get_mut(job_id) {
+            job.asked_to_wrap_up = true;
+        }
+        self.notify(&inner);
     }
 
     fn settle(&self, job_id: &str, status: &str, outcome: &str, text: &str) {
@@ -1455,8 +1528,17 @@ impl Core {
                     job.status = STATUS_RUNNING.to_string();
                     job.outcome = None;
                     job.ended_at = None;
+                    // A turn this side interrupted delivered nothing, so what it had written stays
+                    // as the report until the next turn says more; a budget running out mid-way
+                    // must not lose it.
+                    job.report = if announce {
+                        String::new()
+                    } else if job.reply.trim().is_empty() {
+                        std::mem::take(&mut job.report)
+                    } else {
+                        tail(job.reply.trim(), REPLY_LIMIT)
+                    };
                     job.reply.clear();
-                    job.report.clear();
                 }
                 inner.running += 1;
             } else {
@@ -1527,7 +1609,7 @@ pub fn tools() -> Value {
                     },
                     "timeoutSeconds": {
                         "type": "number",
-                        "description": "Budget per worker before Alethe stops it, default 900. Pass 0 to let a worker run without a limit."
+                        "description": "Budget per worker before Alethe stops it, default 900. Four fifths in, the worker is told to write down what it has, and a worker that is stopped still delivers what it had written. Pass 0 to let a worker run without a limit."
                     }
                 },
                 "required": ["tasks"]
@@ -1954,6 +2036,7 @@ fn dispatch_tool(
                             routing: None,
                             awaiting_steer: false,
                             next_request_id: 10,
+                            asked_to_wrap_up: false,
                         },
                     );
                     inner.order.push(id.clone());
