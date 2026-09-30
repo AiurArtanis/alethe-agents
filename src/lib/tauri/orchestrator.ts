@@ -92,6 +92,8 @@ export type OrchestratorJob = {
   routing: OrchestratorRouting | null
   worktree: string | null
   pendingApproval: OrchestratorPendingApproval | null
+  /** The worker that took this one's task over after it ended without finishing it. */
+  supersededBy?: string | null
   hasDiff: boolean
   summary: string
   /** Set only on the frontend, for a Claude/Codex native subagent reshaped into this type — it never

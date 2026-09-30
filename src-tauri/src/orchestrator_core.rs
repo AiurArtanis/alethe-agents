@@ -240,6 +240,9 @@ struct Job {
     /// not reported to the planner as a finished turn.
     awaiting_steer: bool,
     next_request_id: i64,
+    /// The worker that took this one's task over after it ended without finishing. The board
+    /// leaves a superseded worker out, so a task shows only the worker that currently has it.
+    superseded_by: Option<String>,
 }
 
 impl Job {
@@ -268,6 +271,7 @@ impl Job {
             "routing": self.routing,
             "worktree": self.worktree,
             "pendingApproval": self.pending,
+            "supersededBy": self.superseded_by,
             "hasDiff": self.diff.is_some(),
             "summary": tail(if self.report.is_empty() { &self.reply } else { &self.report }, 1200),
         })
@@ -292,6 +296,7 @@ impl Job {
             "approvalPolicy": self.approval_policy,
             "sandbox": self.sandbox,
             "webSearch": self.web_search,
+            "supersededBy": self.superseded_by,
             "summary": self.report,
             "startedAt": self.started_at,
             "endedAt": self.ended_at,
@@ -361,6 +366,7 @@ impl Job {
             routing: None,
             awaiting_steer: false,
             next_request_id: 10,
+            superseded_by: text("supersededBy"),
         })
     }
 
@@ -771,6 +777,8 @@ impl Core {
                 return;
             };
             job.status = STATUS_RUNNING.to_string();
+            // A worker that runs again is current again, whatever replaced it meanwhile.
+            job.superseded_by = None;
             job.started_at = Some(now_ms());
             job.ended_at = None;
             // Work that arrived while the worker was down leads; otherwise this is its first turn.
@@ -1919,6 +1927,20 @@ fn dispatch_tool(
                 for ((spec, id), (job_cwd, worktree)) in
                     tasks.into_iter().zip(ids).zip(prepared.into_iter())
                 {
+                    // The same planner sending the same task again replaces the worker that ended
+                    // without finishing it. A finished worker stays: its result is still the answer.
+                    for earlier in inner.jobs.values_mut() {
+                        if earlier.superseded_by.is_none()
+                            && earlier.planner_id == planner_id
+                            && earlier.spec == spec
+                            && matches!(
+                                earlier.status.as_str(),
+                                STATUS_INTERRUPTED | STATUS_CANCELLED | STATUS_FAILED
+                            )
+                        {
+                            earlier.superseded_by = Some(id.clone());
+                        }
+                    }
                     inner.jobs.insert(
                         id.clone(),
                         Job {
@@ -1954,6 +1976,7 @@ fn dispatch_tool(
                             routing: None,
                             awaiting_steer: false,
                             next_request_id: 10,
+                            superseded_by: None,
                         },
                     );
                     inner.order.push(id.clone());
@@ -2130,10 +2153,12 @@ fn dispatch_tool(
                         .ok_or_else(|| format!("unknown job {job_id}"))?;
                     job.inbox.push_back(message);
                     job.status = STATUS_QUEUED.to_string();
+                    job.superseded_by = None;
                     inner.queue.push_back(job_id.clone());
                     core.notify(&inner);
                     true
                 };
+                core.persist();
                 core.drain_queue();
                 return Ok(
                     json!({ "revived": job_id, "resumedThread": thread_id, "queued": queued }),
@@ -2186,6 +2211,7 @@ fn dispatch_tool(
             };
             if let Some(job) = inner.jobs.get_mut(&job_id) {
                 job.status = STATUS_RUNNING.to_string();
+                job.superseded_by = None;
                 job.outcome = None;
                 job.ended_at = None;
                 job.reply.clear();
@@ -2200,6 +2226,7 @@ fn dispatch_tool(
                 core.settle(&job_id, STATUS_FAILED, "send-failed", &error);
                 return Err(error);
             }
+            core.persist();
             Ok(json!({ "sent": job_id }))
         }
 
