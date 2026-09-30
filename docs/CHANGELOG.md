@@ -85,6 +85,9 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Fixed
 
+- The orchestration board names a newly opened terminal's planner after the terminal again. Its
+  label was looked up before the terminal's first launch had given the tab its pty, so the board
+  showed a random id instead ([#264](https://github.com/Kc1t/alethe-agents/issues/264)).
 - Every coding agent reached the routing model described the same way, so a request that named no
   agent had nothing to choose on and the answer spread evenly across them, which showed up as a low
   confidence and a fallback. Agents now carry how many panes they have open and whether one of them

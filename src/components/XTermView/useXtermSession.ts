@@ -118,11 +118,15 @@ function isBrowserInputPending(): boolean {
 
 let aiMemoryMissingWarned = false
 
-/** The terminal's own name is what the person recognises a planner by, not its pty id. */
-function plannerLabelFor(ptyId: string): string {
+/**
+ * The terminal's own name is what the person recognises a planner by, not its pty id. The label is
+ * taken before the first spawn, when the tab has no ptyId yet and the pane spawns under its tab id,
+ * so a tab is matched by the same `ptyId ?? id` the pane uses.
+ */
+export function plannerLabelFor(ptyId: string): string {
   for (const project of useProjectsStore.getState().projects) {
     for (const terminal of project.terminals) {
-      if (terminal.tabs.some((tab) => tab.ptyId === ptyId)) return terminal.name
+      if (terminal.tabs.some((tab) => (tab.ptyId ?? tab.id) === ptyId)) return terminal.name
     }
   }
   return ptyId
