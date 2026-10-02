@@ -19,14 +19,24 @@ import { normalizeBrowserUrl } from '../../lib/browserUrl'
 import { pickFile } from '../../lib/dialog'
 import { getLocale, translate, useT } from '../../lib/i18n'
 import { writeScopedStorage } from '../../lib/storageNamespace'
-import { openInBrowser, openInFileExplorer, writeClipboardText, writePty } from '../../lib/tauri'
+import {
+  findRelativePath,
+  openInBrowser,
+  openInFileExplorer,
+  writeClipboardText,
+  writePty,
+} from '../../lib/tauri'
 import { agentLabel, resolveAgentCliCommand } from '../../lib/agentProviders'
 import type { AgentRuntimeProfile, AgentType, Theme } from '../../lib/types'
 import { useProjectsStore } from '../../stores/projectsStore'
 import { useUiStore } from '../../stores/uiStore'
 import { AgentInstallButton } from '../AgentInstall/AgentInstallButton'
 import { DotmCircular2 } from '../ui/dotm-circular-2'
-import { resolveTerminalFilePath, type DetectedTerminalLink } from './terminalLinks'
+import {
+  type DetectedTerminalLink,
+  relativeTerminalPath,
+  resolveTerminalFilePath,
+} from './terminalLinks'
 import { applyPromptHistoryInput, loadPromptHistory, PROMPT_HISTORY_KEY } from './terminalWrite'
 import { useXtermSession } from './useXtermSession'
 import { getXtermTheme, type LinkActionState } from './xtermThemes'
@@ -149,7 +159,11 @@ export function XTermView({
   const [dropActive, setDropActive] = useState(false)
   const sessionPersistenceKey = sessionKey ?? ptyId
 
+  // Bumped on every open and close, so a slow path lookup cannot reopen or retarget the menu.
+  const linkMenuRequestRef = useRef(0)
+
   const hideLinkActions = useCallback(() => {
+    linkMenuRequestRef.current += 1
     setLinkActions(null)
   }, [])
 
@@ -170,14 +184,28 @@ export function XTermView({
           ? below
           : Math.max(LINK_MENU_MARGIN, event.clientY - LINK_MENU_MAX_HEIGHT - LINK_MENU_OFFSET)
 
-      setLinkActions({
-        text: link.text,
-        target: link.kind === 'path' ? resolveTerminalFilePath(link.target, cwd) : link.target,
-        kind: link.kind,
-        fileKind: link.fileKind,
-        x,
-        y,
-      })
+      const target = link.kind === 'path' ? resolveTerminalFilePath(link.target, cwd) : link.target
+      const request = ++linkMenuRequestRef.current
+      const show = (resolved: string) =>
+        request === linkMenuRequestRef.current &&
+        setLinkActions({
+          text: link.text,
+          target: resolved,
+          kind: link.kind,
+          fileKind: link.fileKind,
+          x,
+          y,
+        })
+      const relative = link.kind === 'path' && cwd ? relativeTerminalPath(link.target) : null
+      if (!cwd || relative === null) {
+        show(target)
+        return
+      }
+      // Agents often write in another worktree of the project while the pane stays in the main one.
+      void findRelativePath(cwd, relative).then(
+        (found) => show(found ?? target),
+        () => show(target),
+      )
     },
     [cwd],
   )

@@ -124,6 +124,10 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 - Opening a pull request now uses the system browser instead of creating an unexpected app surface.
 - The Features preferences page now matches the grouped, searchable feature selector used during
   onboarding, with consistent Browser and Playwright controls.
+- A relative path printed by an agent working in another git worktree of the project failed to open
+  ("path nao existe"), because it was looked up only in the terminal's folder. When it is not there,
+  the project's other worktrees are searched too, including paths that start with the worktree's
+  folder name.
 
 ### Fixed
 

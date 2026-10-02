@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   detectTerminalLinks,
   getLogicalTerminalLine,
+  relativeTerminalPath,
   resolveTerminalFilePath,
   terminalLinkRange,
 } from './terminalLinks'
@@ -120,6 +121,16 @@ describe('terminal links', () => {
       '/workspace/repo/docs/README.md',
     )
     expect(resolveTerminalFilePath('D:\\repo\\README.md', 'D:\\other')).toBe('D:\\repo\\README.md')
+  })
+
+  it('keeps the printed relative path so it can be looked up in other worktrees', () => {
+    expect(relativeTerminalPath('./docs/report.md:12')).toBe('docs/report.md')
+    expect(relativeTerminalPath('repo-feature\\docs\\report.md')).toBe(
+      'repo-feature\\docs\\report.md',
+    )
+    expect(relativeTerminalPath('D:\\repo\\README.md')).toBeNull()
+    expect(relativeTerminalPath('/workspace/README.md')).toBeNull()
+    expect(relativeTerminalPath('~/notes.md')).toBeNull()
   })
 
   it('stops an extensionless path at the first space instead of eating the sentence', () => {
