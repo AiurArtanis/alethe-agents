@@ -124,6 +124,8 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 - Opening a pull request now uses the system browser instead of creating an unexpected app surface.
 - The Features preferences page now matches the grouped, searchable feature selector used during
   onboarding, with consistent Browser and Playwright controls.
+- A Codex worker's card read "100% context" after a few turns, because it added up every turn's
+  prompt. It now shows how full the context window is on the last turn.
 
 ### Fixed
 
