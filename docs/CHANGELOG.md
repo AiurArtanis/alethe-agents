@@ -124,6 +124,8 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 - Opening a pull request now uses the system browser instead of creating an unexpected app surface.
 - The Features preferences page now matches the grouped, searchable feature selector used during
   onboarding, with consistent Browser and Playwright controls.
+- A finished worker on the orchestration board showed the same green dot as a running one. Its dot
+  now uses the finished colour from the legend, in the run list, on its card and in the composer.
 
 ### Fixed
 
