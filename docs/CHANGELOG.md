@@ -124,6 +124,9 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 - Opening a pull request now uses the system browser instead of creating an unexpected app surface.
 - The Features preferences page now matches the grouped, searchable feature selector used during
   onboarding, with consistent Browser and Playwright controls.
+- Closing the app no longer leaves the window frozen on screen for up to four seconds while the
+  terminals' processes are stopped. The window disappears as soon as the close is confirmed, and
+  how long the teardown took is written to `app-events.log`.
 
 ### Fixed
 
