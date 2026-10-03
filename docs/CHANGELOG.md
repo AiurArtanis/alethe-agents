@@ -131,6 +131,8 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 - Closing the app no longer leaves the window frozen on screen for up to four seconds while the
   terminals' processes are stopped. The window disappears as soon as the close is confirmed, and
   how long the teardown took is written to `app-events.log`.
+- A Codex worker's card read "100% context" after a few turns, because it added up every turn's
+  prompt. It now shows how full the context window is on the last turn.
 
 ### Fixed
 
