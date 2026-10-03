@@ -2511,7 +2511,6 @@ fn restart_arguments(job: &Job) -> Map<String, Value> {
         .map(|root| root.to_string_lossy().into_owned());
     let mut arguments = Map::new();
     arguments.insert("tasks".into(), json!([job.spec]));
-    arguments.insert("agent".into(), json!(job.agent));
     arguments.insert(
         "cwd".into(),
         json!(repository.unwrap_or_else(|| job.cwd.clone())),
@@ -2527,6 +2526,21 @@ fn restart_arguments(job: &Job) -> Map<String, Value> {
         json!(job.approval_policy.contains("granular")),
     );
     arguments.insert("webSearch".into(), json!(job.web_search));
+    // A role sets the agent, model, effort, sandbox and budget again, as it does for the planner,
+    // and refuses any of them passed alongside it. Without one, the worker runs again on what it
+    // was given.
+    if let Some(role) = &job.role {
+        arguments.insert("role".into(), json!(role));
+        return arguments;
+    }
+    arguments.insert("agent".into(), json!(job.agent));
+    if let Some(model) = &job.model {
+        arguments.insert("model".into(), json!(model));
+    }
+    if let Some(effort) = &job.effort {
+        arguments.insert("effort".into(), json!(effort));
+    }
+    arguments.insert("readOnly".into(), json!(job.sandbox == SANDBOX_READ_ONLY));
     arguments.insert(
         "timeoutSeconds".into(),
         json!(job.timeout_ms.map_or(0, |ms| ms / 1000)),
@@ -3340,6 +3354,36 @@ mod tests {
         assert_eq!(arguments["isolate"], json!(true));
         assert_eq!(arguments["askForApproval"], json!(true));
         assert_eq!(arguments["timeoutSeconds"], json!(0));
+    }
+
+    // A worker restarts on the model, effort and sandbox it was delegated with, or on its role.
+    #[test]
+    fn restart_keeps_the_model_effort_read_only_or_role_of_the_worker() {
+        let delegated = Job {
+            agent: "codex".into(),
+            model: Some("gpt-6-astra".into()),
+            effort: Some("high".into()),
+            sandbox: SANDBOX_READ_ONLY.into(),
+            ..finished_job(None, "\"never\"", Some(900_000))
+        };
+        let arguments = restart_arguments(&delegated);
+        assert_eq!(arguments["agent"], json!("codex"));
+        assert_eq!(arguments["model"], json!("gpt-6-astra"));
+        assert_eq!(arguments["effort"], json!("high"));
+        assert_eq!(arguments["readOnly"], json!(true));
+
+        let reviewer = Job {
+            role: Some("reviewer".into()),
+            ..delegated
+        };
+        let arguments = restart_arguments(&reviewer);
+        assert_eq!(arguments["role"], json!("reviewer"));
+        for field in ROLE_FIELDS {
+            assert!(
+                !arguments.contains_key(field),
+                "{field} is the role's to set"
+            );
+        }
     }
 
     // A restored worker restarts with the budget it was given, not the default one (#242).
