@@ -101,6 +101,11 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   without a repository and fail with "not a git repository". The sidebar now falls back to the
   account-wide list (every open PR you are involved in) whenever the project's own list cannot be
   loaded, and its header switches to the account-wide label so it is clear which list you see.
+- **A task sent again no longer shows its dead worker next to the new one.** When a worker is
+  interrupted, cancelled or fails and the same planner sends the same task again, the earlier worker
+  leaves the orchestration board and the run list, so each task shows the worker that currently has
+  it. This survives a restart. What the earlier worker spent still counts in the session totals, and
+  it comes back to the board if it is sent more work. Workers that finished are never hidden.
 - Every coding agent reached the routing model described the same way, so a request that named no
   agent had nothing to choose on and the answer spread evenly across them, which showed up as a low
   confidence and a fallback. Agents now carry how many panes they have open and whether one of them

@@ -142,6 +142,8 @@ export type PlannerGroup = {
   agent: string | null
   runs: OrchestratorRun[]
   jobs: OrchestratorJob[]
+  /** Workers whose task was sent again. Off the board, but what they spent still counts. */
+  superseded: OrchestratorJob[]
   counts: RunCounts
   state: RunLane
 }
@@ -153,10 +155,21 @@ function toGroup(
   id: string | null,
   label: string | null,
   agent: string | null,
-  jobs: OrchestratorJob[],
+  all: OrchestratorJob[],
 ): PlannerGroup {
+  const jobs = all.filter((job) => !job.supersededBy)
+  const superseded = all.filter((job) => job.supersededBy)
   const counts = countLanes(jobs)
-  return { id, label, agent, runs: groupRuns(jobs), jobs, counts, state: worstState(counts) }
+  return {
+    id,
+    label,
+    agent,
+    runs: groupRuns(jobs),
+    jobs,
+    superseded,
+    counts,
+    state: worstState(counts),
+  }
 }
 
 function clean(value: string | null | undefined): string | null {
