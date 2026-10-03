@@ -11,6 +11,7 @@ import {
   mcpRegistrySearch,
   type McpServerInput,
   mcpUpsert,
+  openInBrowser,
 } from '../../../lib/tauri'
 import type { McpAgent, McpCapability, McpScope } from '../../../lib/types'
 import { AGENT_TYPE_LABELS, MCP_AGENTS } from '../../../lib/types'
@@ -508,13 +509,17 @@ export function AddServerFlow({
                     <div>
                       <dt>{t('mcp.registryReviewRepository')}</dt>
                       <dd>
-                        <a
-                          href={registryReview.repositoryUrl}
-                          target="_blank"
-                          rel="noreferrer noopener"
+                        <button
+                          type="button"
+                          className={styles.registryLink}
+                          onClick={() => {
+                            if (registryReview.repositoryUrl) {
+                              void openInBrowser(registryReview.repositoryUrl)
+                            }
+                          }}
                         >
                           {registryReview.repositoryUrl}
-                        </a>
+                        </button>
                       </dd>
                     </div>
                   ) : null}

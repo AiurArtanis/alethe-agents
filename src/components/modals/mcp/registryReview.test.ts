@@ -14,6 +14,22 @@ const ENTRY: McpCatalogEntry = {
 }
 
 describe('registry review acknowledgement', () => {
+  // A registry listing is untrusted input, and the app's webview can reach every command.
+  it('keeps only an http(s) repository address from the registry', () => {
+    for (const repositoryUrl of ['javascript:alert(1)', 'file:///etc/passwd', 'tauri://x']) {
+      const selected = registryReviewReducer(null, {
+        type: 'select',
+        entry: { ...ENTRY, repositoryUrl },
+      })
+      expect(selected?.repositoryUrl, repositoryUrl).toBeNull()
+    }
+    const plain = registryReviewReducer(null, {
+      type: 'select',
+      entry: { ...ENTRY, repositoryUrl: null },
+    })
+    expect(plain?.repositoryUrl).toBeNull()
+  })
+
   it('blocks a newly selected registry config until explicitly acknowledged', () => {
     const selected = registryReviewReducer(null, { type: 'select', entry: ENTRY })
 

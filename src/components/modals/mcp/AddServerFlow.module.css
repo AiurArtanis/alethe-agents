@@ -246,8 +246,15 @@
   color: var(--fg-muted);
 }
 
-.registryMetadata a {
+.registryLink {
+  padding: 0;
+  border: 0;
+  background: none;
   color: var(--accent);
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
 }
 
 .registryAcknowledgement {

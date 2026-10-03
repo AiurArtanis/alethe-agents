@@ -1,3 +1,4 @@
+import { normalizeBrowserUrl } from '../../../lib/browserUrl'
 import type { McpCatalogEntry } from '../../../lib/tauri'
 
 export type RegistryReview = {
@@ -23,7 +24,11 @@ export function registryReviewReducer(
         origin: action.entry.id,
         title: action.entry.title,
         version: action.entry.version,
-        repositoryUrl: action.entry.repositoryUrl,
+        // Anyone can publish to the registry, and the webview has full IPC access: only an http(s)
+        // address is kept, so a `javascript:` one can never be opened from the review.
+        repositoryUrl: action.entry.repositoryUrl
+          ? normalizeBrowserUrl(action.entry.repositoryUrl)
+          : null,
         acknowledged: false,
       }
     case 'acknowledge':
