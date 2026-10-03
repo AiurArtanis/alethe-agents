@@ -136,6 +136,8 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   how long the teardown took is written to `app-events.log`.
 - A Codex worker's card read "100% context" after a few turns, because it added up every turn's
   prompt. It now shows how full the context window is on the last turn.
+- A finished worker on the orchestration board showed the same green dot as a running one. Its dot
+  now uses the finished colour from the legend, in the run list, on its card and in the composer.
 
 ### Fixed
 
