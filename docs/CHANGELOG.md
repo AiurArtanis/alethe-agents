@@ -96,6 +96,11 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 - The orchestration board names a newly opened terminal's planner after the terminal again. Its
   label was looked up before the terminal's first launch had given the tab its pty, so the board
   showed a random id instead ([#264](https://github.com/Kc1t/alethe-agents/issues/264)).
+- **The Open PRs sidebar showed a raw git error for a project whose folder is not a git
+  checkout.** A project opened on `C:\`, for example, made `gh pr list` run git in a folder
+  without a repository and fail with "not a git repository". The sidebar now falls back to the
+  account-wide list (every open PR you are involved in) whenever the project's own list cannot be
+  loaded, and its header switches to the account-wide label so it is clear which list you see.
 - Every coding agent reached the routing model described the same way, so a request that named no
   agent had nothing to choose on and the answer spread evenly across them, which showed up as a low
   confidence and a fallback. Agents now carry how many panes they have open and whether one of them
