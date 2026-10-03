@@ -781,7 +781,7 @@ export const en = {
   'prefs.orchestrationRoleName': 'Name',
   'prefs.orchestrationRoleNameFor': 'Name of role {name}',
   'prefs.orchestrationRoleNameInvalid':
-    'Use a unique name without spaces that does not start with "-". Until then planners cannot use this role, and it is dropped when Alethe restarts.',
+    'Use a unique name without spaces that does not start with "-". Until then the role keeps its saved name, which is the one planners use.',
   'prefs.orchestrationAgent': 'Agent',
   'prefs.orchestrationModel': 'Model',
   'prefs.orchestrationEffort': 'Effort',

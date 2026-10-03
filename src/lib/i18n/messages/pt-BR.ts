@@ -793,7 +793,7 @@ export const ptBR: Record<MessageKey, string> = {
   'prefs.orchestrationRoleName': 'Nome',
   'prefs.orchestrationRoleNameFor': 'Nome do papel {name}',
   'prefs.orchestrationRoleNameInvalid':
-    'Use um nome único, sem espaços e que não comece com "-". Até lá o planner não consegue usar este papel, e ele é descartado quando o Alethe reinicia.',
+    'Use um nome único, sem espaços e que não comece com "-". Até lá o papel mantém o nome salvo, que é o que o planner usa.',
   'prefs.orchestrationAgent': 'Agente',
   'prefs.orchestrationModel': 'Modelo',
   'prefs.orchestrationEffort': 'Esforço',

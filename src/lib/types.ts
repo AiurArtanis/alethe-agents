@@ -568,7 +568,7 @@ export type OrchestrationRole = {
   agent: 'codex' | 'claude'
   /** null runs the CLI's default model. */
   model: string | null
-  /** Codex reasoning effort; null keeps the CLI's setting. Always null for Claude. */
+  /** Reasoning effort, as the chosen CLI names it; null keeps the CLI's setting. */
   effort: string | null
   /** Codex read-only sandbox. Always false for Claude. */
   readOnly: boolean
