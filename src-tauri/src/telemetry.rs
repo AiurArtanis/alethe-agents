@@ -113,7 +113,7 @@ fn append_telemetry_log_at(path: &Path, event: &EventBusPayload) -> io::Result<b
     };
     let replace_existing = existing_len
         .checked_add(line_len)
-        .map_or(true, |new_len| new_len > TELEMETRY_LOG_MAX_BYTES);
+        .is_none_or(|new_len| new_len > TELEMETRY_LOG_MAX_BYTES);
 
     let mut file = open_telemetry_log(path, replace_existing)?;
     file.write_all(&line)?;
