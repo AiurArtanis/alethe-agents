@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import {
   memo,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
@@ -66,12 +67,14 @@ import {
   mergeFinalize,
   mergePrepare,
   orchestratorAnswer,
+  orchestratorCancel,
   type OrchestratorDecision,
   type OrchestratorJob,
   orchestratorJobDiff,
   orchestratorJobs,
   orchestratorMessage,
   type OrchestratorPendingApproval,
+  orchestratorRestart,
   type OrchestratorSnapshot,
   worktreeCommitWorktree,
   worktreeFetchBranch,
@@ -88,6 +91,7 @@ import { Modal } from '../modals/Modal'
 import { Collapse } from '../ui/Collapse'
 import { contextShare } from './contextShare'
 import styles from './OrchestratorPane.module.css'
+import { WorkerContextMenu } from './WorkerContextMenu'
 
 const EMPTY: OrchestratorSnapshot = {
   jobs: [],
@@ -348,6 +352,8 @@ function ApprovalAsk({ job, ask, answering, onAnswer, t }: ApprovalAskProps) {
   )
 }
 
+type WorkerMenuFn = (event: ReactMouseEvent, id: string) => void
+
 type WorkerNodeProps = {
   job: OrchestratorJob
   node: GraphNode
@@ -365,6 +371,7 @@ type WorkerNodeProps = {
   onAnswer: AnswerFn
   onToggleDiff: (id: string) => void
   onApply: (job: OrchestratorJob) => void
+  onContextMenu: WorkerMenuFn
   bind: BindNode
   t: TFunction
 }
@@ -386,6 +393,7 @@ function WorkerNode({
   onAnswer,
   onToggleDiff,
   onApply,
+  onContextMenu,
   bind,
   t,
 }: WorkerNodeProps) {
@@ -410,6 +418,7 @@ function WorkerNode({
   return (
     <article
       ref={(element) => bind(job.id, element)}
+      onContextMenu={(event) => onContextMenu(event, job.id)}
       className={styles.worker}
       style={{ left: node.x, top: node.y, width: node.width }}
       data-status={job.status}
@@ -763,10 +772,11 @@ type RailRowProps = {
   selected: boolean
   theme: Theme
   onSelect: (id: string) => void
+  onContextMenu: WorkerMenuFn
   t: TFunction
 }
 
-function RailRow({ job, depth, selected, theme, onSelect, t }: RailRowProps) {
+function RailRow({ job, depth, selected, theme, onSelect, onContextMenu, t }: RailRowProps) {
   const elapsed = formatElapsed(job.seconds)
   const lane = LANE_OF[job.status]
   // A blocked worker's clock is still running, but the state is what the row has to report.
@@ -781,6 +791,7 @@ function RailRow({ job, depth, selected, theme, onSelect, t }: RailRowProps) {
       title={statusTitle(job.status, t) ?? t('orchestrator.selectWorker')}
       onPointerDown={(event) => event.stopPropagation()}
       onClick={() => onSelect(job.id)}
+      onContextMenu={(event) => onContextMenu(event, job.id)}
     >
       <span className={styles.dot} aria-hidden />
       <AgentGlyph agent={job.agent} theme={theme} size={12} />
@@ -797,10 +808,20 @@ type RunBranchProps = {
   theme: Theme
   onToggle: (id: string) => void
   onSelectWorker: (id: string) => void
+  onWorkerMenu: WorkerMenuFn
   t: TFunction
 }
 
-function RunBranch({ run, open, selectedId, theme, onToggle, onSelectWorker, t }: RunBranchProps) {
+function RunBranch({
+  run,
+  open,
+  selectedId,
+  theme,
+  onToggle,
+  onSelectWorker,
+  onWorkerMenu,
+  t,
+}: RunBranchProps) {
   return (
     <div className={styles.branch}>
       <button
@@ -828,6 +849,7 @@ function RunBranch({ run, open, selectedId, theme, onToggle, onSelectWorker, t }
             selected={job.id === selectedId}
             theme={theme}
             onSelect={onSelectWorker}
+            onContextMenu={onWorkerMenu}
             t={t}
           />
         ))}
@@ -902,6 +924,7 @@ export const OrchestratorPane = memo(function OrchestratorPane({
   const quotaWarnings = useOrchestratorQuotaWarnings()
   const [selectedPlanner, setSelectedPlanner] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [workerMenu, setWorkerMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   const [openRuns, setOpenRuns] = useState<Record<string, boolean>>({})
   const [summaryOpen, setSummaryOpen] = useState(true)
   const [draft, setDraft] = useState('')
@@ -1219,6 +1242,20 @@ export const OrchestratorPane = memo(function OrchestratorPane({
 
   const mode: MessageMode = selected ? messageMode(selected) : 'next'
   const canSend = selected !== null && canMessage(selected)
+
+  const openWorkerMenu: WorkerMenuFn = (event, id) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setWorkerMenu({ id, x: event.clientX, y: event.clientY })
+  }
+
+  const runWorkerAction = async (action: () => Promise<unknown>, failure: string) => {
+    try {
+      await action()
+    } catch (error) {
+      pushToast({ title: failure, body: error instanceof Error ? error.message : String(error) })
+    }
+  }
 
   const answer = async (jobId: string, decision: OrchestratorDecision) => {
     if (answering.has(jobId)) return
@@ -1555,6 +1592,7 @@ export const OrchestratorPane = memo(function OrchestratorPane({
                           onAnswer={(id, decision) => void answer(id, decision)}
                           onToggleDiff={(id) => void toggleDiff(id)}
                           onApply={(job) => void applyWorktree(job)}
+                          onContextMenu={openWorkerMenu}
                           bind={bind}
                           t={t}
                         />
@@ -1725,6 +1763,7 @@ export const OrchestratorPane = memo(function OrchestratorPane({
                       theme={theme}
                       onToggle={toggleRun}
                       onSelectWorker={reveal}
+                      onWorkerMenu={openWorkerMenu}
                       t={t}
                     />
                   ))}
@@ -1760,6 +1799,21 @@ export const OrchestratorPane = memo(function OrchestratorPane({
           </div>
         </div>
       )}
+      {workerMenu && jobById.has(workerMenu.id) ? (
+        <WorkerContextMenu
+          job={jobById.get(workerMenu.id)!}
+          x={workerMenu.x}
+          y={workerMenu.y}
+          onOpen={reveal}
+          onStop={(id) =>
+            void runWorkerAction(() => orchestratorCancel(id), t('orchestrator.stopFailed'))
+          }
+          onRestart={(id) =>
+            void runWorkerAction(() => orchestratorRestart(id), t('orchestrator.restartFailed'))
+          }
+          onClose={() => setWorkerMenu(null)}
+        />
+      ) : null}
     </section>
   )
 })
