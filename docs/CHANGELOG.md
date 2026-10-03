@@ -286,6 +286,15 @@ you before leaving its sandbox, and reads each vendor's remaining quota before d
 goes; **remote control** grown into a real mobile client with a live terminal, agent chat and
 interactive questions; **optional project grids**; **9router** routing; **cloud sync** for
 preferences; and three new agents — **Cursor CLI**, **Kiro CLI** and plain **WSL** terminals.
+- Installing a CLI from inside Alethe no longer ends in a dialog that spins forever. The install
+  screen now watches for the CLI itself while the installer runs, instead of waiting only for the
+  installer's shell to exit — some of them hand the prompt back or leave a progress bar behind and
+  never exit — so the dialog closes on its own as soon as the CLI is really there. Detection also
+  re-reads the machine's environment on every check, so a CLI that adds itself to PATH is found
+  without restarting the app.
+- On Linux, launching Alethe while another instance is running no longer exits silently: the new
+  process now says it is focusing the existing window. If that instance is wedged and never answers,
+  it reports which process is holding the lock and exits with an error instead of doing nothing.
 
 ### Added
 
