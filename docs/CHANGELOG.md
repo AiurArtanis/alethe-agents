@@ -187,6 +187,13 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   also freed a slot it never held, letting one more worker run than the concurrency limit allows.
 - A worker restored after a restart keeps the time budget it was delegated with, instead of
   falling back to 15 minutes.
+- A relative path printed by an agent working in another git worktree of the project failed to open
+  ("path nao existe"), because it was looked up only in the terminal's folder. When it is not there,
+  the project's other worktrees are searched too, including paths that start with the worktree's
+  folder name.
+
+### Fixed
+
 - On Linux, closing a terminal could end every process of your user session instead of only that
   terminal's processes, depending on the process ID it got. Terminals are now stopped directly
   through the system call, so only their own processes are affected.
