@@ -375,6 +375,16 @@ describe('boardPlannerIds', () => {
     expect(boardPlannerIds(project, 'board')).toEqual(['pty-zulu-2', 'pty-zulu-1'])
   })
 
+  it('follows the terminal the board was started on, even when it is not the first pane', () => {
+    const grouped = {
+      ...project,
+      paneGroups: [
+        { id: 'g1', kind: 'orchestration', paneIds: ['alpha', 'zulu', 'board'], plannerId: 'zulu' },
+      ],
+    } as Project
+    expect(boardPlannerIds(grouped, 'board')).toEqual(['pty-zulu-2', 'pty-zulu-1'])
+  })
+
   it('has no preference for a board that is not grouped with a terminal', () => {
     expect(boardPlannerIds({ ...project, paneGroups: [] } as Project, 'board')).toEqual([])
     expect(boardPlannerIds(undefined, 'board')).toEqual([])

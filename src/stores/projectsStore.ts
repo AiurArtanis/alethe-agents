@@ -269,7 +269,11 @@ export type ProjectsState = ProjectsFile & {
   closeOtherContainers: (keepProjectId: string) => void
   reorderContainers: (fromIndex: number, toIndex: number) => void
   reorderPaneInContainer: (projectId: string, fromIndex: number, toIndex: number) => void
-  groupPanes: (projectId: string, paneIds: string[], options?: { kind?: 'orchestration' }) => void
+  groupPanes: (
+    projectId: string,
+    paneIds: string[],
+    options?: { kind?: 'orchestration'; plannerId?: string },
+  ) => void
   ungroupPanes: (projectId: string, groupId: string) => void
   setContainerCollapsed: (projectId: string, collapsed: boolean) => void
   setContainerInternalLayout: (projectId: string, layout: LayoutMode) => void

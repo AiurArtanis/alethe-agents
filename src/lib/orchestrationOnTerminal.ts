@@ -68,7 +68,7 @@ export async function startOrchestrationOn({
 
     const { createOrchestratorPane, groupPanes } = useProjectsStore.getState()
     const board = createOrchestratorPane(projectId, cwd)
-    groupPanes(projectId, [terminalId, board.id], { kind: 'orchestration' })
+    groupPanes(projectId, [terminalId, board.id], { kind: 'orchestration', plannerId: terminalId })
     return 'ready'
   } finally {
     starting.delete(terminalId)

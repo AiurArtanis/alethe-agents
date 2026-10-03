@@ -933,10 +933,12 @@ export function createContainersSlice({ get, update, updateContainer }: SliceCtx
         ]
         const remaining = groups.filter((group) => !absorbed.includes(group))
         const kind = options?.kind ?? absorbed.find((group) => group.kind)?.kind
+        const plannerId = options?.plannerId ?? absorbed.find((group) => group.plannerId)?.plannerId
         remaining.push({
           id: `pane-group-${Date.now()}`,
           paneIds: expandedIds,
           ...(kind ? { kind } : {}),
+          ...(plannerId ? { plannerId } : {}),
         })
         return {
           projects: state.projects.map((p) =>

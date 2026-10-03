@@ -228,8 +228,10 @@ export function boardPlannerIds(project: Project | undefined, boardTerminalId: s
   const group = project?.paneGroups?.find(
     (entry) => entry.kind === 'orchestration' && entry.paneIds.includes(boardTerminalId),
   )
+  // A board started on an open terminal names it; one made with its planner is grouped after it.
+  const plannerId = group?.plannerId ?? group?.paneIds[0]
   const planner = project?.terminals.find(
-    (terminal) => terminal.id === group?.paneIds[0] && terminal.id !== boardTerminalId,
+    (terminal) => terminal.id === plannerId && terminal.id !== boardTerminalId,
   )
   if (!planner) return []
   const tabs = [...planner.tabs].sort(

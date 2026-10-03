@@ -345,6 +345,11 @@ export type PaneGroup = {
   paneIds: string[]
   /** Dedicated groups keep related panes together without changing the project's outer layout. */
   kind?: 'orchestration'
+  /**
+   * The terminal an orchestration board was opened for. A terminal that was already grouped brings
+   * its group along, so it is not always the first pane.
+   */
+  plannerId?: string
 }
 
 export type OrphanWorktree = {
