@@ -139,6 +139,9 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Fixed
 
+- On Linux, the settings file that lets Claude Code report back to Alethe is no longer written
+  to the shared temp folder, where other users of the machine could read the access token in
+  it. It now lives in your own runtime folder, readable only by you.
 - On Linux, opening Alethe while it is already running no longer exits without a word. It says
   it is focusing the open window, or, when that instance is stuck, which process holds it and
   how to end it.
