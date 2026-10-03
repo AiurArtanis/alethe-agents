@@ -7,6 +7,7 @@ import {
   ChevronRight,
   CornerDownLeft,
   Cpu,
+  Eye,
   FilePen,
   GitBranch,
   Globe2,
@@ -105,6 +106,7 @@ const EMPTY: OrchestratorSnapshot = {
   running: 0,
   queued: 0,
   concurrencyLimit: 0,
+  roles: [],
 }
 
 const LIVE_TICK_MS = 1_000
@@ -246,6 +248,15 @@ function statusTitle(status: OrchestratorJob['status'], t: TFunction): string | 
   if (status === 'interrupted') return t('orchestrator.interruptedTitle')
   if (status === 'blocked') return t('orchestrator.blockedTitle')
   return undefined
+}
+
+/** What the planner chose to run a worker on; either part can be given without the other. */
+function modelTitle(job: OrchestratorJob, t: TFunction): string {
+  if (job.model && job.effort) {
+    return t('orchestrator.modelEffortTitle', { model: job.model, effort: job.effort })
+  }
+  if (job.model) return t('orchestrator.modelTitle', { model: job.model })
+  return t('orchestrator.effortTitle', { effort: job.effort ?? '' })
 }
 
 function laneTitle(lane: RunLane, t: TFunction): string | undefined {
@@ -457,6 +468,20 @@ function WorkerNode({
           <span className={styles.metaStatus} title={statusTitle(job.status, t)}>
             {t(`orchestrator.status.${job.status}`)}
           </span>
+          {job.role && (
+            <span title={t('orchestrator.roleTitle', { role: job.role })}>{job.role}</span>
+          )}
+          {(job.model || job.effort) && (
+            <span title={modelTitle(job, t)}>
+              {[job.model, job.effort].filter(Boolean).join(' · ')}
+            </span>
+          )}
+          {job.readOnly && (
+            <span className={styles.metaIcon} title={t('orchestrator.readOnlyTitle')}>
+              <Eye size={9} aria-hidden />
+              {t('orchestrator.readOnly')}
+            </span>
+          )}
           {share !== null && (
             <span title={t('orchestrator.contextTitle', { percent: share })}>
               {t('orchestrator.contextChip', { value: share })}
@@ -1591,13 +1616,17 @@ export const OrchestratorPane = memo(function OrchestratorPane({
                           style={{ left: edge.note.x, top: edge.note.y }}
                         >
                           {t(
-                            edge.note.verdict === 'ignored'
-                              ? 'orchestrator.routingIgnored'
-                              : 'orchestrator.routingChosen',
+                            edge.note.verdict === 'fallback'
+                              ? 'orchestrator.routingFallback'
+                              : edge.note.verdict === 'ignored'
+                                ? 'orchestrator.routingIgnored'
+                                : 'orchestrator.routingChosen',
                             {
                               agent: edge.note.agent,
                               window: edge.note.window,
                               used: String(edge.note.used),
+                              from: edge.note.from ?? '',
+                              to: edge.note.to ?? '',
                             },
                           )}
                         </span>

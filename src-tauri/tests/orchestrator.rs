@@ -17,17 +17,27 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 
-use orchestrator_core::{handle_mcp_body, Core, Launcher};
+use orchestrator_core::{handle_mcp_body, Core, Launcher, OrchestrationSettings, Planner};
 
 fn rpc(core: &Core, id: u32, method: &str, params: Value) -> Value {
+    rpc_as(core, None, id, method, params)
+}
+
+/// The request as the agent terminal registered as `planner` sends it.
+fn rpc_as(core: &Core, planner: Option<&str>, id: u32, method: &str, params: Value) -> Value {
     let body = json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params });
-    let raw = handle_mcp_body(core, &body.to_string(), None).expect("a response");
+    let raw = handle_mcp_body(core, &body.to_string(), planner).expect("a response");
     serde_json::from_str(&raw).expect("valid json")
 }
 
 fn call(core: &Core, name: &str, arguments: Value) -> Value {
-    let response = rpc(
+    call_as(core, None, name, arguments)
+}
+
+fn call_as(core: &Core, planner: Option<&str>, name: &str, arguments: Value) -> Value {
+    let response = rpc_as(
         core,
+        planner,
         10,
         "tools/call",
         json!({ "name": name, "arguments": arguments }),
@@ -542,6 +552,22 @@ fn the_observer_sees_every_state_change() {
     let last = snapshots.last().expect("a snapshot");
     assert!(last["jobs"].as_array().is_some_and(|jobs| !jobs.is_empty()));
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+// The Orchestration settings list the models Codex offers. Codex shuts down on end of input, so
+// asking and closing at once never got an answer ("codex did not list its models in time").
+#[test]
+#[ignore = "spawns the real codex app-server"]
+fn the_installed_codex_lists_its_models() {
+    let core = Core::default();
+    core.set_launcher(codex_launcher());
+    let models = core.list_codex_models().expect("a model list");
+    let listed = models.as_array().expect("a list");
+    assert!(!listed.is_empty(), "{models}");
+    assert!(
+        listed.iter().all(|model| model["efforts"].is_array()),
+        "{models}"
+    );
 }
 
 #[test]
@@ -1580,21 +1606,6 @@ fn the_delegate_schema_points_at_the_live_reading_instead_of_quoting_numbers() {
 }
 
 // What alethe_status returns has to fit a planner; the UI keeps reading the full snapshot (#258).
-fn call_as(core: &Core, planner: &str, name: &str, arguments: Value) -> Value {
-    let body = json!({
-        "jsonrpc": "2.0",
-        "id": 10,
-        "method": "tools/call",
-        "params": { "name": name, "arguments": arguments }
-    });
-    let raw = handle_mcp_body(core, &body.to_string(), Some(planner)).expect("a response");
-    let response: Value = serde_json::from_str(&raw).expect("valid json");
-    let text = response["result"]["content"][0]["text"]
-        .as_str()
-        .expect("tool text");
-    serde_json::from_str(text).unwrap_or_else(|_| json!({ "raw": text }))
-}
-
 #[test]
 fn the_status_stays_small_however_long_the_tasks_are() {
     let dir = workspace("status-small");
@@ -1604,19 +1615,19 @@ fn the_status_stays_small_however_long_the_tasks_are() {
     let tasks: Vec<String> = (0..12).map(|i| format!("{i}: {brief}")).collect();
     call_as(
         &core,
-        "planner-a",
+        Some("planner-a"),
         "alethe_delegate",
         json!({ "tasks": tasks, "cwd": dir.to_string_lossy() }),
     );
     // No launcher is registered, so every worker settles at once.
     call_as(
         &core,
-        "planner-a",
+        Some("planner-a"),
         "alethe_check",
         json!({ "wait": true, "timeoutMs": 5000 }),
     );
 
-    let status = call_as(&core, "planner-a", "alethe_status", json!({}));
+    let status = call_as(&core, Some("planner-a"), "alethe_status", json!({}));
     let size = status.to_string().chars().count();
     assert!(size < 12_000, "the status has {size} characters");
     let jobs = status["jobs"].as_array().expect("jobs");
@@ -1657,26 +1668,737 @@ fn a_planner_sees_its_own_workers_and_a_count_of_the_rest() {
     let cwd = dir.to_string_lossy().into_owned();
     call_as(
         &core,
-        "planner-a",
+        Some("planner-a"),
         "alethe_delegate",
         json!({ "tasks": ["task of a"], "cwd": cwd }),
     );
     call_as(
         &core,
-        "planner-b",
+        Some("planner-b"),
         "alethe_delegate",
         json!({ "tasks": ["task of b"], "cwd": cwd }),
     );
 
-    let mine = call_as(&core, "planner-a", "alethe_status", json!({}));
+    let mine = call_as(&core, Some("planner-a"), "alethe_status", json!({}));
     let jobs = mine["jobs"].as_array().expect("jobs");
     assert_eq!(jobs.len(), 1, "{mine}");
     assert_eq!(jobs[0]["plannerId"], "planner-a");
     assert_eq!(mine["omitted"], json!(1), "{mine}");
 
-    let all = call_as(&core, "planner-a", "alethe_status", json!({ "all": true }));
+    let all = call_as(&core, Some("planner-a"), "alethe_status", json!({ "all": true }));
     assert_eq!(all["jobs"].as_array().map(Vec::len), Some(2), "{all}");
     assert_eq!(all["omitted"], json!(0), "{all}");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+// A planner picks the model, the effort and a read-only sandbox for the workers it delegates (#252).
+#[test]
+fn a_worker_keeps_the_model_effort_and_read_only_it_was_delegated_with() {
+    let dir = workspace("model-options");
+    let store = dir.join("orchestrator-jobs.json");
+    let core = Core::default();
+    core.set_store(store.clone());
+
+    let delegated = call(
+        &core,
+        "alethe_delegate",
+        json!({
+            "tasks": ["review the diff"],
+            "cwd": dir.to_string_lossy(),
+            "model": "gpt-6-astra",
+            "effort": "high",
+            "readOnly": true
+        }),
+    );
+    assert_eq!(delegated["accepted"], json!(1), "{delegated}");
+    // No launcher is registered, so the worker settles at once; what matters is what it was given.
+    call(
+        &core,
+        "alethe_check",
+        json!({ "wait": true, "timeoutMs": 5000 }),
+    );
+
+    let snapshot = core.snapshot();
+    let job = &snapshot["jobs"][0];
+    assert_eq!(job["model"], "gpt-6-astra", "{job}");
+    assert_eq!(job["effort"], "high", "{job}");
+    assert_eq!(job["readOnly"], true, "{job}");
+
+    let restored = Core::default();
+    restored.set_store(store);
+    restored.restore();
+    let restored_snapshot = restored.snapshot();
+    let restored_job = &restored_snapshot["jobs"][0];
+    assert_eq!(restored_job["model"], "gpt-6-astra", "{restored_job}");
+    assert_eq!(restored_job["effort"], "high", "{restored_job}");
+    assert_eq!(restored_job["readOnly"], true, "{restored_job}");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_worker_delegated_without_model_options_runs_as_before() {
+    let dir = workspace("model-defaults");
+    let core = Core::default();
+
+    let delegated = call(
+        &core,
+        "alethe_delegate",
+        json!({ "tasks": ["anything"], "cwd": dir.to_string_lossy() }),
+    );
+    assert_eq!(delegated["accepted"], json!(1), "{delegated}");
+
+    let snapshot = core.snapshot();
+    let job = &snapshot["jobs"][0];
+    assert_eq!(job["model"], Value::Null, "{job}");
+    assert_eq!(job["effort"], Value::Null, "{job}");
+    assert_eq!(job["readOnly"], false, "{job}");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn model_options_that_cannot_hold_are_refused_without_creating_a_job() {
+    let dir = workspace("model-refused");
+    let core = Core::default();
+    let cwd = dir.to_string_lossy().into_owned();
+
+    let cases = [
+        // The headless Claude launch bypasses permissions: dropping readOnly would let it write.
+        (
+            "read-only claude worker",
+            json!({ "agent": "claude", "readOnly": true }),
+        ),
+        (
+            "read-only worker that asks",
+            json!({ "readOnly": true, "askForApproval": true }),
+        ),
+        // Read as false it would start a writable worker the caller meant to only read.
+        ("read-only given as text", json!({ "readOnly": "true" })),
+        ("effort with whitespace", json!({ "effort": "very high" })),
+        (
+            "model read as a flag",
+            json!({ "model": "--dangerously-skip-permissions" }),
+        ),
+        ("model with whitespace", json!({ "model": "gpt 6" })),
+        ("empty model", json!({ "model": "" })),
+    ];
+    for (case, options) in cases {
+        let mut arguments = json!({ "tasks": ["anything"], "cwd": cwd });
+        for (key, value) in options.as_object().expect("options") {
+            arguments[key] = value.clone();
+        }
+        let result = call(&core, "alethe_delegate", arguments);
+        assert!(
+            result.get("error").is_some(),
+            "{case} must be refused: {result}"
+        );
+    }
+    assert_eq!(
+        core.snapshot()["jobs"].as_array().map(Vec::len),
+        Some(0),
+        "a refused call creates no job"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+// Roles configured in Preferences decide what a delegated worker runs on (#254).
+fn settings(value: Value) -> OrchestrationSettings {
+    serde_json::from_value(value).expect("settings in the shape the app sends")
+}
+
+fn reviewer_on(model: &str) -> OrchestrationSettings {
+    settings(json!({
+        "roles": [{
+            "name": "reviewer",
+            "agent": "codex",
+            "model": model,
+            "effort": "high",
+            "readOnly": true,
+            "timeoutSeconds": 600
+        }],
+        "maxConcurrent": 4,
+        "defaultTimeoutSeconds": 900
+    }))
+}
+
+#[test]
+fn a_role_decides_what_its_workers_run_on() {
+    let dir = workspace("role-applied");
+    let core = Core::default();
+    core.apply_settings(reviewer_on("gpt-6.1-sol"));
+
+    let delegated = call(
+        &core,
+        "alethe_delegate",
+        json!({ "tasks": ["review the diff"], "cwd": dir.to_string_lossy(), "role": "reviewer" }),
+    );
+    assert_eq!(delegated["accepted"], json!(1), "{delegated}");
+    assert_eq!(delegated["timeoutSeconds"], json!(600), "{delegated}");
+
+    let snapshot = core.snapshot();
+    let job = &snapshot["jobs"][0];
+    assert_eq!(job["role"], "reviewer", "{job}");
+    assert_eq!(job["agent"], "codex", "{job}");
+    assert_eq!(job["model"], "gpt-6.1-sol", "{job}");
+    assert_eq!(job["effort"], "high", "{job}");
+    assert_eq!(job["readOnly"], true, "{job}");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_role_is_the_only_source_for_what_it_sets() {
+    let dir = workspace("role-refused");
+    let core = Core::default();
+    core.apply_settings(reviewer_on("gpt-6.1-sol"));
+    let cwd = dir.to_string_lossy().into_owned();
+
+    let cases = [
+        ("another model", json!({ "role": "reviewer", "model": "gpt-6-astra" })),
+        ("another effort", json!({ "role": "reviewer", "effort": "low" })),
+        // A planner must not be able to run a read-only role as a writable worker.
+        ("writable", json!({ "role": "reviewer", "readOnly": false })),
+        ("another agent", json!({ "role": "reviewer", "agent": "claude" })),
+        ("another budget", json!({ "role": "reviewer", "timeoutSeconds": 60 })),
+        ("unknown role", json!({ "role": "auditor" })),
+        ("a field left null", json!({ "role": "reviewer", "model": null })),
+        ("role that is not a name", json!({ "role": true })),
+    ];
+    for (case, options) in cases {
+        let mut arguments = json!({ "tasks": ["anything"], "cwd": cwd });
+        for (key, value) in options.as_object().expect("options") {
+            arguments[key] = value.clone();
+        }
+        let result = call(&core, "alethe_delegate", arguments);
+        assert!(result.get("error").is_some(), "{case} must be refused: {result}");
+    }
+    let unknown = call(
+        &core,
+        "alethe_delegate",
+        json!({ "tasks": ["anything"], "cwd": cwd, "role": "auditor" }),
+    );
+    assert!(
+        unknown["error"].as_str().unwrap_or_default().contains("reviewer"),
+        "an unknown role names the ones that exist: {unknown}"
+    );
+    assert_eq!(
+        core.snapshot()["jobs"].as_array().map(Vec::len),
+        Some(0),
+        "a refused call creates no job"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn editing_a_role_changes_the_next_delegation_but_not_one_already_made() {
+    let dir = workspace("role-edited");
+    let core = Core::default();
+    let cwd = dir.to_string_lossy().into_owned();
+
+    core.apply_settings(reviewer_on("gpt-6-astra"));
+    call(
+        &core,
+        "alethe_delegate",
+        json!({ "tasks": ["first"], "cwd": cwd, "role": "reviewer" }),
+    );
+    core.apply_settings(reviewer_on("gpt-6.1-sol"));
+    call(
+        &core,
+        "alethe_delegate",
+        json!({ "tasks": ["second"], "cwd": cwd, "role": "reviewer" }),
+    );
+
+    let snapshot = core.snapshot();
+    assert_eq!(snapshot["jobs"][0]["model"], "gpt-6-astra", "{snapshot}");
+    assert_eq!(snapshot["jobs"][1]["model"], "gpt-6.1-sol", "{snapshot}");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_status_lists_the_roles_a_planner_can_ask_for() {
+    let core = Core::default();
+    core.apply_settings(reviewer_on("gpt-6.1-sol"));
+
+    let status = call(&core, "alethe_status", json!({}));
+    let roles = status["roles"].as_array().expect("roles in the status");
+    assert_eq!(roles.len(), 1, "{status}");
+    assert_eq!(roles[0]["name"], "reviewer");
+    assert_eq!(roles[0]["model"], "gpt-6.1-sol");
+    assert_eq!(roles[0]["readOnly"], true);
+}
+
+#[test]
+fn the_limits_from_preferences_reach_the_orchestrator() {
+    let dir = workspace("role-limits");
+    let core = Core::default();
+    core.apply_settings(settings(json!({
+        "roles": [],
+        "maxConcurrent": 2,
+        "defaultTimeoutSeconds": 300
+    })));
+
+    let delegated = call(
+        &core,
+        "alethe_delegate",
+        json!({ "tasks": ["anything"], "cwd": dir.to_string_lossy() }),
+    );
+    assert_eq!(delegated["concurrencyLimit"], json!(2), "{delegated}");
+    assert_eq!(delegated["timeoutSeconds"], json!(300), "{delegated}");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+// Claude Code takes an effort on its command line (`--effort`), so a Claude worker gets one too.
+#[test]
+fn a_claude_worker_keeps_the_effort_it_was_delegated_with() {
+    let dir = workspace("claude-effort");
+    let core = Core::default();
+
+    let delegated = call(
+        &core,
+        "alethe_delegate",
+        json!({
+            "tasks": ["implement it"],
+            "cwd": dir.to_string_lossy(),
+            "agent": "claude",
+            "model": "claude-opus-5-5",
+            "effort": "high"
+        }),
+    );
+    assert_eq!(delegated["accepted"], json!(1), "{delegated}");
+
+    let snapshot = core.snapshot();
+    let job = &snapshot["jobs"][0];
+    assert_eq!(job["model"], "claude-opus-5-5", "{job}");
+    assert_eq!(job["effort"], "high", "{job}");
+    assert_eq!(job["readOnly"], false, "{job}");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+// An executor role runs Claude on the model and effort the settings give it.
+#[test]
+fn a_claude_role_runs_on_its_model_and_effort() {
+    let dir = workspace("role-claude");
+    let core = Core::default();
+    core.apply_settings(settings(json!({
+        "roles": [{
+            "name": "executor-t2",
+            "agent": "claude",
+            "model": "claude-opus-5-5",
+            "effort": "high",
+            "readOnly": false,
+            "timeoutSeconds": 600
+        }],
+        "maxConcurrent": 4,
+        "defaultTimeoutSeconds": 900
+    })));
+
+    let delegated = call(
+        &core,
+        "alethe_delegate",
+        json!({ "tasks": ["implement it"], "cwd": dir.to_string_lossy(), "role": "executor-t2" }),
+    );
+    assert_eq!(delegated["accepted"], json!(1), "{delegated}");
+
+    let snapshot = core.snapshot();
+    let job = &snapshot["jobs"][0];
+    assert_eq!(job["agent"], "claude", "{job}");
+    assert_eq!(job["model"], "claude-opus-5-5", "{job}");
+    assert_eq!(job["effort"], "high", "{job}");
+    assert_eq!(job["readOnly"], false, "{job}");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+// A role falls back to the role it names when its provider is running out (#268).
+fn roles_with_fallbacks() -> OrchestrationSettings {
+    settings(json!({
+        "roles": [
+            {
+                "name": "executor-t2",
+                "agent": "claude",
+                "model": "claude-opus-5-5",
+                "effort": "high",
+                "readOnly": false,
+                "timeoutSeconds": 600,
+                "fallback": "executor-codex"
+            },
+            {
+                "name": "executor-codex",
+                "agent": "codex",
+                "model": "gpt-6.1-sol",
+                "effort": "medium",
+                "readOnly": false,
+                "timeoutSeconds": 900
+            },
+            {
+                "name": "reviewer",
+                "agent": "codex",
+                "model": "gpt-6.1-sol",
+                "effort": "medium",
+                "readOnly": true,
+                "timeoutSeconds": 600,
+                "fallback": "executor-t2"
+            }
+        ],
+        "maxConcurrent": 4,
+        "defaultTimeoutSeconds": 900
+    }))
+}
+
+fn quota(core: &Core, claude: u32, codex: u32) {
+    core.set_agent_fitness(
+        "claude",
+        json!({ "worst": "5h", "used": claude, "rateLimited": false }),
+    );
+    core.set_agent_fitness(
+        "codex",
+        json!({ "worst": "week", "used": codex, "rateLimited": false }),
+    );
+}
+
+fn delegate_role(core: &Core, dir: &std::path::Path, role: &str) -> (Value, Value) {
+    delegate_role_as(core, dir, role, None)
+}
+
+fn delegate_role_as(
+    core: &Core,
+    dir: &std::path::Path,
+    role: &str,
+    planner: Option<&str>,
+) -> (Value, Value) {
+    let delegated = call_as(
+        core,
+        planner,
+        "alethe_delegate",
+        json!({ "tasks": ["do the work"], "cwd": dir.to_string_lossy(), "role": role }),
+    );
+    let snapshot = core.snapshot();
+    let job = snapshot["jobs"]
+        .as_array()
+        .and_then(|jobs| jobs.last())
+        .cloned()
+        .unwrap_or(Value::Null);
+    (delegated, job)
+}
+
+#[test]
+fn a_role_falls_back_when_its_provider_is_running_out() {
+    let dir = workspace("role-fallback");
+    let core = Core::default();
+    core.apply_settings(roles_with_fallbacks());
+    quota(&core, 86, 20);
+
+    let (delegated, job) = delegate_role(&core, &dir, "executor-t2");
+    assert_eq!(delegated["timeoutSeconds"], json!(900), "{delegated}");
+    assert_eq!(
+        job["role"], "executor-t2",
+        "the planner's role is kept: {job}"
+    );
+    assert_eq!(job["agent"], "codex", "{job}");
+    assert_eq!(job["model"], "gpt-6.1-sol", "{job}");
+    assert_eq!(job["effort"], "medium", "{job}");
+    assert_eq!(
+        job["routing"],
+        json!({
+            "verdict": "fallback",
+            "from": "executor-t2",
+            "to": "executor-codex",
+            "agent": "claude",
+            "window": "5h",
+            "used": 86.0
+        }),
+        "{job}"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_role_runs_as_configured_unless_its_fallback_has_room() {
+    let dir = workspace("role-no-fallback");
+    let core = Core::default();
+    core.apply_settings(roles_with_fallbacks());
+
+    quota(&core, 50, 20);
+    let (_, below) = delegate_role(&core, &dir, "executor-t2");
+    assert_eq!(below["agent"], "claude", "below the threshold: {below}");
+
+    quota(&core, 86, 90);
+    let (_, both) = delegate_role(&core, &dir, "executor-t2");
+    assert_eq!(both["agent"], "claude", "both running out: {both}");
+    assert_eq!(both["model"], "claude-opus-5-5", "{both}");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_read_only_role_never_falls_back_to_a_writable_one() {
+    let dir = workspace("role-fallback-read-only");
+    let core = Core::default();
+    core.apply_settings(roles_with_fallbacks());
+    quota(&core, 10, 95);
+
+    let (_, job) = delegate_role(&core, &dir, "reviewer");
+    assert_eq!(job["agent"], "codex", "{job}");
+    assert_eq!(job["readOnly"], true, "{job}");
+    assert_ne!(
+        job["routing"]["verdict"], "fallback",
+        "a read-only role was run writable: {job}"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_headroom_hint_reads_the_agent_a_role_runs_on() {
+    let dir = workspace("role-headroom-hint");
+    let core = Core::default();
+    // No fallback configured for this one, so the hint is all the planner gets.
+    core.apply_settings(settings(json!({
+        "roles": [{
+            "name": "executor-t2",
+            "agent": "claude",
+            "model": "claude-opus-5-5",
+            "effort": null,
+            "readOnly": false,
+            "timeoutSeconds": null
+        }],
+        "maxConcurrent": 4,
+        "defaultTimeoutSeconds": 900
+    })));
+    quota(&core, 86, 20);
+
+    let (delegated, job) = delegate_role(&core, &dir, "executor-t2");
+    assert_eq!(job["agent"], "claude", "{job}");
+    assert_eq!(
+        delegated["headroomHint"]["agent"], "codex",
+        "the hint has to be about claude, the agent this role runs on: {delegated}"
+    );
+    assert_eq!(job["routing"]["verdict"], "ignored", "{job}");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+// A role name means the row for the orchestrator that delegates, else the row for any (#276).
+fn roles_per_orchestrator() -> OrchestrationSettings {
+    settings(json!({
+        "roles": [
+            {
+                "name": "executor-t2",
+                "orchestrator": "claude",
+                "agent": "claude",
+                "model": "claude-opus-5-5",
+                "fallback": "spare"
+            },
+            {
+                "name": "executor-t2",
+                "orchestrator": "codex",
+                "agent": "codex",
+                "model": "gpt-6.1-sol",
+                "fallback": "spare"
+            },
+            { "name": "reviewer", "agent": "codex", "model": "gpt-6-astra", "readOnly": true },
+            {
+                "name": "scout",
+                "orchestrator": "claude",
+                "agent": "claude",
+                "model": "claude-sonnet-5-5"
+            },
+            { "name": "scout", "agent": "codex", "model": "gpt-6-astra" },
+            { "name": "spare", "orchestrator": "claude", "agent": "codex", "model": "gpt-6-spare" },
+            {
+                "name": "spare",
+                "orchestrator": "codex",
+                "agent": "claude",
+                "model": "claude-haiku-5"
+            }
+        ],
+        "maxConcurrent": 4,
+        "defaultTimeoutSeconds": 900
+    }))
+}
+
+fn with_planners(core: &Core) {
+    for agent in ["claude", "codex"] {
+        core.register_planner(Planner {
+            id: format!("{agent}-pane"),
+            label: agent.to_string(),
+            agent: agent.to_string(),
+        });
+    }
+}
+
+#[test]
+fn a_role_runs_as_the_row_for_the_orchestrator_that_delegates() {
+    let dir = workspace("role-per-orchestrator");
+    let core = Core::default();
+    core.apply_settings(roles_per_orchestrator());
+    with_planners(&core);
+
+    let (_, claude) = delegate_role_as(&core, &dir, "executor-t2", Some("claude-pane"));
+    assert_eq!(claude["agent"], "claude", "{claude}");
+    assert_eq!(claude["model"], "claude-opus-5-5", "{claude}");
+    let (_, codex) = delegate_role_as(&core, &dir, "executor-t2", Some("codex-pane"));
+    assert_eq!(codex["agent"], "codex", "{codex}");
+    assert_eq!(codex["model"], "gpt-6.1-sol", "{codex}");
+
+    // A role with only a row for any orchestrator is the same for every planner.
+    for planner in [Some("claude-pane"), Some("codex-pane"), None] {
+        let (_, job) = delegate_role_as(&core, &dir, "reviewer", planner);
+        assert_eq!(job["model"], "gpt-6-astra", "{planner:?}: {job}");
+    }
+
+    // A row for another orchestrator is not this planner's: it gets the row for any.
+    let (_, scout) = delegate_role_as(&core, &dir, "scout", Some("codex-pane"));
+    assert_eq!(scout["agent"], "codex", "{scout}");
+    assert_eq!(scout["model"], "gpt-6-astra", "{scout}");
+    let (_, scout) = delegate_role_as(&core, &dir, "scout", Some("claude-pane"));
+    assert_eq!(scout["model"], "claude-sonnet-5-5", "{scout}");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_role_with_no_row_for_the_planner_is_refused() {
+    let dir = workspace("role-per-orchestrator-refused");
+    let core = Core::default();
+    core.apply_settings(roles_per_orchestrator());
+    with_planners(&core);
+    let cwd = dir.to_string_lossy().into_owned();
+
+    // No planner, or one Alethe does not know, only reaches the rows for any orchestrator.
+    for planner in [None, Some("unregistered-pane")] {
+        let refused = call_as(
+            &core,
+            planner,
+            "alethe_delegate",
+            json!({ "tasks": ["anything"], "cwd": cwd, "role": "executor-t2" }),
+        );
+        assert_eq!(
+            refused["error"], "error: unknown role executor-t2; configured roles: reviewer, scout",
+            "{planner:?}"
+        );
+    }
+    let unknown = call_as(
+        &core,
+        Some("claude-pane"),
+        "alethe_delegate",
+        json!({ "tasks": ["anything"], "cwd": cwd, "role": "auditor" }),
+    );
+    assert_eq!(
+        unknown["error"],
+        "error: unknown role auditor; configured roles: executor-t2, reviewer, scout, spare",
+        "each name once"
+    );
+    assert_eq!(core.snapshot()["jobs"].as_array().map(Vec::len), Some(0));
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_fallback_name_resolves_for_the_orchestrator_that_delegates() {
+    let dir = workspace("role-fallback-per-orchestrator");
+    let core = Core::default();
+    core.apply_settings(roles_per_orchestrator());
+    with_planners(&core);
+
+    quota(&core, 90, 10);
+    let (_, claude) = delegate_role_as(&core, &dir, "executor-t2", Some("claude-pane"));
+    assert_eq!(claude["agent"], "codex", "{claude}");
+    assert_eq!(claude["model"], "gpt-6-spare", "{claude}");
+    assert_eq!(claude["routing"]["to"], "spare", "{claude}");
+
+    quota(&core, 10, 90);
+    let (_, codex) = delegate_role_as(&core, &dir, "executor-t2", Some("codex-pane"));
+    assert_eq!(codex["agent"], "claude", "{codex}");
+    assert_eq!(codex["model"], "claude-haiku-5", "{codex}");
+    assert_eq!(codex["routing"]["to"], "spare", "{codex}");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+// Fallbacks between a row for one orchestrator and a row for any (#276).
+fn fallbacks_across_rows() -> OrchestrationSettings {
+    settings(json!({
+        "roles": [
+            {
+                "name": "lead",
+                "orchestrator": "claude",
+                "agent": "claude",
+                "model": "claude-opus-5-5",
+                "fallback": "backup"
+            },
+            { "name": "backup", "agent": "codex", "model": "gpt-6-backup" },
+            { "name": "auditor", "agent": "claude", "model": "claude-sonnet-5-5", "fallback": "helper" },
+            { "name": "helper", "orchestrator": "codex", "agent": "codex", "model": "gpt-6-helper" },
+            { "name": "helper", "agent": "codex", "model": "gpt-6-helper-any" },
+            {
+                "name": "inspector",
+                "orchestrator": "claude",
+                "agent": "codex",
+                "model": "gpt-6-astra",
+                "readOnly": true,
+                "fallback": "writer"
+            },
+            { "name": "writer", "orchestrator": "claude", "agent": "claude", "model": "claude-haiku-5" }
+        ],
+        "maxConcurrent": 4,
+        "defaultTimeoutSeconds": 900
+    }))
+}
+
+#[test]
+fn a_row_for_one_orchestrator_falls_back_to_the_row_for_any() {
+    let dir = workspace("role-fallback-to-any");
+    let core = Core::default();
+    core.apply_settings(fallbacks_across_rows());
+    with_planners(&core);
+    quota(&core, 90, 10);
+
+    let (_, job) = delegate_role_as(&core, &dir, "lead", Some("claude-pane"));
+    assert_eq!(job["agent"], "codex", "{job}");
+    assert_eq!(job["model"], "gpt-6-backup", "{job}");
+    assert_eq!(job["routing"]["to"], "backup", "{job}");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_row_for_any_falls_back_to_the_row_for_the_planner() {
+    let dir = workspace("role-fallback-from-any");
+    let core = Core::default();
+    core.apply_settings(fallbacks_across_rows());
+    with_planners(&core);
+    quota(&core, 90, 10);
+
+    let (_, job) = delegate_role_as(&core, &dir, "auditor", Some("codex-pane"));
+    assert_eq!(job["agent"], "codex", "{job}");
+    assert_eq!(job["model"], "gpt-6-helper", "{job}");
+    assert_eq!(job["routing"]["to"], "helper", "{job}");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_read_only_row_never_falls_back_to_the_planners_writable_row() {
+    let dir = workspace("role-fallback-read-only-row");
+    let core = Core::default();
+    core.apply_settings(fallbacks_across_rows());
+    with_planners(&core);
+    quota(&core, 10, 90);
+
+    let (_, job) = delegate_role_as(&core, &dir, "inspector", Some("claude-pane"));
+    assert_eq!(job["agent"], "codex", "{job}");
+    assert_eq!(job["model"], "gpt-6-astra", "{job}");
+    assert_eq!(job["readOnly"], true, "{job}");
+    assert_ne!(job["routing"]["verdict"], "fallback", "{job}");
 
     let _ = std::fs::remove_dir_all(&dir);
 }

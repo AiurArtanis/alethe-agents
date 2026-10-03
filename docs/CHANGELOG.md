@@ -27,6 +27,32 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   already open. It follows the same live workers and keeps the board's own actions; actions that
   change the main workspace stay in the main window. The detached window reads the saved state
   but never writes it, so the two windows cannot overwrite each other.
+- **Orchestration settings with named worker roles.** A new Orchestration category in Preferences
+  holds roles such as a reviewer: each sets the agent, model, effort, read-only mode and time
+  budget, with the models and efforts listed from the installed Codex (and Codex's common efforts
+  when it cannot be asked). A planner delegates with
+  `role` and gets exactly that, so switching the model that does a kind of work is one change in
+  Preferences. The same page sets how many workers run at the same time and the default budget
+  per worker, which were fixed at 4 and 900 seconds.
+- **Codex workers can start without chosen plugins.** The Orchestration settings take a list of
+  Codex plugin ids that worker threads start without, so plugins that run hooks on every start
+  and prompt, or add their context to every call, stay out of workers that only read and report.
+  Interactive Codex sessions, and your own hooks and MCP servers, are not affected.
+- **A role can fall back to another when its provider runs out.** Each role in the Orchestration
+  settings can name a fallback role. When a delegation asks for a role whose provider is at or past
+  80% of its quota and the fallback's provider has room, the workers run as the fallback role, and
+  the worker card says so. A read-only role only falls back to a read-only one. The headroom hint a
+  planner gets now reads the agent a role runs on instead of assuming Codex.
+- **A role can run differently for Claude and Codex orchestrators.** Each role row in the
+  Orchestration settings can be for Any, Claude or Codex orchestrators. When a session delegates a
+  role, the row for its own agent wins over the Any row of the same name, so switching the
+  orchestrator also switches which provider the workers spend.
+- **Delegated workers can run on a chosen model, effort and read-only sandbox.** A planner can now
+  pass `model`, `effort` and `readOnly` when it delegates, so work such as an independent review on
+  another model runs as a worker on the orchestration board instead of outside Alethe. The worker
+  card shows the model, the effort and a read-only mark, and a worker picked up again keeps them.
+  `readOnly` applies to Codex workers; asking for it on a Claude worker is refused, while `effort`
+  reaches Claude as `--effort`.
 - **Grok Build and Codewhale are now native agents.** Grok Build (xAI, `grok` CLI) and
   Codewhale (`codewhale` CLI) appear in every agent picker with their own icons and accent
   colors. Install entries cover the official Grok PowerShell/npm installers and

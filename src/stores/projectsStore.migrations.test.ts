@@ -37,6 +37,198 @@ describe('preference normalization', () => {
     })
   })
 
+  // Orchestration settings (#254).
+  it('gives a file saved before orchestration settings the defaults', () => {
+    const { orchestration: _older, ...saved } = DEFAULT_PREFERENCES
+
+    expect(normalizePreferences(saved as typeof DEFAULT_PREFERENCES).orchestration).toEqual({
+      roles: [],
+      maxConcurrent: 4,
+      defaultTimeoutSeconds: 900,
+      workerDisabledPlugins: [],
+    })
+  })
+
+  // Codex plugins turned off in worker threads (#266).
+  it('keeps the plugin ids a worker starts without and drops what Codex could not take', () => {
+    const preferences = normalizePreferences({
+      ...DEFAULT_PREFERENCES,
+      orchestration: {
+        ...DEFAULT_PREFERENCES.orchestration,
+        workerDisabledPlugins: ['ecc@ecc', 'ponytail@ponytail', 'ecc@ecc', 'two words', '', 7],
+      } as unknown as typeof DEFAULT_PREFERENCES.orchestration,
+    })
+
+    expect(preferences.orchestration.workerDisabledPlugins).toEqual([
+      'ecc@ecc',
+      'ponytail@ponytail',
+    ])
+  })
+
+  // A role's fallback while its provider is running out (#268).
+  it('keeps a fallback only when it names another role the role may run as', () => {
+    const role = (
+      name: string,
+      agent: 'codex' | 'claude',
+      readOnly: boolean,
+      fallback?: unknown,
+    ) => ({
+      name,
+      agent,
+      model: null,
+      effort: null,
+      readOnly,
+      timeoutSeconds: null,
+      ...(fallback === undefined ? {} : { fallback }),
+    })
+    const preferences = normalizePreferences({
+      ...DEFAULT_PREFERENCES,
+      orchestration: {
+        ...DEFAULT_PREFERENCES.orchestration,
+        roles: [
+          role('executor', 'claude', false, 'executor-codex'),
+          role('executor-codex', 'codex', false),
+          // A read-only role must not fall back to a writable one.
+          role('reviewer', 'codex', true, 'executor'),
+          role('self', 'codex', false, 'self'),
+          role('missing', 'codex', false, 'nobody'),
+          role('odd', 'codex', false, 42),
+        ],
+      } as unknown as typeof DEFAULT_PREFERENCES.orchestration,
+    })
+
+    expect(preferences.orchestration.roles.map((entry) => [entry.name, entry.fallback])).toEqual([
+      ['executor', 'executor-codex'],
+      ['executor-codex', undefined],
+      ['reviewer', undefined],
+      ['self', undefined],
+      ['missing', undefined],
+      ['odd', undefined],
+    ])
+  })
+
+  // A role row for one orchestrator (#276).
+  it('keeps one row per name and orchestrator, and the orchestrator across a save', () => {
+    const row = (name: string, orchestrator?: unknown, model: string | null = null) => ({
+      name,
+      agent: 'codex' as const,
+      model,
+      effort: null,
+      readOnly: false,
+      timeoutSeconds: null,
+      ...(orchestrator === undefined ? {} : { orchestrator }),
+    })
+    const preferences = normalizePreferences({
+      ...DEFAULT_PREFERENCES,
+      orchestration: {
+        ...DEFAULT_PREFERENCES.orchestration,
+        roles: [
+          row('executor', 'claude', 'first'),
+          row('executor', 'codex'),
+          row('executor'),
+          row('executor', 'claude', 'second'),
+          // null is the row for any orchestrator, already taken above.
+          row('executor', null, 'second'),
+          row('odd', 'gemini'),
+        ],
+      } as unknown as typeof DEFAULT_PREFERENCES.orchestration,
+    })
+
+    const { roles } = preferences.orchestration
+    expect(roles.map((role) => [role.name, role.orchestrator, role.model])).toEqual([
+      ['executor', 'claude', 'first'],
+      ['executor', 'codex', null],
+      ['executor', undefined, null],
+    ])
+    const saved = JSON.parse(JSON.stringify(preferences))
+    expect(normalizePreferences(saved).orchestration.roles).toEqual(roles)
+  })
+
+  it('keeps a fallback the row reaches for its own orchestrator', () => {
+    const row = (
+      name: string,
+      orchestrator: 'claude' | 'codex' | undefined,
+      fallback?: string,
+    ) => ({
+      name,
+      agent: 'codex' as const,
+      model: null,
+      effort: null,
+      readOnly: false,
+      timeoutSeconds: null,
+      ...(orchestrator ? { orchestrator } : {}),
+      ...(fallback ? { fallback } : {}),
+    })
+    const preferences = normalizePreferences({
+      ...DEFAULT_PREFERENCES,
+      orchestration: {
+        ...DEFAULT_PREFERENCES.orchestration,
+        roles: [
+          row('spare', 'claude'),
+          row('from-claude', 'claude', 'spare'),
+          // A Codex planner never reaches the Claude row of spare.
+          row('from-codex', 'codex', 'spare'),
+          // A row for any orchestrator serves a Claude planner too.
+          row('from-any', undefined, 'spare'),
+        ],
+      },
+    })
+
+    expect(preferences.orchestration.roles.map((role) => [role.name, role.fallback])).toEqual([
+      ['spare', undefined],
+      ['from-claude', 'spare'],
+      ['from-codex', undefined],
+      ['from-any', 'spare'],
+    ])
+  })
+
+  it('keeps valid roles and drops the ones the orchestrator would refuse', () => {
+    const reviewer = {
+      name: 'reviewer',
+      agent: 'codex' as const,
+      model: 'gpt-6.1-sol',
+      effort: 'medium',
+      readOnly: true,
+      timeoutSeconds: 600,
+    }
+    const writer = {
+      name: 'writer',
+      agent: 'claude' as const,
+      model: 'opus',
+      effort: null,
+      readOnly: false,
+      timeoutSeconds: null,
+    }
+    const preferences = normalizePreferences({
+      ...DEFAULT_PREFERENCES,
+      orchestration: {
+        maxConcurrent: 40,
+        defaultTimeoutSeconds: 1e20,
+        roles: [
+          reviewer,
+          writer,
+          // Claude takes an effort (`claude --effort`), so this one is kept.
+          { ...writer, name: 'thinker', effort: 'high' },
+          // Repairing this would change what it means: a read-only Claude role made writable.
+          { ...writer, name: 'reader', readOnly: true },
+          { ...reviewer, model: null },
+          { ...reviewer, name: '-flag' },
+          { ...reviewer, name: 'odd', agent: 'grok' as 'codex' },
+          { ...reviewer, name: 'spaced', model: 'gpt 6' },
+          // Past what the orchestrator can hold, so the whole settings would be refused.
+          { ...reviewer, name: 'endless', timeoutSeconds: 1e20 },
+        ],
+      },
+    })
+
+    expect(preferences.orchestration).toEqual({
+      maxConcurrent: 16,
+      defaultTimeoutSeconds: 900,
+      roles: [reviewer, writer, { ...writer, name: 'thinker', effort: 'high' }],
+      workerDisabledPlugins: [],
+    })
+  })
+
   it('keeps Discord Rich Presence opt-in while preserving an existing choice', () => {
     expect(normalizePreferences(undefined).discordRichPresenceEnabled).toBe(false)
     expect(

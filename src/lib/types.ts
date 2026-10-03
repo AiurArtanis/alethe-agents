@@ -562,6 +562,40 @@ export const DEFAULT_ROUTER9_PREFERENCES: Router9Preferences = {
   defaultForNewAgents: false,
 }
 
+/** A named preset for delegated workers. A delegate call that names it gets exactly these values. */
+export type OrchestrationRole = {
+  name: string
+  agent: 'codex' | 'claude'
+  /** null runs the CLI's default model. */
+  model: string | null
+  /** Codex reasoning effort; null keeps the CLI's setting. Always null for Claude. */
+  effort: string | null
+  /** Codex read-only sandbox. Always false for Claude. */
+  readOnly: boolean
+  /** null uses the default budget; 0 lets the worker run without a limit. */
+  timeoutSeconds: number | null
+  /**
+   * Another role to run instead while this one's provider is past 80% of its quota. A read-only
+   * role only falls back to a read-only one.
+   */
+  fallback?: string | null
+  /**
+   * The planner agent this row is for; absent serves any planner. A row for the planner's own agent
+   * wins over the row for any with the same name.
+   */
+  orchestrator?: 'claude' | 'codex'
+}
+
+export type OrchestrationSettings = {
+  roles: OrchestrationRole[]
+  /** Workers running at the same time. */
+  maxConcurrent: number
+  /** Budget per worker when a call names none; 0 means no limit. */
+  defaultTimeoutSeconds: number
+  /** Codex plugin ids (`name@marketplace`) turned off in worker threads. */
+  workerDisabledPlugins: string[]
+}
+
 export type Preferences = {
   /** Idioma da UI. Default 'en'. */
   language: Locale
@@ -639,6 +673,8 @@ export type Preferences = {
   remoteUseTailscale: boolean
 
   enabledFeatures: Record<FeatureId, boolean>
+  /** Roles and limits for delegated workers, sent to the orchestrator. */
+  orchestration: OrchestrationSettings
   /** Playwright MCP: attach to the shared/pane browser, or launch its own. */
   playwrightBrowserMode: 'shared' | 'dedicated'
   /** Only used when playwrightBrowserMode is 'dedicated'. */
@@ -815,6 +851,12 @@ export const DEFAULT_PREFERENCES: Preferences = {
     playwright: false,
     orchestrator: false,
     prs: true,
+  },
+  orchestration: {
+    roles: [],
+    maxConcurrent: 4,
+    defaultTimeoutSeconds: 900,
+    workerDisabledPlugins: [],
   },
   playwrightBrowserMode: 'shared',
   playwrightDedicatedHeadless: false,

@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 
 import type { AgentFitness } from '../agentFitness'
+import type { OrchestrationRole, OrchestrationSettings } from '../types'
 
 export type OrchestratorJobStatus =
   | 'queued'
@@ -60,11 +61,17 @@ export type OrchestratorClaudeQuota = {
 }
 
 export type OrchestratorRouting = {
-  /** `ignored` means the planner delegated into the strained side with the reading in hand. */
-  verdict: 'chosen' | 'ignored'
+  /**
+   * `ignored` means the planner delegated into the strained side with the reading in hand;
+   * `fallback` that the role asked for ran as its fallback role because `agent` was running out.
+   */
+  verdict: 'chosen' | 'ignored' | 'fallback'
   agent: string
   window: string
   used: number
+  /** Set on a `fallback`: the role asked for and the role it ran as. */
+  from?: string
+  to?: string
 }
 
 export type OrchestratorJob = {
@@ -91,6 +98,14 @@ export type OrchestratorJob = {
   /** Why this worker ran on this agent; null when neither side was running out at the time. */
   routing: OrchestratorRouting | null
   worktree: string | null
+  /** The Orchestration settings role it was delegated under; null when the call spelled it out. */
+  role: string | null
+  /** The model the planner delegated this worker on; null when it runs on the CLI's default. */
+  model: string | null
+  /** Codex reasoning effort the planner asked for; null keeps the CLI's own setting. */
+  effort: string | null
+  /** Started in a read-only sandbox: it can read and run commands but not write. */
+  readOnly: boolean
   pendingApproval: OrchestratorPendingApproval | null
   /** The worker that took this one's task over after it ended without finishing it. */
   supersededBy?: string | null
@@ -113,6 +128,8 @@ export type OrchestratorSnapshot = {
   running: number
   queued: number
   concurrencyLimit: number
+  /** The roles from the Orchestration settings, as the orchestrator will apply them. */
+  roles: OrchestrationRole[]
 }
 
 const JOBS_EVENT = 'orchestrator://jobs'
@@ -136,6 +153,23 @@ export async function orchestratorJobs(): Promise<OrchestratorSnapshot> {
 
 export async function orchestratorSetConcurrency(limit: number): Promise<void> {
   return invoke<void>('orchestrator_set_concurrency', { limit })
+}
+
+/** Hands the roles and limits from Preferences to the orchestrator. */
+export async function orchestratorApplySettings(settings: OrchestrationSettings): Promise<void> {
+  return invoke<void>('orchestrator_apply_settings', { settings })
+}
+
+/** A model the installed Codex offers, with the efforts it accepts. */
+export type CodexModelOption = {
+  model: string
+  name: string
+  defaultEffort: string | null
+  efforts: string[]
+}
+
+export async function orchestratorCodexModels(): Promise<CodexModelOption[]> {
+  return invoke<CodexModelOption[]>('orchestrator_codex_models')
 }
 
 /** Pushes an agent's remaining-limit snapshot into the orchestrator core, which cannot poll for it. */
