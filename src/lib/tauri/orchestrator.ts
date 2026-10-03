@@ -175,6 +175,11 @@ export async function orchestratorRestart(jobId: string): Promise<unknown> {
   return invoke<unknown>('orchestrator_restart', { jobId })
 }
 
+/** Opens an orchestration pane's board in its own window, or brings back the one already open. */
+export async function openOrchestrationWindow(terminalId: string): Promise<void> {
+  await invoke('open_orchestration_window', { terminalId })
+}
+
 export async function listenOrchestratorJobs(
   handler: (snapshot: OrchestratorSnapshot) => void,
 ): Promise<UnlistenFn> {

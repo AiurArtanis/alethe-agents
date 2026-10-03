@@ -22,6 +22,11 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   was planned can become the planner. A conversation started before orchestration was on is
   restarted on the same conversation, after asking, to get the orchestrator tools, and
   orchestration stays on for the Claude and Codex terminals opened after it.
+- **Open the orchestration board in its own window.** A button in the orchestration pane's header
+  opens its board in a separate window, handy on a second monitor, and brings it back if it is
+  already open. It follows the same live workers and keeps the board's own actions; actions that
+  change the main workspace stay in the main window. The detached window reads the saved state
+  but never writes it, so the two windows cannot overwrite each other.
 - **Grok Build and Codewhale are now native agents.** Grok Build (xAI, `grok` CLI) and
   Codewhale (`codewhale` CLI) appear in every agent picker with their own icons and accent
   colors. Install entries cover the official Grok PowerShell/npm installers and
