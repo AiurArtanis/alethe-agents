@@ -12,6 +12,8 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Added
 
+- **Simplified Chinese.** The interface can now be shown in Simplified Chinese (中文), and the
+  README has a Chinese edition.
 - **Right-click a worker to open, stop or restart it.** On the orchestration board and in the
   Executions list, a worker's context menu opens its details, stops it while it is queued,
   running or waiting on you, or runs the same request again as a new worker under the same
