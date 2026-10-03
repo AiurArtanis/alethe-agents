@@ -207,6 +207,21 @@ export const zhCN: Record<MessageKey, string> = {
   'remote.statusOff': '关',
   'remote.enable': '启用远程控制',
   'remote.disable': '关闭遥控器',
+  'remote.confirmEnable':
+    '启用远程控制？\n\nAlethe 将在您的本地网络上开启 HTTP 和 WebSocket 监听。已配对的设备可以查看共享终端的输出。配对会话将在 {expiry} 后过期。\n\n{access}',
+  'remote.confirmEnableTailscale':
+    '启用远程控制？\n\nAlethe 将在您的 Tailscale 网络上开启 HTTP 和 WebSocket 监听。已配对的设备可以查看共享终端的输出。配对会话将在 {expiry} 后过期。\n\n{access}',
+  'remote.confirmAccessReadOnly': '当前访问权限为只读：向代理发送消息和 Shell 输入均被禁止。',
+  'remote.confirmAccessAgentInput': '当前访问权限允许向代理发送消息；Shell 输入被禁止。',
+  'remote.confirmAccessShellInput': '当前访问权限允许向代理发送消息和 Shell 输入。',
+  'remote.sessionSeconds': '{seconds} 秒',
+  'remote.enableFailedTitle': '无法启动远程控制',
+  'remote.enableFailedBody': 'Alethe 已保持远程控制关闭。{error}',
+  'remote.disableFailedTitle': '无法停止远程控制',
+  'remote.disableFailedBody': 'Alethe 无法确认远程访问已停止。请先重启 Alethe 再继续。{error}',
+  'remote.rollbackFailedTitle': '远程控制回滚需要处理',
+  'remote.rollbackFailedBody':
+    'Alethe 未能完整保存或执行关闭状态。请重启 Alethe 并确认远程控制已关闭。启动错误：{error}。回滚错误：{rollbackError}',
   'remote.modalReachEyebrow': '步骤 1 · 网络',
   'remote.modalPairEyebrow': '步骤 2 · 配对设备',
   'remote.connectedDevices': '连接的设备',
