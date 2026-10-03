@@ -164,6 +164,11 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   reports the task as completed, failed or killed. At the end of each of the planner's turns, any
   background command or subagent Claude no longer lists as running is ended too, which also clears
   a subagent that was interrupted before reporting that it stopped.
+- The Claude Code usage card no longer claims "no token configured" when the usage service is
+  only rate limiting. A refresh it refuses keeps the last reading on screen, without the live
+  marker and dimmed in the title bar, and a card with no reading yet says usage is unavailable.
+  Such an old reading no longer suggests switching agents, and pressing refresh while a read is
+  already on its way no longer sends another request.
 
 ### Fixed
 
