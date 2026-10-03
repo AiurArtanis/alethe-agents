@@ -52,6 +52,7 @@ import { AgentIcon, VSCodeIcon } from '../icons/AgentIcons'
 import { SubTabsLane } from '../SubTabsLane'
 import { XTermView } from '../XTermView'
 import styles from './TerminalPane.module.css'
+import { WslBadge } from './WslBadge'
 
 export type TerminalPaneProps = {
   projectId: string
@@ -501,6 +502,7 @@ export const TerminalPane = memo(function TerminalPane({
                       {displayName || terminal.name}
                     </span>
                   )}
+                  <WslBadge cwd={cwd} />
                 </div>
               </>
             ) : null}

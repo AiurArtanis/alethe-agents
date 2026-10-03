@@ -51,6 +51,7 @@ import {
   codexMcpConfigWrite,
   createCursorChat,
   findCliLauncher,
+  findWslCli,
   graphifyCodexConfigWrite,
   graphifyEnsureGraph,
   graphifyOpenCodeConfigWrite,
@@ -78,6 +79,7 @@ import {
   isShellAgentType,
   type Theme,
 } from '../../lib/types'
+import { wslTargetFor } from '../../lib/wsl'
 import type { AgentHookPayload } from '../../stores/agentCanvasStore'
 import { useProjectsStore } from '../../stores/projectsStore'
 import { useTerminalsStore } from '../../stores/terminalsStore'
@@ -1002,7 +1004,28 @@ export function useXtermSession(params: {
         }
 
         let launcherOverride: string | undefined
-        if (command && command !== 'shell') {
+        const wslTarget = wslTargetFor(
+          cwd,
+          useProjectsStore.getState().preferences.enabledFeatures.wsl,
+        )
+        // A plain WSL tab is a shell there too: the backend opens the distro's login shell.
+        if (command && !isShellAgentType(command) && wslTarget) {
+          const auto = await findWslCli(
+            wslTarget.distro,
+            resolveAgentCliCommand(command) ?? command,
+          )
+          console.info(
+            `[pty-launch] ${command} findWslCli(${wslTarget.distro}) → ${auto ?? 'null (NOT FOUND)'}`,
+          )
+          if (!auto) {
+            console.warn(
+              `[pty-launch] ${command} unresolved — showing the not-found overlay and staying offline`,
+            )
+            setCommandNotFound(command)
+            useTerminalsStore.getState().setStatus(ptyId, 'offline')
+            return
+          }
+        } else if (command && command !== 'shell') {
           if (cliPathOverride) {
             if (cliPathMatchesAgent(command, cliPathOverride)) {
               launcherOverride = cliPathOverride
@@ -1162,8 +1185,9 @@ export function useXtermSession(params: {
           if (disposed) return
         }
 
-        // Codex and OpenCode read in-repo config files instead, written once here.
-        if (graphifyRepo && (command === 'codex' || command === 'opencode')) {
+        // Codex and OpenCode read in-repo config files instead, written once here. Graphify and
+        // ai-memory run Windows-side binaries over Windows paths, so neither crosses into a distro.
+        if (graphifyRepo && !wslTarget && (command === 'codex' || command === 'opencode')) {
           void graphifyEnsureGraph(graphifyRepo).catch(() => undefined)
           if (command === 'opencode') {
             await graphifyOpenCodeConfigWrite(graphifyRepo).catch(() => {})
@@ -1174,7 +1198,12 @@ export function useXtermSession(params: {
         }
 
         const aiMemoryEnabled = useProjectsStore.getState().preferences.enabledFeatures.aiMemory
-        if (aiMemoryEnabled && cwd && (command === 'codex' || command === 'opencode')) {
+        if (
+          aiMemoryEnabled &&
+          cwd &&
+          !wslTarget &&
+          (command === 'codex' || command === 'opencode')
+        ) {
           const status = await aiMemoryDetect().catch(() => undefined)
           if (status?.installed) {
             if (command === 'opencode') {
@@ -1208,6 +1237,7 @@ export function useXtermSession(params: {
         if (
           command === 'opencode' &&
           cwd &&
+          !wslTarget &&
           gsdWatcherEnabled &&
           preferences.enabledFeatures.gsdSync
         ) {

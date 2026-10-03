@@ -343,8 +343,11 @@ export const en = {
   'agentInstall.docs': 'Docs',
   'agentInstall.installTitle': 'Install {agent}',
   'agentInstall.chooseMethod': 'Choose how to install {agent} on this machine.',
+  'agentInstall.chooseMethodWsl': 'Choose how to install {agent} inside {distro}.',
   'agentInstall.probing': 'Checking what is available on this machine…',
   'agentInstall.noMethod': 'No automatic installer for this agent on this machine.',
+  'agentInstall.noMethodWsl':
+    'No installer for this agent works inside {distro}. Install it manually in the distro.',
   'agentInstall.uninstall': 'Uninstall',
   'agentInstall.uninstalling': 'Uninstalling…',
   'agentInstall.uninstallFailed': 'Uninstall did not complete',
@@ -628,6 +631,10 @@ export const en = {
   'features.prs.description':
     'Shows GitHub pull requests you are involved in as author or reviewer, across every repo, with a one-click way to send one to your TODO list.',
   'features.prs.keywords': 'pull request pr github review todo',
+  'features.wsl.title': 'WSL integration',
+  'features.wsl.description':
+    'On Windows, a folder inside a WSL distro opens the distro\u2019s own shell, runs the CLI installed there and resumes the sessions stored there. Turn it off to treat every folder as a Windows one.',
+  'features.wsl.keywords': 'wsl linux distro ubuntu windows subsystem unc',
   'features.mcp.title': 'MCP & Skills',
   'features.mcp.description':
     'Inspect and manage the MCP servers and skills of every coding agent from one panel.',
@@ -943,7 +950,7 @@ export const en = {
   'prefs.terminalFontFamily': 'Font family',
   'prefs.cliPaths': 'Agent CLI paths',
   'prefs.cliPathsDesc':
-    'Alethe finds each agent CLI on its own. Override it only when the CLI lives somewhere unusual — and point it at the command-line tool, not at a desktop app.',
+    'Alethe finds each agent CLI on its own. Override it only when the CLI lives somewhere unusual — and point it at the command-line tool, not at a desktop app. These are Windows paths: terminals whose folder is inside WSL ignore them and resolve the CLI inside the distro.',
   'prefs.cliPathAuto': 'Detected automatically',
   'prefs.cliPathSet': 'Set path',
   'prefs.cliPathReset': 'Reset',
@@ -1405,6 +1412,7 @@ export const en = {
   'crud.projectPathLabel': 'Project folder',
   'crud.projectPathPlaceholder': 'Choose the project folder',
   'crud.projectPathHint': 'New terminals will start in this folder.',
+  'crud.wslHint': 'Running inside WSL · {distro}',
   'crud.groupLabel': 'Group',
   'crud.noGroup': 'Loose (no group)',
   'crud.colorLabel': 'Color',
@@ -1483,6 +1491,11 @@ export const en = {
   'term.goalPlaceholder': 'What should the planner get done?',
   'term.createMore': 'Create more',
   'term.createOrchestration': 'Create orchestration',
+  'term.wslBadgeLabel': 'Running inside WSL · {distro}',
+  'term.wslPick': 'WSL',
+  'term.wslPickTitle': 'Open a folder inside a WSL distro',
+  'term.wslPickFailed': 'Could not reach WSL',
+  'term.wslPickFailedBody': 'Alethe could not read the home directory of {distro}.',
   'term.openAgent': 'Open {agent}',
   'term.cancel': 'Cancel',
   'term.create': 'Create',

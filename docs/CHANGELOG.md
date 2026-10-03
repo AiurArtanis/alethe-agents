@@ -12,6 +12,17 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Added
 
+- **Projects inside WSL.** On Windows, a project or terminal whose folder lives under
+  `\\wsl.localhost\<distro>\…` now runs inside that distro: shell tabs open the distro's login
+  shell in the right Linux directory, and agent tabs run the CLI installed in the distro, found
+  through the account's own login shell so installers that only edit `~/.bashrc` or `~/.zshrc`
+  still count. A **WSL** button next to Browse in the New Project and New Terminal dialogs opens
+  the folder picker inside a chosen distro, and a pane running in one carries a badge naming it.
+  Claude Code, Codex, OpenCode and Antigravity sessions started there are listed and resumed, Git
+  actions no longer fail with git's *dubious ownership* error on those repositories, and
+  installing a missing agent installs it inside the distro. Graphify and AI memory stay off for
+  these panes. The whole integration sits behind **Preferences → Features → WSL integration**, on
+  by default; turning it off treats every folder as a Windows one again.
 - **Preferences → Terminal → Shell** picks which binary plain Shell tabs open. Alethe still detects
   one on its own (PowerShell 7 when available, then Windows PowerShell; `$SHELL` elsewhere), so the
   setting only matters when you want a specific shell — PowerShell 7 installed outside PATH, or

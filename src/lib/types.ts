@@ -145,7 +145,15 @@ export type SetupWalkthroughStep = 'project' | 'appearance'
 export const SETUP_WALKTHROUGH_STEPS: SetupWalkthroughStep[] = ['project', 'appearance']
 
 export type FeatureId =
-  'browser' | 'graphify' | 'aiMemory' | 'mcp' | 'playwright' | 'orchestrator' | 'prs' | 'gsdSync'
+  | 'browser'
+  | 'graphify'
+  | 'aiMemory'
+  | 'mcp'
+  | 'playwright'
+  | 'orchestrator'
+  | 'prs'
+  | 'gsdSync'
+  | 'wsl'
 
 export type TodoItem = {
   id: string
@@ -861,6 +869,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
     playwright: false,
     orchestrator: false,
     prs: true,
+    wsl: true,
   },
   orchestration: {
     roles: [],

@@ -69,7 +69,7 @@ import { intlLocale, translate, useT } from './lib/i18n'
 import { applyLegacyPluginMigrations } from './lib/plugins'
 import { visibilityFromPanelResize, widthFromPanelResize } from './lib/sidebarPanelState'
 import { setMaxConcurrentSpawns } from './lib/spawnQueue'
-import { ghosttyKillAll, setWindowOpacity } from './lib/tauri'
+import { ghosttyKillAll, setWindowOpacity, setWslIntegrationEnabled } from './lib/tauri'
 import { getLastCrashReport } from './lib/tauri'
 import { rememberBootAppearance } from './lib/bootAppearance'
 import { loadThemeIconBytes } from './lib/themeIcons'
@@ -170,6 +170,7 @@ export default function App() {
   const mcpEnabled = useProjectsStore((s) => s.preferences.enabledFeatures.mcp)
   const rightSidebarTabs = useSidebarViews('right')
   const rightPanelEnabled = mcpEnabled || rightSidebarTabs.length > 0
+  const wslEnabled = useProjectsStore((s) => s.preferences.enabledFeatures.wsl)
   const setPreferences = useProjectsStore((s) => s.setPreferences)
   // Keep panel defaults stable while dragging. Updating defaultSize on every
   // resize event can make react-resizable-panels rebuild the layout mid-drag.
@@ -256,6 +257,10 @@ export default function App() {
   useEffect(() => {
     setMaxConcurrentSpawns(spawnConcurrency)
   }, [spawnConcurrency])
+  useEffect(() => {
+    if (!hydrated) return
+    void setWslIntegrationEnabled(wslEnabled).catch(() => {})
+  }, [hydrated, wslEnabled])
 
   useEffect(() => {
     if (!hydrated) return

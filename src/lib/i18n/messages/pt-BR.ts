@@ -351,8 +351,11 @@ export const ptBR: Record<MessageKey, string> = {
   'agentInstall.docs': 'Documentação',
   'agentInstall.installTitle': 'Instalar o {agent}',
   'agentInstall.chooseMethod': 'Escolha como instalar o {agent} nesta máquina.',
+  'agentInstall.chooseMethodWsl': 'Escolha como instalar o {agent} dentro do {distro}.',
   'agentInstall.probing': 'Verificando o que está disponível nesta máquina…',
   'agentInstall.noMethod': 'Não há instalador automático para este agente nesta máquina.',
+  'agentInstall.noMethodWsl':
+    'Nenhum instalador deste agente funciona dentro do {distro}. Instale-o manualmente na distro.',
   'agentInstall.uninstall': 'Desinstalar',
   'agentInstall.uninstalling': 'Desinstalando…',
   'agentInstall.uninstallFailed': 'A desinstalação não foi concluída',
@@ -639,6 +642,10 @@ export const ptBR: Record<MessageKey, string> = {
   'features.prs.description':
     'Mostra os Pull Requests do GitHub em que você está envolvido como autor ou revisor, em todos os repositórios, com um jeito rápido de enviar um pra sua lista de TODO.',
   'features.prs.keywords': 'pull request pr github revisao todo',
+  'features.wsl.title': 'Integração com o WSL',
+  'features.wsl.description':
+    'No Windows, uma pasta dentro de uma distro WSL abre o shell da própria distro, roda a CLI instalada lá e retoma as sessões guardadas lá. Desligue para tratar toda pasta como pasta do Windows.',
+  'features.wsl.keywords': 'wsl linux distro ubuntu subsistema windows unc',
   'features.mcp.title': 'MCP e Skills',
   'features.mcp.description':
     'Inspecione e gerencie os servidores MCP e as skills de cada agente em um só painel.',
@@ -958,7 +965,7 @@ export const ptBR: Record<MessageKey, string> = {
   'prefs.terminalFontFamily': 'Família da fonte',
   'prefs.cliPaths': 'Caminhos dos CLIs',
   'prefs.cliPathsDesc':
-    'O Alethe encontra o CLI de cada agente sozinho. Só defina um caminho se o CLI estiver num lugar fora do comum — e aponte para a ferramenta de linha de comando, não para o aplicativo gráfico.',
+    'O Alethe encontra o CLI de cada agente sozinho. Só defina um caminho se o CLI estiver num lugar fora do comum — e aponte para a ferramenta de linha de comando, não para o aplicativo gráfico. Esses caminhos são do Windows: terminais cuja pasta está dentro do WSL os ignoram e resolvem o CLI dentro da distro.',
   'prefs.cliPathAuto': 'Detectado automaticamente',
   'prefs.cliPathSet': 'Definir caminho',
   'prefs.cliPathReset': 'Limpar',
@@ -1425,6 +1432,7 @@ export const ptBR: Record<MessageKey, string> = {
   'crud.projectPathLabel': 'Pasta do projeto',
   'crud.projectPathPlaceholder': 'Escolha a pasta do projeto',
   'crud.projectPathHint': 'Novos terminais começarão nesta pasta.',
+  'crud.wslHint': 'Rodando dentro do WSL · {distro}',
   'crud.groupLabel': 'Grupo',
   'crud.noGroup': 'Solto (sem grupo)',
   'crud.colorLabel': 'Cor',
@@ -1504,6 +1512,11 @@ export const ptBR: Record<MessageKey, string> = {
   'term.goalPlaceholder': 'O que o planner precisa entregar?',
   'term.createMore': 'Criar mais',
   'term.createOrchestration': 'Criar orquestração',
+  'term.wslBadgeLabel': 'Rodando dentro do WSL · {distro}',
+  'term.wslPick': 'WSL',
+  'term.wslPickTitle': 'Abrir uma pasta dentro de uma distro WSL',
+  'term.wslPickFailed': 'Não foi possível acessar o WSL',
+  'term.wslPickFailedBody': 'O Alethe não conseguiu ler a pasta home da distro {distro}.',
   'term.openAgent': 'Abrir {agent}',
   'term.cancel': 'Cancelar',
   'term.create': 'Criar',

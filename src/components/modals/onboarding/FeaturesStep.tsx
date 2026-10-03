@@ -19,6 +19,7 @@ const GROUP_OF: Record<FeatureId, GroupId> = {
   aiMemory: 'others',
   gsdSync: 'agents',
   prs: 'workspace',
+  wsl: 'workspace',
 }
 
 const GROUPS: GroupId[] = ['workspace', 'agents', 'others']
