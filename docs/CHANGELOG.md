@@ -235,9 +235,6 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   inspector or the sidebar), resuming a conversation in it, resetting the last session or moving
   it to a new worktree left a planner without the orchestrator tools, along with Playwright,
   Graphify and AI memory.
-
-### Fixed
-
 - On Linux, closing a terminal could end every process of your user session instead of only that
   terminal's processes, depending on the process ID it got. Terminals are now stopped directly
   through the system call, so only their own processes are affected.
