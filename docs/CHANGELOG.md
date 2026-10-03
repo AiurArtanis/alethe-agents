@@ -1208,6 +1208,11 @@ preferences; and three new agents — **Cursor CLI**, **Kiro CLI** and plain **W
 - Removed the previous app-icon themes; the icon picker now offers only the four Elite
   marks. Preferences still pointing at a removed icon are migrated to Elite Original on
   load. The UI themes they shared a name with are untouched.
+### Changed
+
+- MCP registry package suggestions now require exact npm or PyPI versions, keep their published
+  provenance visible during review, and require an explicit third-party execution acknowledgement
+  before they can be added. Registry cache files are also restricted to the current user on Unix.
 
 ## [1.6.0] — 2026-08-17
 
