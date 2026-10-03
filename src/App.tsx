@@ -61,6 +61,7 @@ import { useRemoteControlService } from './hooks/useRemoteControlService'
 import { useResourceSupervisor } from './hooks/useResourceSupervisor'
 import { useRouter9AutoStart } from './hooks/useRouter9AutoStart'
 import { startActivityTracker } from './lib/activityTracker'
+import { resumeAgentCanvasMirror } from './lib/agentCanvasMirror'
 import { APP_SHELL_ID } from './lib/appShell'
 import { AGENT_SANDBOX_ENABLED } from './lib/featureFlags'
 import { intlLocale, translate, useT } from './lib/i18n'
@@ -218,6 +219,10 @@ export default function App() {
     void ghosttyKillAll().catch(() => {
       /* No-op on unsupported platforms. */
     })
+  }, [])
+
+  useEffect(() => {
+    resumeAgentCanvasMirror()
   }, [])
 
   useEffect(() => {
