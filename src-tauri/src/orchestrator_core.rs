@@ -277,6 +277,48 @@ fn trimmed_job(mut job: Value) -> Value {
     job
 }
 
+/// The worker's time budget, stated at the start of its first turn. A warning sent mid-turn does
+/// not help: Codex only reads it once the text it is writing is done, which is often the answer
+/// itself, and then spends another round replying to it.
+fn with_budget(text: String, timeout_ms: Option<u64>) -> String {
+    let Some(seconds) = timeout_ms
+        .map(|ms| ms / 1000)
+        .filter(|seconds| *seconds > 0)
+    else {
+        return text;
+    };
+    format!(
+        "[Alethe] Time budget: {seconds} s from now. Write your answer by {} s; anything not \
+         written when the budget ends is lost.\n\n{text}",
+        seconds * 7 / 10
+    )
+}
+
+#[cfg(test)]
+mod budget_tests {
+    use super::with_budget;
+
+    #[test]
+    fn the_first_turn_states_the_budget_and_when_to_answer() {
+        let text = with_budget("Review the diff.".into(), Some(600_000));
+        assert!(text.starts_with("[Alethe] Time budget: 600 s"), "{text}");
+        assert!(text.contains("by 420 s"), "{text}");
+        assert!(text.ends_with("\n\nReview the diff."), "{text}");
+    }
+
+    #[test]
+    fn a_worker_without_a_budget_gets_its_task_as_is() {
+        assert_eq!(
+            with_budget("Review the diff.".into(), None),
+            "Review the diff."
+        );
+        assert_eq!(
+            with_budget("Review the diff.".into(), Some(500)),
+            "Review the diff."
+        );
+    }
+}
+
 fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -908,7 +950,10 @@ impl Core {
             job.started_at = Some(now_ms());
             job.ended_at = None;
             // Work that arrived while the worker was down leads; otherwise this is its first turn.
-            let first_turn = job.inbox.pop_front().unwrap_or_else(|| job.spec.clone());
+            let first_turn = with_budget(
+                job.inbox.pop_front().unwrap_or_else(|| job.spec.clone()),
+                job.timeout_ms,
+            );
             let started = (
                 job.agent.clone(),
                 job.cwd.clone(),
@@ -1081,22 +1126,40 @@ impl Core {
     fn arm_watchdog(&self, job_id: &str, timeout_ms: u64) {
         let core = self.clone();
         let job_id = job_id.to_string();
+        // A revived worker is armed again when it starts, so this watchdog answers only for the
+        // run that armed it.
+        let run = guard(&self.inner)
+            .jobs
+            .get(&job_id)
+            .and_then(|job| job.started_at);
         thread::spawn(move || {
             thread::sleep(Duration::from_millis(timeout_ms));
-            let payload = {
+            let (payload, written) = {
                 let inner = guard(&core.inner);
                 let Some(job) = inner.jobs.get(&job_id) else {
                     return;
                 };
-                if job.settled() {
+                if job.settled() || job.started_at != run {
                     return;
                 }
-                match (job.thread_id.clone(), job.active_turn_id.clone()) {
+                let payload = match (job.thread_id.clone(), job.active_turn_id.clone()) {
                     (Some(thread_id), Some(turn_id)) => {
                         Some(json!({ "threadId": thread_id, "turnId": turn_id }))
                     }
                     _ => None,
-                }
+                };
+                // The live stream holds what the worker said this turn and the report its last
+                // finished message, which for Codex is part of the stream. Neither is dropped.
+                let reply = job.reply.trim();
+                let report = job.report.trim();
+                let written = if reply.is_empty() {
+                    report.to_string()
+                } else if report.is_empty() || reply.contains(report) {
+                    tail(reply, REPLY_LIMIT)
+                } else {
+                    tail(&format!("{report}\n\n{reply}"), REPLY_LIMIT)
+                };
+                (payload, written)
             };
             if let Some(payload) = payload {
                 let staged = {
@@ -1104,17 +1167,26 @@ impl Core {
                     stage_rpc(&mut inner, &job_id, "turn/interrupt", payload)
                 };
                 if let Ok((stdin, request)) = staged {
-                    let _ = send_rpc(&stdin, &request);
+                    // Detached: a worker that stopped reading its input can hold the write, and
+                    // the stop below still has to happen on time. The teardown closes the pipe.
+                    thread::spawn(move || {
+                        let _ = send_rpc(&stdin, &request);
+                    });
                 }
             }
+            let stopped = format!(
+                "worker passed its {}s budget and was stopped",
+                timeout_ms / 1000
+            );
             core.finish(
                 &job_id,
                 STATUS_FAILED,
                 Some("timeout".into()),
-                format!(
-                    "worker passed its {}s budget and was stopped",
-                    timeout_ms / 1000
-                ),
+                if written.is_empty() {
+                    stopped
+                } else {
+                    format!("{stopped}. What it had written by then:\n\n{written}")
+                },
                 true,
             );
         });
@@ -1581,8 +1653,17 @@ impl Core {
                     job.status = STATUS_RUNNING.to_string();
                     job.outcome = None;
                     job.ended_at = None;
+                    // A turn this side interrupted delivered nothing, so what it had written stays
+                    // as the report until the next turn says more; a budget running out mid-way
+                    // must not lose it.
+                    job.report = if announce {
+                        String::new()
+                    } else if job.reply.trim().is_empty() {
+                        std::mem::take(&mut job.report)
+                    } else {
+                        tail(job.reply.trim(), REPLY_LIMIT)
+                    };
                     job.reply.clear();
-                    job.report.clear();
                 }
                 inner.running += 1;
             } else {
@@ -1653,7 +1734,7 @@ pub fn tools() -> Value {
                     },
                     "timeoutSeconds": {
                         "type": "number",
-                        "description": "Budget per worker before Alethe stops it, default 900. Pass 0 to let a worker run without a limit."
+                        "description": "Budget per worker before Alethe stops it, default 900. The worker is told its budget when it starts, and a worker that is stopped still delivers what it had written. Pass 0 to let a worker run without a limit."
                     }
                 },
                 "required": ["tasks"]
