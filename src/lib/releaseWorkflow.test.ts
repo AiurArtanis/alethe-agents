@@ -28,6 +28,17 @@ function jobName(block: string): string {
   return block.split('\n')[0].trim().replace(/:$/, '')
 }
 
+/** A job's `needs`, written as one name or as a `[a, b]` list. */
+function jobNeeds(block: string): string[] {
+  const value = block.match(/^\s{4}needs: (.+)$/m)?.[1]?.trim()
+  if (!value) return []
+  return value
+    .replace(/^\[|\]$/g, '')
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean)
+}
+
 describe('release workflow quality gate', () => {
   it('keeps CI event triggers while allowing release to call it', () => {
     expect(ciWorkflow).toMatch(/^\s{2}push:$/m)
@@ -55,12 +66,21 @@ describe('release workflow quality gate', () => {
     expect(qualityJob).not.toContain('secrets.')
 
     // Jobs after the build edit the release it created, so they may write to it, but they never
-    // see the signing key and none of them starts before the gate.
-    const gated = ['quality', ...publishingJobs.map(jobName)]
-    for (const job of blocks.filter(
-      (block) => block !== qualityJob && !publishingJobs.includes(block),
-    )) {
-      expect(gated).toContain(job.match(/^\s{4}needs: (\S+)$/m)?.[1])
+    // see the signing key and none of them starts before the gate: each waits on the gate, or on a
+    // job that does.
+    const others = blocks.filter((block) => block !== qualityJob && !publishingJobs.includes(block))
+    const gated = new Set(['quality', ...publishingJobs.map(jobName)])
+    for (let grew = true; grew;) {
+      grew = false
+      for (const job of others) {
+        if (!gated.has(jobName(job)) && jobNeeds(job).some((need) => gated.has(need))) {
+          gated.add(jobName(job))
+          grew = true
+        }
+      }
+    }
+    for (const job of others) {
+      expect([...gated], jobName(job)).toContain(jobName(job))
       expect(job).not.toContain('TAURI_SIGNING_PRIVATE_KEY')
     }
   })
