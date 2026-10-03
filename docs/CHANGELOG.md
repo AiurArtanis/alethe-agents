@@ -143,6 +143,12 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Fixed
 
+- The Linux AppImage no longer opens to an empty window on modern Wayland desktops (Ubuntu
+  24.04+, Fedora 40+, Arch). It shipped its own copy of a system graphics library that clashed
+  with the one your graphics driver loads, so the window died before drawing anything. It now
+  uses the system's copy, and the release build checks the finished AppImage, so this cannot be
+  announced as fixed again without being fixed. The `.deb` and `.rpm` installers were never
+  affected.
 - Mermaid, nanoid and DOMPurify are updated past versions with published security advisories,
   among them a DOMPurify issue that could let a crafted diagram run script.
 - On Linux, the settings file that lets Claude Code report back to Alethe is no longer written
@@ -304,14 +310,6 @@ you before leaving its sandbox, and reads each vendor's remaining quota before d
 goes; **remote control** grown into a real mobile client with a live terminal, agent chat and
 interactive questions; **optional project grids**; **9router** routing; **cloud sync** for
 preferences; and three new agents — **Cursor CLI**, **Kiro CLI** and plain **WSL** terminals.
-
-- The Linux AppImage no longer opens to an empty window on modern Wayland desktops (Ubuntu 24.04+,
-  Fedora 40+, Arch). It shipped its own copy of a system graphics library, which clashed with the
-  one the machine's own graphics driver has to load, so the interface died before drawing anything
-  while the app itself kept running behind it — the AppImage now uses the libraries already on the
-  system. The `.deb` and `.rpm` installers were never affected and stayed a working alternative.
-  An earlier release announced this same crash as fixed, but that change never took effect; the
-  build now inspects the finished installer, so it cannot be reported as fixed again without being.
 
 ### Added
 
