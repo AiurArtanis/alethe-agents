@@ -17,6 +17,10 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   running or waiting on you, or runs the same request again as a new worker under the same
   planner. Claude's own subagents and background shells run inside the planner, so they can only
   be opened.
+- **Start orchestration on a Claude terminal that is already open.** A button in a Claude
+  terminal's header puts an orchestration board next to it, so the conversation where the work
+  was planned can become the planner. A conversation started before orchestration was on is
+  restarted on the same conversation, after asking, to get the orchestrator tools.
 - **Grok Build and Codewhale are now native agents.** Grok Build (xAI, `grok` CLI) and
   Codewhale (`codewhale` CLI) appear in every agent picker with their own icons and accent
   colors. Install entries cover the official Grok PowerShell/npm installers and
@@ -191,6 +195,11 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   ("path nao existe"), because it was looked up only in the terminal's folder. When it is not there,
   the project's other worktrees are searched too, including paths that start with the worktree's
   folder name.
+- Relaunching a Claude terminal no longer drops its MCP servers and hooks. Claude only reads them
+  at launch, and only the first launch passed them, so restarting a terminal (from its header, the
+  inspector or the sidebar), resuming a conversation in it, resetting the last session or moving
+  it to a new worktree left a planner without the orchestrator tools, along with Playwright,
+  Graphify and AI memory.
 
 ### Fixed
 

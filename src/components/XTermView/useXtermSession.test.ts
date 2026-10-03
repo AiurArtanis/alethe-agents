@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { plannerLabelFor } from '../../lib/claudeMcpConfigs'
 import { resetSessionClaimsForTests } from '../../lib/sessionDiscovery'
 import { peekSession, saveSession } from '../../lib/sessionResume'
 import * as tauri from '../../lib/tauri'
@@ -8,7 +9,7 @@ import { EMPTY_PROJECTS_FILE } from '../../lib/types'
 import type { AgentHookPayload } from '../../stores/agentCanvasStore'
 import { useProjectsStore } from '../../stores/projectsStore'
 import { useTerminalsStore } from '../../stores/terminalsStore'
-import { plannerLabelFor, useXtermSession } from './useXtermSession'
+import { useXtermSession } from './useXtermSession'
 
 const hooks = vi.hoisted(() => new Set<(event: { payload: AgentHookPayload }) => void>())
 vi.mock('@tauri-apps/api/event', () => ({
