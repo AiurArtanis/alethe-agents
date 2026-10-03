@@ -123,6 +123,10 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Changed
 
+- Adding an MCP server from the registry now shows where it comes from, its version and
+  repository, and asks you to confirm before it is saved. Packages are pinned to the exact
+  version the registry lists, and options without one, along with Docker and NuGet options,
+  are no longer offered.
 - The local telemetry log keeps only event identifiers and duration, cost and memory figures, is
   readable only by your user on Linux and macOS, and stays under 2 MiB. It never leaves the
   device.
