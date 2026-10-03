@@ -448,29 +448,33 @@ mod unix_clipboard {
         std::env::var_os("WAYLAND_DISPLAY").is_some()
     }
 
-    /// Detect whether Klipper's D-Bus interface is reachable.  On KDE Plasma
-    /// this is the default clipboard manager and requires no extra packages.
-    fn klipper_available() -> bool {
-        which::which("qdbus").is_ok()
-            && Command::new("qdbus")
-                .args(["org.kde.klipper", "/klipper", "getClipboardContents"])
-                .output()
-                .map(|o| o.status.success())
-                .unwrap_or(false)
+    /// `qdbus` ships as `qdbus6` (or `qdbus-qt6`) on Plasma 6, and as `qdbus` before it.
+    fn qdbus() -> Option<&'static str> {
+        ["qdbus6", "qdbus-qt6", "qdbus"]
+            .into_iter()
+            .find(|name| which::which(name).is_ok())
     }
 
-    // ------------------------------------------------------------------
-    //  Klipper D-Bus helpers (text-only — images/files need wl-clipboard)
-    // ------------------------------------------------------------------
+    /// Klipper, KDE Plasma's clipboard manager, answers over D-Bus with no extra package. Listing
+    /// its interface is enough to know it is there, without reading the clipboard to find out.
+    fn klipper_available() -> bool {
+        qdbus().is_some_and(|qdbus| {
+            Command::new(qdbus)
+                .args(["org.kde.klipper", "/klipper"])
+                .output()
+                .is_ok_and(|output| output.status.success())
+        })
+    }
 
     fn klipper_read_text() -> Result<String, String> {
-        let output = Command::new("qdbus")
+        let qdbus = qdbus().ok_or_else(missing_tool_error)?;
+        let output = Command::new(qdbus)
             .args(["org.kde.klipper", "/klipper", "getClipboardContents"])
             .output()
-            .map_err(|e| format!("failed to run qdbus: {e}"))?;
+            .map_err(|e| format!("failed to run {qdbus}: {e}"))?;
         if !output.status.success() {
             return Err(format!(
-                "qdbus getClipboardContents failed (exit {})",
+                "{qdbus} getClipboardContents failed (exit {})",
                 output.status.code().unwrap_or(-1)
             ));
         }
@@ -478,58 +482,49 @@ mod unix_clipboard {
     }
 
     fn klipper_write_text(text: &str) -> Result<(), String> {
-        // Write text to a temp file and use shell expansion to avoid D-Bus
-        // argument-escaping issues with arbitrary user text (newlines, quotes,
-        // dollar signs, etc.).
-        let tmp = std::env::temp_dir().join(format!("alethe-klipper-{}.txt", nanoid::nanoid!(8)));
-        std::fs::write(&tmp, text).map_err(|e| e.to_string())?;
-        let result = Command::new("sh")
-            .args([
-                "-c",
-                &format!(
-                    "qdbus org.kde.klipper /klipper setClipboardContents \"$(cat {})\"",
-                    tmp.display()
-                ),
-            ])
-            .output();
-        let _ = std::fs::remove_file(&tmp);
-        let output = result.map_err(|e| format!("failed to run qdbus: {e}"))?;
+        let qdbus = qdbus().ok_or_else(missing_tool_error)?;
+        // One argument, straight to qdbus: no shell reads the text, and it never touches the disk,
+        // where a temporary file in a shared folder could be read by another user.
+        let output = Command::new(qdbus)
+            .args(["org.kde.klipper", "/klipper", "setClipboardContents", text])
+            .output()
+            .map_err(|e| format!("failed to run {qdbus}: {e}"))?;
         if !output.status.success() {
             return Err(format!(
-                "qdbus setClipboardContents failed (exit {})",
+                "{qdbus} setClipboardContents failed (exit {})",
                 output.status.code().unwrap_or(-1)
             ));
         }
         Ok(())
     }
 
-    /// Returns `Some(tool_name)` when a clipboard tool is on PATH, `None`
-    /// otherwise.  On Wayland, Klipper is tried first (zero extra deps on
-    /// KDE); then the standard `wl-paste`/`xclip` tools.
+    /// The session's own tool first: `wl-paste` on Wayland, and `xclip` on X11, which XWayland
+    /// also serves. Klipper carries only text, so it is used only when neither is installed;
+    /// preferring it would lose image and file paste on a KDE desktop that has the tools.
     fn paste_tool() -> Option<&'static str> {
-        if wayland() && klipper_available() {
-            return Some("klipper");
-        }
-        if which::which("wl-paste").is_ok() {
-            return Some("wl-paste");
-        }
-        if which::which("xclip").is_ok() {
-            return Some("xclip");
-        }
-        None
+        let native: &[&'static str] = if wayland() {
+            &["wl-paste", "xclip"]
+        } else {
+            &["xclip"]
+        };
+        native
+            .iter()
+            .copied()
+            .find(|tool| which::which(tool).is_ok())
+            .or_else(|| klipper_available().then_some("klipper"))
     }
 
     fn copy_tool() -> Option<&'static str> {
-        if wayland() && klipper_available() {
-            return Some("klipper");
-        }
-        if which::which("wl-copy").is_ok() {
-            return Some("wl-copy");
-        }
-        if which::which("xclip").is_ok() {
-            return Some("xclip");
-        }
-        None
+        let native: &[&'static str] = if wayland() {
+            &["wl-copy", "xclip"]
+        } else {
+            &["xclip"]
+        };
+        native
+            .iter()
+            .copied()
+            .find(|tool| which::which(tool).is_ok())
+            .or_else(|| klipper_available().then_some("klipper"))
     }
 
     fn missing_tool_error() -> String {
@@ -538,7 +533,8 @@ mod unix_clipboard {
              or ensure Klipper is running (KDE Plasma default)"
                 .to_string()
         } else {
-            "No clipboard tool found — install `xclip`".to_string()
+            "No clipboard tool found — install `xclip`, or run Klipper (KDE Plasma default)"
+                .to_string()
         }
     }
 
@@ -582,10 +578,11 @@ mod unix_clipboard {
             if mime == "text/plain" || mime.starts_with("text/plain") {
                 return klipper_read_text().map(|s| s.into_bytes());
             }
-            return Err(format!(
+            return Err(
                 "Image/file clipboard content requires `wl-clipboard` (Wayland) \
                  or `xclip` (X11) — Klipper only supports text"
-            ));
+                    .to_string(),
+            );
         }
         let output = if tool == "wl-paste" {
             Command::new("wl-paste")
