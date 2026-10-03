@@ -2447,3 +2447,62 @@ fn a_codex_thread_that_fails_to_open_fails_its_worker() {
     );
     assert_eq!(core.counts().0, 0, "the failed worker gives its slot back");
 }
+
+/// Answers the model list from a fixed reply and counts how often it was started.
+fn fake_codex_model_launcher(dir: &std::path::Path, reply: &str) -> Launcher {
+    let path = dir.join("models.jsonl");
+    std::fs::write(&path, reply).expect("write fake reply");
+    let runs = dir.join("runs");
+    #[cfg(windows)]
+    let (program, args): (&str, Vec<String>) = {
+        let script = dir.join("models.bat");
+        std::fs::write(
+            &script,
+            format!(
+                "@echo off\r\necho run>>\"{}\"\r\ntype \"{}\"\r\n",
+                runs.to_string_lossy(),
+                path.to_string_lossy()
+            ),
+        )
+        .expect("write fake script");
+        (
+            "cmd",
+            vec!["/c".into(), script.to_string_lossy().into_owned()],
+        )
+    };
+    #[cfg(not(windows))]
+    let (program, args): (&str, Vec<String>) = (
+        "sh",
+        vec![
+            "-c".into(),
+            format!("echo run >> '{}'; cat '{}'", runs.display(), path.display()),
+        ],
+    );
+    Launcher {
+        kind: "codex".into(),
+        program: PathBuf::from(program),
+        args,
+        env: Vec::new(),
+    }
+}
+
+// Each ask starts a Codex process, so reopening the settings reuses the last list (#202, #255).
+#[test]
+fn the_codex_model_list_is_reused_instead_of_asked_again() {
+    let dir = workspace("model-list-reuse");
+    let core = Core::default();
+    let reply = concat!(
+        r#"{"id":1,"result":{}}"#,
+        "\n",
+        r#"{"id":2,"result":{"data":[{"id":"m1","model":"m1","displayName":"M1","defaultReasoningEffort":"low","supportedReasoningEfforts":[{"reasoningEffort":"low"}],"hidden":false}],"nextCursor":null}}"#,
+        "\n",
+    );
+    core.set_launcher(fake_codex_model_launcher(&dir, reply));
+
+    let first = core.list_codex_models().expect("models");
+    let again = core.list_codex_models().expect("models");
+    assert_eq!(first, again);
+    assert_eq!(first[0]["model"], "m1", "{first}");
+    let runs = std::fs::read_to_string(dir.join("runs")).unwrap_or_default();
+    assert_eq!(runs.lines().count(), 1, "codex was started {runs:?}");
+}

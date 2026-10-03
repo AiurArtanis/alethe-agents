@@ -141,6 +141,9 @@ pub struct OrchestrationSettings {
     pub worker_disabled_plugins: Vec<String>,
 }
 
+/// How long a Codex model list is reused; a Codex update shows up after this.
+const CODEX_MODELS_TTL: Duration = Duration::from_secs(10 * 60);
+
 /// What a role decides. Passing any of these next to a role is refused.
 const ROLE_FIELDS: [&str; 5] = ["agent", "model", "effort", "readOnly", "timeoutSeconds"];
 
@@ -724,6 +727,8 @@ pub struct Core {
     observer: Arc<Mutex<Option<Observer>>>,
     dispatch: Arc<Mutex<Option<Sender<Value>>>>,
     store: Arc<Mutex<Option<PathBuf>>>,
+    /// The last model list Codex gave, and when; see `list_codex_models`.
+    codex_models: Arc<Mutex<Option<(Instant, Value)>>>,
 }
 
 impl Default for Core {
@@ -740,6 +745,7 @@ impl Default for Core {
             observer: Arc::new(Mutex::new(None)),
             dispatch: Arc::new(Mutex::new(None)),
             store: Arc::new(Mutex::new(None)),
+            codex_models: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -1304,8 +1310,22 @@ impl Core {
         self.drain_queue();
     }
 
-    /// The models the installed Codex offers, asked from a short-lived `app-server`.
+    /// The models the installed Codex offers. Each ask starts a short-lived `app-server`, and
+    /// short-lived Codex processes are tied to lsass crashes on Windows (#202), so an answer is
+    /// reused for a while instead of asking again every time the settings open. A failed ask is not
+    /// kept.
     pub fn list_codex_models(&self) -> Result<Value, String> {
+        if let Some((at, models)) = guard(&self.codex_models).as_ref() {
+            if at.elapsed() < CODEX_MODELS_TTL {
+                return Ok(models.clone());
+            }
+        }
+        let models = self.ask_codex_models()?;
+        *guard(&self.codex_models) = Some((Instant::now(), models.clone()));
+        Ok(models)
+    }
+
+    fn ask_codex_models(&self) -> Result<Value, String> {
         let launcher = guard(&self.launchers)
             .get("codex")
             .cloned()
