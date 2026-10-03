@@ -68,6 +68,8 @@ mod resources;
 mod router9;
 mod scheduler;
 mod session_watcher;
+// The handoff it reports goes over D-Bus, which only the Linux build links (zbus).
+#[cfg(target_os = "linux")]
 mod single_instance_probe;
 mod skills;
 mod speech;
