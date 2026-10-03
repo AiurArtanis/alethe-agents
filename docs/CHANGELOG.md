@@ -20,7 +20,8 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 - **Start orchestration on a Claude terminal that is already open.** A button in a Claude
   terminal's header puts an orchestration board next to it, so the conversation where the work
   was planned can become the planner. A conversation started before orchestration was on is
-  restarted on the same conversation, after asking, to get the orchestrator tools.
+  restarted on the same conversation, after asking, to get the orchestrator tools, and
+  orchestration stays on for the Claude and Codex terminals opened after it.
 - **Grok Build and Codewhale are now native agents.** Grok Build (xAI, `grok` CLI) and
   Codewhale (`codewhale` CLI) appear in every agent picker with their own icons and accent
   colors. Install entries cover the official Grok PowerShell/npm installers and

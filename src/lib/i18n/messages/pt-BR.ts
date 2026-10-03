@@ -2266,7 +2266,7 @@ export const ptBR: Record<MessageKey, string> = {
   'ui.terminal.openOrchestration': 'Abrir orquestração',
   'ui.terminal.orchestrationRestartTitle': 'Reiniciar o Claude para a orquestração?',
   'ui.terminal.orchestrationRestartBody':
-    'Esta conversa foi iniciada sem as ferramentas do orquestrador. O Claude reinicia na mesma conversa para recebê-las.',
+    'Esta conversa foi iniciada sem as ferramentas do orquestrador. O Claude reinicia na mesma conversa para recebê-las, e a orquestração de agentes fica ligada para os próximos terminais Claude e Codex.',
   'git.initOffer.title': 'Ainda não é um repositório Git',
   'git.initOffer.body':
     'Isolamento de agentes, worktrees e merges precisam que esta pasta seja um repositório Git. Inicializar agora?',

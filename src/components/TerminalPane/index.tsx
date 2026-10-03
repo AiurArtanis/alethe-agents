@@ -611,7 +611,12 @@ export const TerminalPane = memo(function TerminalPane({
               >
                 {isFocusMode ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
               </button>
-              {activeTab?.type === 'claude' && activeTab.ptyId && !orchestrated ? (
+              {/* A read-only viewer or a handoff tab is not a conversation to plan from. */}
+              {activeTab?.type === 'claude' &&
+              activeTab.ptyId &&
+              !orchestrated &&
+              !terminal.gsdSyncViewer &&
+              !activeTab.handoff ? (
                 <button
                   type="button"
                   className={styles.action}

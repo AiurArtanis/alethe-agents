@@ -2240,7 +2240,7 @@ export const en = {
   'ui.terminal.openOrchestration': 'Open orchestration',
   'ui.terminal.orchestrationRestartTitle': 'Restart Claude for orchestration?',
   'ui.terminal.orchestrationRestartBody':
-    'This conversation was started without the orchestrator tools. Claude restarts on the same conversation to get them.',
+    'This conversation was started without the orchestrator tools. Claude restarts on the same conversation to get them, and Agent orchestration stays on for the Claude and Codex terminals you open next.',
   'git.initOffer.title': 'Not a Git repository yet',
   'git.initOffer.body':
     'Agent isolation, worktrees and merges all need this folder to be a Git repository. Initialize one now?',
