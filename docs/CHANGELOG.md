@@ -123,6 +123,9 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Changed
 
+- The local telemetry log keeps only event identifiers and duration, cost and memory figures, is
+  readable only by your user on Linux and macOS, and stays under 2 MiB. It never leaves the
+  device.
 - **A worker that runs out of time no longer loses its work.** A delegated worker is told its time
   budget when it starts, and by when to write its answer. If it is still stopped at the end, the
   planner and the board get what it had written by then along with the timeout, instead of only
@@ -136,6 +139,12 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Fixed
 
+- On Linux, opening Alethe while it is already running no longer exits without a word. It says
+  it is focusing the open window, or, when that instance is stuck, which process holds it and
+  how to end it.
+- Text copy and paste works on KDE Plasma without `wl-clipboard` or `xclip`, through Klipper.
+  Images and files still need `wl-clipboard` (Wayland) or `xclip` (X11), and the error now says
+  which one to install.
 - A Codex worker that Codex refuses to start, for example on a model or reasoning effort it
   does not accept, now fails with Codex's reason. It used to show as running, holding a slot,
   until its time budget ran out, or for good when it had none.
@@ -286,15 +295,6 @@ you before leaving its sandbox, and reads each vendor's remaining quota before d
 goes; **remote control** grown into a real mobile client with a live terminal, agent chat and
 interactive questions; **optional project grids**; **9router** routing; **cloud sync** for
 preferences; and three new agents — **Cursor CLI**, **Kiro CLI** and plain **WSL** terminals.
-- Installing a CLI from inside Alethe no longer ends in a dialog that spins forever. The install
-  screen now watches for the CLI itself while the installer runs, instead of waiting only for the
-  installer's shell to exit — some of them hand the prompt back or leave a progress bar behind and
-  never exit — so the dialog closes on its own as soon as the CLI is really there. Detection also
-  re-reads the machine's environment on every check, so a CLI that adds itself to PATH is found
-  without restarting the app.
-- On Linux, launching Alethe while another instance is running no longer exits silently: the new
-  process now says it is focusing the existing window. If that instance is wedged and never answers,
-  it reports which process is holding the lock and exits with an error instead of doing nothing.
 
 ### Added
 
@@ -1022,10 +1022,6 @@ preferences; and three new agents — **Cursor CLI**, **Kiro CLI** and plain **W
   limit and was dropped mid-escape-sequence, leaving each pane parked on a sequence that never
   ended. Output now also drains on a timer, so a frame that never arrives can no longer strand it.
 
-- Linux clipboard on KDE Plasma now falls back to Klipper via D-Bus (`qdbus`) when `wl-clipboard`
-  or `xclip` are not installed — text copy/paste works out of the box on KDE without extra
-  packages. Image and file paste still require `wl-clipboard` (Wayland) or `xclip` (X11); the
-  error message now clearly states which package to install instead of failing silently.
 - The Source Control panel in the right sidebar no longer stays empty for a selected project that
   has no open terminal — it now falls back to the project's default working directory.
 
@@ -1207,11 +1203,6 @@ preferences; and three new agents — **Cursor CLI**, **Kiro CLI** and plain **W
 - Removed the previous app-icon themes; the icon picker now offers only the four Elite
   marks. Preferences still pointing at a removed icon are migrated to Elite Original on
   load. The UI themes they shared a name with are untouched.
-### Changed
-
-- Local telemetry logs now persist only event identifiers and finite duration, cost, and memory
-  metrics, use owner-only permissions on Unix, and automatically discard old entries before the log
-  can exceed 2 MiB. Telemetry remains local and is never uploaded.
 
 ## [1.6.0] — 2026-08-17
 
