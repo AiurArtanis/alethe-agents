@@ -187,9 +187,6 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   also freed a slot it never held, letting one more worker run than the concurrency limit allows.
 - A worker restored after a restart keeps the time budget it was delegated with, instead of
   falling back to 15 minutes.
-
-### Fixed
-
 - On Linux, closing a terminal could end every process of your user session instead of only that
   terminal's processes, depending on the process ID it got. Terminals are now stopped directly
   through the system call, so only their own processes are affected.
@@ -213,9 +210,6 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 - **Codex weekly quota shown in the right place.** On plans whose only limit is weekly, such as
   ChatGPT Pro Lite, the weekly usage appeared as the 5-hour quota and the week read 0%. Windows are
   now placed by their length, and plans without a 5-hour limit show only the weekly one ([#187](https://github.com/Kc1t/alethe-agents/issues/187)).
-
-### Fixed
-
 - Agent and 9router install and uninstall dialogs can now be cancelled while an installer runs, so
   one stuck on a prompt no longer locks the dialog and every other install until Alethe restarts.
 - npm installs now work on a fresh Windows, where the default PowerShell execution policy refused
@@ -225,6 +219,12 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   answer, such as WinGet's source agreement on its first run.
 - Installing Node.js through WinGet, Scoop or Chocolatey is no longer cut short as soon as `npm`
   appears on disk; Alethe now waits for the package manager to finish.
+- Renaming a project, group, or terminal now also updates its pinned/recent tab in the topbar. The
+  tab strip snapshotted its label only once, when the tab was first created, so a later rename kept
+  showing the old name there even though the workspace itself reflected the new one.
+- Renaming a terminal from the sidebar now actually sticks there too. The row's display name
+  preferred a live auto-title — Claude's own session title, or the active sub-tab's agent-type
+  name — over the renamed value, so the rename looked like it silently did nothing.
 
 ## [1.7.0] — 2026-09-20
 
@@ -236,14 +236,6 @@ you before leaving its sandbox, and reads each vendor's remaining quota before d
 goes; **remote control** grown into a real mobile client with a live terminal, agent chat and
 interactive questions; **optional project grids**; **9router** routing; **cloud sync** for
 preferences; and three new agents — **Cursor CLI**, **Kiro CLI** and plain **WSL** terminals.
-
-- Renaming a project, group, or terminal now also updates its pinned/recent tab in the topbar. The
-  tab strip snapshotted its label only once, when the tab was first created, so a later rename kept
-  showing the old name there even though the workspace itself reflected the new one.
-
-- Renaming a terminal from the sidebar now actually sticks there too. The row's display name
-  preferred a live auto-title — Claude's own session title, or the active sub-tab's agent-type
-  name — over the renamed value, so the rename looked like it silently did nothing.
 
 ### Added
 
