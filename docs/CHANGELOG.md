@@ -305,6 +305,14 @@ goes; **remote control** grown into a real mobile client with a live terminal, a
 interactive questions; **optional project grids**; **9router** routing; **cloud sync** for
 preferences; and three new agents — **Cursor CLI**, **Kiro CLI** and plain **WSL** terminals.
 
+- The Linux AppImage no longer opens to an empty window on modern Wayland desktops (Ubuntu 24.04+,
+  Fedora 40+, Arch). It shipped its own copy of a system graphics library, which clashed with the
+  one the machine's own graphics driver has to load, so the interface died before drawing anything
+  while the app itself kept running behind it — the AppImage now uses the libraries already on the
+  system. The `.deb` and `.rpm` installers were never affected and stayed a working alternative.
+  An earlier release announced this same crash as fixed, but that change never took effect; the
+  build now inspects the finished installer, so it cannot be reported as fixed again without being.
+
 ### Added
 
 - **Per-agent orchestration spend.** Worker cards now show their session cost, while the header totals reported spend by provider for the selected planner and preserves delegated-worker usage across app restarts.
