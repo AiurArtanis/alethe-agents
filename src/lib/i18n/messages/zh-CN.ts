@@ -868,6 +868,14 @@ export const zhCN: Record<MessageKey, string> = {
   'prefs.pluginsInstallError': '插件安装失败：{error}',
   'prefs.agentsTitle': '已启用的代理',
   'prefs.agentsDesc': '在创建终端和子标签时选择可用的代理。',
+  'prefs.shell': 'Shell',
+  'prefs.shellDesc':
+    'Alethe 会自动选择 shell（Windows 上优先 PowerShell 7，其次 Windows PowerShell；其他系统使用 $SHELL）。指定另一个可执行文件即可覆盖此选择 — 它只作用于 Shell 标签页，不影响代理标签页。',
+  'prefs.shellPathPick': '选择 shell 可执行文件',
+  'prefs.terminalFont': '终端字体',
+  'prefs.terminalFontDesc':
+    '终端窗格使用的字体栈。oh-my-posh 和 Starship 等提示符需要系统中已安装 Nerd Font，例如 "CaskaydiaCove Nerd Font"。',
+  'prefs.terminalFontFamily': '字体',
   'prefs.cliPaths': '代理 CLI 路径',
   'prefs.cliPathsDesc':
     'Alethe 会自行找到每个代理的 CLI。只有在 CLI 位于不寻常的位置时才覆盖它——并且应指向命令行工具，而不是桌面应用程序。',

@@ -14,6 +14,7 @@ import { normalizeTodoTags, normalizeTodoTitle } from '../lib/todos'
 import {
   DEFAULT_PREFERENCES,
   DEFAULT_ROUTER9_PREFERENCES,
+  DEFAULT_TERMINAL_FONT_FAMILY,
   EMPTY_PROJECTS_FILE,
   type Group,
   GROUP_COLORS,
@@ -210,7 +211,17 @@ export function normalizePreferences(raw: LegacyPreferences | undefined): Prefer
       DEFAULT_PREFERENCES.pomodoroLongBreakMinutes,
     ),
     pomodoroSession: normalizePomodoroSession(raw?.pomodoroSession),
+    shellPath: normalizeNonEmptyString(raw?.shellPath),
+    terminalFontFamily:
+      normalizeNonEmptyString(raw?.terminalFontFamily) ?? DEFAULT_TERMINAL_FONT_FAMILY,
   }
+}
+
+/** A cleared input persists as `''`; it must fall back instead of spawning an empty binary. */
+function normalizeNonEmptyString(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
 }
 
 function clampPomodoroMinutes(value: unknown, fallback: number): number {
