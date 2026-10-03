@@ -488,25 +488,20 @@ mod tests {
             file.set_modified(at).unwrap();
         };
 
-        assert_eq!(
-            find_relative_path_inner(&main, "a.txt"),
-            Some(main.join("a.txt"))
-        );
-        assert_eq!(
-            find_relative_path_inner(&main, "repo-feature/docs/report.md"),
-            Some(feature.clone())
-        );
-        assert_eq!(find_relative_path_inner(&main, "docs/missing.md"), None);
+        // The temp folder has aliases git does not print (`/var` is `/private/var` on macOS, and
+        // Windows may hand out an 8.3 short name), so a match is compared by the file it names.
+        let found = |path: &str| {
+            find_relative_path_inner(&main, path).map(|found| fs::canonicalize(found).unwrap())
+        };
+        let resolved = |path: &Path| Some(fs::canonicalize(path).unwrap());
+
+        assert_eq!(found("a.txt"), resolved(&main.join("a.txt")));
+        assert_eq!(found("repo-feature/docs/report.md"), resolved(&feature));
+        assert_eq!(found("docs/missing.md"), None);
         touch(&other, 2);
-        assert_eq!(
-            find_relative_path_inner(&main, "docs/report.md"),
-            Some(feature.clone())
-        );
+        assert_eq!(found("docs/report.md"), resolved(&feature));
         touch(&feature, 3);
-        assert_eq!(
-            find_relative_path_inner(&main, "docs/report.md"),
-            Some(other)
-        );
+        assert_eq!(found("docs/report.md"), resolved(&other));
 
         for name in ["repo-feature", "repo-other"] {
             let worktree = parent.join(name);
