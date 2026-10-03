@@ -142,6 +142,9 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   prompt. It now shows how full the context window is on the last turn.
 - A finished worker on the orchestration board showed the same green dot as a running one. Its dot
   now uses the finished colour from the legend, in the run list, on its card and in the composer.
+- The close button of a pane shown inside a group, such as the Orchestration pane next to its
+  planner, now closes it. It did nothing, because the group kept drawing the pane. Closing the
+  first pane of a group also no longer hides the other panes in it.
 
 ### Fixed
 
