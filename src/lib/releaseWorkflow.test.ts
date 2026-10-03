@@ -24,6 +24,10 @@ function jobBlocks(workflow: string): string[] {
   return blocks
 }
 
+function jobName(block: string): string {
+  return block.split('\n')[0].trim().replace(/:$/, '')
+}
+
 describe('release workflow quality gate', () => {
   it('keeps CI event triggers while allowing release to call it', () => {
     expect(ciWorkflow).toMatch(/^\s{2}push:$/m)
@@ -47,9 +51,17 @@ describe('release workflow quality gate', () => {
       expect(job).toContain('secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD')
     }
 
-    for (const job of blocks.filter((block) => !publishingJobs.includes(block))) {
-      expect(job).not.toContain('permissions:')
-      expect(job).not.toContain('secrets.')
+    expect(qualityJob).not.toContain('permissions:')
+    expect(qualityJob).not.toContain('secrets.')
+
+    // Jobs after the build edit the release it created, so they may write to it, but they never
+    // see the signing key and none of them starts before the gate.
+    const gated = ['quality', ...publishingJobs.map(jobName)]
+    for (const job of blocks.filter(
+      (block) => block !== qualityJob && !publishingJobs.includes(block),
+    )) {
+      expect(gated).toContain(job.match(/^\s{4}needs: (\S+)$/m)?.[1])
+      expect(job).not.toContain('TAURI_SIGNING_PRIVATE_KEY')
     }
   })
 })
