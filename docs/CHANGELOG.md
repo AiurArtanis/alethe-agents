@@ -134,6 +134,9 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Fixed
 
+- A Codex worker that Codex refuses to start, for example on a model or reasoning effort it
+  does not accept, now fails with Codex's reason. It used to show as running, holding a slot,
+  until its time budget ran out, or for good when it had none.
 - Alethe no longer closes by itself while a delegated worker streams a long reply with accented
   or other non-ASCII text. Trimming the live reply to its last 16,000 bytes could cut a character
   in half, which crashed the whole app

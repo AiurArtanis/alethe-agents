@@ -2402,3 +2402,48 @@ fn a_read_only_row_never_falls_back_to_the_planners_writable_row() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+// A thread Codex refuses to open, e.g. on a model or effort it does not accept, gets no further
+// message. The worker has to fail with Codex's reason instead of showing running, holding its
+// slot, until its budget runs out, or for good without one.
+#[test]
+fn a_codex_thread_that_fails_to_open_fails_its_worker() {
+    let dir = workspace("thread-start-error");
+    let core = Core::default();
+    let transcript = concat!(
+        r#"{"id":1,"result":{}}"#,
+        "\n",
+        r#"{"id":2,"error":{"code":-32602,"message":"unknown model: gpt-nope"}}"#,
+        "\n",
+    );
+    core.set_launcher(Launcher {
+        kind: "codex".into(),
+        ..fake_claude_holding_launcher(&dir, transcript)
+    });
+    let delegated = call(
+        &core,
+        "alethe_delegate",
+        json!({
+            "tasks": ["review the diff"],
+            "cwd": dir.to_string_lossy(),
+            "agent": "codex",
+            "model": "gpt-nope",
+            "timeoutSeconds": 0
+        }),
+    );
+    assert_eq!(delegated["accepted"], json!(1), "{delegated}");
+
+    for _ in 0..100 {
+        if job_field(&core, "job-01", "status") != "running" {
+            break;
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+    assert_eq!(job_field(&core, "job-01", "status"), "failed");
+    let summary = job_field(&core, "job-01", "summary");
+    assert!(
+        summary.as_str().unwrap_or_default().contains("unknown model: gpt-nope"),
+        "{summary}"
+    );
+    assert_eq!(core.counts().0, 0, "the failed worker gives its slot back");
+}

@@ -1792,6 +1792,26 @@ impl Core {
             return;
         }
 
+        // Codex refused to open the thread or start its first turn, e.g. on a model or effort it
+        // does not accept. Nothing else follows, so without this the worker would show running,
+        // holding its slot, until its budget ran out, or for good without one.
+        if let (Some(2 | 3), Some(error)) = (
+            message.get("id").and_then(Value::as_i64),
+            message.get("error"),
+        ) {
+            let reason = error
+                .get("message")
+                .and_then(Value::as_str)
+                .unwrap_or("no reason given");
+            self.settle(
+                job_id,
+                STATUS_FAILED,
+                "start-failed",
+                &format!("codex did not start the worker: {reason}"),
+            );
+            return;
+        }
+
         if message.get("id").and_then(Value::as_i64) == Some(2) {
             let thread_id = result
                 .get("thread")
