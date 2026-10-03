@@ -144,6 +144,13 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Changed
 
+- **Remote Control fails closed.** Turning it on from the quick dialog or from Preferences now asks
+  for confirmation first, spelling out which network the listeners open on, how long paired
+  sessions last, and whether paired devices can send agent or shell input. It only reports itself
+  on once every access setting was applied and both listeners are open; if anything fails it stays
+  off, the setting is switched back, and a notice says why. Turning it off always wins over a
+  pending turn-on, and no remote input reaches a terminal after it is off. A fresh backend also
+  starts read-only until the app applies your settings.
 - Adding an MCP server from the registry now shows where it comes from, its version and
   repository, and asks you to confirm before it is saved. Packages are pinned to the exact
   version the registry lists, and options without one, along with Docker and NuGet options,
