@@ -106,6 +106,11 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   leaves the orchestration board and the run list, so each task shows the worker that currently has
   it. This survives a restart. What the earlier worker spent still counts in the session totals, and
   it comes back to the board if it is sent more work. Workers that finished are never hidden.
+- A planner can read its orchestration status again. `alethe_status` returned every worker of
+  every planner with the whole task text, which with a dozen long tasks passed the size a tool
+  result may have, so the call failed. It now lists the calling planner's active and most recent
+  workers with long texts trimmed, says how many were left out, and takes `all` for the rest
+  ([#258](https://github.com/Kc1t/alethe-agents/issues/258)).
 - Every coding agent reached the routing model described the same way, so a request that named no
   agent had nothing to choose on and the answer spread evenly across them, which showed up as a low
   confidence and a fallback. Agents now carry how many panes they have open and whether one of them
