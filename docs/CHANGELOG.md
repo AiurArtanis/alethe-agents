@@ -139,6 +139,8 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Fixed
 
+- Mermaid, nanoid and DOMPurify are updated past versions with published security advisories,
+  among them a DOMPurify issue that could let a crafted diagram run script.
 - On Linux, the settings file that lets Claude Code report back to Alethe is no longer written
   to the shared temp folder, where other users of the machine could read the access token in
   it. It now lives in your own runtime folder, readable only by you.
