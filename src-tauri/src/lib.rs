@@ -165,22 +165,21 @@ pub fn run() {
             ProbeOutcome::HandoffAccepted { pid } => {
                 let owner = match pid {
                     Some(pid) => format!("pid {pid}"),
-                    None => "outro processo".to_string(),
+                    None => "another process".to_string(),
                 };
                 eprintln!(
-                    "[single-instance] Alethe já está em execução ({owner}) — \
-                     focando a janela existente."
+                    "[single-instance] Alethe is already running ({owner}); focusing its window."
                 );
             }
             ProbeOutcome::StaleOwner { pid } => {
                 let owner = match pid {
-                    Some(pid) => format!("o processo {pid}"),
-                    None => "um processo".to_string(),
+                    Some(pid) => format!("Process {pid}"),
+                    None => "A process".to_string(),
                 };
                 eprintln!(
-                    "[single-instance] {owner} retém o nome D-Bus mas não respondeu em 1s; \
-                     a janela não será aberta. Encerre a instância travada \
-                     (`busctl --user list | grep alethe`) e tente de novo."
+                    "[single-instance] {owner} holds the D-Bus name but did not answer within \
+                     1s, so no window will open. End the stuck instance \
+                     (`busctl --user list | grep alethe`) and try again."
                 );
                 std::process::exit(1);
             }
