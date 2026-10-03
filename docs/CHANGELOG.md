@@ -150,6 +150,9 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 - The close button of a pane shown inside a group, such as the Orchestration pane next to its
   planner, now closes it. It did nothing, because the group kept drawing the pane. Closing the
   first pane of a group also no longer hides the other panes in it.
+- Terminal links to files in your home folder now open. A `~\` path was cut down to a path inside
+  the terminal's folder, and neither `~/` nor `~\` was expanded to the home folder, so opening such
+  a link in its folder, in VS Code, in a pane or in a preview reported that the path did not exist.
 
 ### Fixed
 
