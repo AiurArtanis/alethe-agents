@@ -208,6 +208,10 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Fixed
 
+- **Agent CLIs installed under fnm or a custom Volta home are found on Linux.** Launched from a
+  desktop menu, Alethe does not inherit the PATH your shell sets up, so a CLI installed through
+  fnm, or through Volta with `VOLTA_HOME` pointing somewhere other than `~/.volta`, was reported
+  as missing.
 - The Linux AppImage no longer opens to an empty window on modern Wayland desktops (Ubuntu
   24.04+, Fedora 40+, Arch). It shipped its own copy of a system graphics library that clashed
   with the one your graphics driver loads, so the window died before drawing anything. It now

@@ -356,8 +356,17 @@ fn linux_user_bin_dirs() -> Vec<PathBuf> {
         dirs.push(home.join(".volta").join("bin"));
         dirs.push(home.join(".local").join("share").join("pnpm"));
     }
+    if let Some(volta_home) = env::var_os("VOLTA_HOME").map(PathBuf::from) {
+        dirs.push(volta_home.join("bin"));
+    }
     if let Some(pnpm_home) = env::var_os("PNPM_HOME").map(PathBuf::from) {
         dirs.push(pnpm_home);
+    }
+    let fnm_root = env::var_os("FNM_DIR").map(PathBuf::from).or_else(|| {
+        env::var_os("HOME").map(|h| PathBuf::from(h).join(".local").join("share").join("fnm"))
+    });
+    if let Some(root) = fnm_root {
+        dirs.extend(fnm_alias_bin_dirs(&root));
     }
     // nvm installs one versioned bin dir per node release; pick every one
     // newest first (same pattern as `fnm_version_dirs`).
@@ -389,6 +398,22 @@ fn linux_user_bin_dirs() -> Vec<PathBuf> {
             }
         }
     }
+    dirs
+}
+
+/// fnm on Linux keeps one symlink per alias under `<root>/aliases`, each pointing at an installed
+/// node version. The `default` alias is the version a new shell gets, so it goes first.
+#[cfg(target_os = "linux")]
+fn fnm_alias_bin_dirs(root: &std::path::Path) -> Vec<PathBuf> {
+    let Ok(entries) = fs::read_dir(root.join("aliases")) else {
+        return Vec::new();
+    };
+    let mut dirs: Vec<PathBuf> = entries
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path().join("bin"))
+        .filter(|bin| bin.is_dir())
+        .collect();
+    dirs.sort_by_key(|bin| !bin.parent().is_some_and(|alias| alias.ends_with("default")));
     dirs
 }
 
@@ -1185,6 +1210,25 @@ mod tests {
     fn resolves_cli_launcher_on_unix() {
         assert!(find_windows_cli_launcher("sh").is_some());
         assert!(find_windows_cli_launcher("non_existent_binary_xyz_123").is_none());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn fnm_aliases_resolve_to_their_bin_dirs_with_the_default_first() {
+        let root = std::env::temp_dir().join(format!("alethe-fnm-{}", std::process::id()));
+        for alias in ["lts-latest", "default", "v20"] {
+            std::fs::create_dir_all(root.join("aliases").join(alias).join("bin"))
+                .expect("create alias bin dir");
+        }
+        // An alias whose target is gone has no bin dir and is skipped.
+        std::fs::create_dir_all(root.join("aliases").join("stale")).expect("create stale alias");
+
+        let dirs = fnm_alias_bin_dirs(&root);
+
+        assert_eq!(dirs.len(), 3, "{dirs:?}");
+        assert_eq!(dirs[0], root.join("aliases").join("default").join("bin"));
+        assert!(fnm_alias_bin_dirs(&root.join("missing")).is_empty());
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// With the Linux user-bin-dirs fallback, an agent installed via
