@@ -1246,6 +1246,10 @@ preferences; and three new agents — **Cursor CLI**, **Kiro CLI** and plain **W
 - Removed the previous app-icon themes; the icon picker now offers only the four Elite
   marks. Preferences still pointing at a removed icon are migrated to Elite Original on
   load. The UI themes they shared a name with are untouched.
+### Changed
+
+- GitHub Gist Sync now stores its token in the operating system credential store. Existing plaintext
+  profile tokens migrate only after a verified keyring write and remain intact if migration fails.
 
 ## [1.6.0] — 2026-08-17
 
