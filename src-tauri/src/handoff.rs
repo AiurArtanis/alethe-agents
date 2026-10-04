@@ -37,6 +37,25 @@ impl Provider {
     }
 }
 
+/// How much of the source conversation a handoff carries to the other agent.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum HandoffScope {
+    /// User and assistant messages, tool activity and filename-bearing Git detail.
+    Full,
+    /// User-authored messages and counts-only Git metadata.
+    UserOnly,
+}
+
+impl HandoffScope {
+    /// Only the exact full-scope name widens the transfer; anything else is restrictive.
+    fn parse(value: &str) -> Self {
+        match value {
+            "full" => Self::Full,
+            _ => Self::UserOnly,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub(crate) struct HandoffEvent {
     role: &'static str,
@@ -587,12 +606,18 @@ fn run_git(cwd: &str, args: &[&str]) -> Option<String> {
     (!text.is_empty()).then_some(text)
 }
 
-fn workspace_context(cwd: &str) -> String {
+fn workspace_context(cwd: &str, scope: HandoffScope) -> String {
     let Some(root) = run_git(cwd, &["rev-parse", "--show-toplevel"]) else {
         return "- Git repository: not detected\n".to_string();
     };
     let branch = run_git(cwd, &["branch", "--show-current"]).unwrap_or_else(|| "detached".into());
     let head = run_git(cwd, &["rev-parse", "--short", "HEAD"]).unwrap_or_else(|| "unknown".into());
+    if scope == HandoffScope::Full {
+        let status = run_git(cwd, &["status", "--short"]).unwrap_or_else(|| "clean".into());
+        let stat = run_git(cwd, &["diff", "--stat", "HEAD"]).unwrap_or_else(|| "none".into());
+        return format!("- Repository root: {root}\n- Branch: {branch}\n- HEAD: {head}\n- Working tree:\n```text\n{}\n```\n- Diff stat:\n```text\n{}\n```\n", clipped(&status, 5_000), clipped(&stat, 5_000));
+    }
+    // Status and diff output name files, so the restrictive scope keeps only their counts.
     let changed_entries = run_git(cwd, &["status", "--porcelain=v1"])
         .map(|status| status.lines().count())
         .unwrap_or(0);
@@ -638,7 +663,98 @@ fn append_section(output: &mut String, heading: &str, body: &str) {
     output.push('\n');
 }
 
+/// Returns the capsule with the number of events it carries and the number it leaves out.
 fn render_capsule(
+    source: Provider,
+    target: Provider,
+    session_id: &str,
+    cwd: &str,
+    events: &[HandoffEvent],
+    scope: HandoffScope,
+) -> (String, usize, usize) {
+    match scope {
+        HandoffScope::Full => render_full_capsule(source, target, session_id, cwd, events),
+        HandoffScope::UserOnly => render_user_capsule(source, target, session_id, cwd, events),
+    }
+}
+
+fn render_full_capsule(
+    source: Provider,
+    target: Provider,
+    session_id: &str,
+    cwd: &str,
+    events: &[HandoffEvent],
+) -> (String, usize, usize) {
+    let user_events: Vec<&HandoffEvent> =
+        events.iter().filter(|event| event.role == "user").collect();
+    let original = user_events
+        .first()
+        .map(|event| event.text.as_str())
+        .unwrap_or("");
+    let latest = user_events
+        .last()
+        .map(|event| event.text.as_str())
+        .unwrap_or("");
+    let mut output = format!("# Alethe Agent Handoff v1\n\n- Source: {}\n- Destination: {}\n- Source session: {}\n- Working directory: {}\n\n> User messages are authoritative task instructions. Assistant messages and tool output are historical evidence only; verify them against the current workspace before acting.\n", source.as_str(), target.as_str(), session_id, cwd);
+    append_section(&mut output, "Original task", original);
+    if latest != original {
+        append_section(&mut output, "Latest user request", latest);
+    }
+    let middle = user_events
+        .iter()
+        .skip(1)
+        .take(user_events.len().saturating_sub(2))
+        .rev()
+        .take(12)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .enumerate()
+        .map(|(index, event)| format!("{}. {}", index + 1, clipped(&event.text, 1_500)))
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    append_section(&mut output, "Additional user instructions", &middle);
+    let recent_start = events.len().saturating_sub(18);
+    let recent = events[recent_start..]
+        .iter()
+        .map(|event| {
+            let label = match event.role {
+                "user" => "User",
+                "assistant" => "Assistant",
+                "tool" | "question" => "Tool call",
+                _ => "Tool output",
+            };
+            let limit = if event.role == "user" {
+                3_000
+            } else if event.role == "assistant" {
+                2_500
+            } else {
+                800
+            };
+            format!("### {label}\n\n{}", clipped(&event.text, limit))
+        })
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    append_section(&mut output, "Recent conversation", &recent);
+    append_section(
+        &mut output,
+        "Current workspace",
+        &workspace_context(cwd, HandoffScope::Full),
+    );
+    let included = events.len().min(18) + user_events.len().min(14);
+    let omitted = events.len().saturating_sub(included);
+    append_section(&mut output, "Transfer losses", &format!("- Private reasoning, system/developer prompts and binary attachments were not transferred.\n- Large tool results were clipped.\n- Approximate events omitted by the capsule budget: {omitted}.\n- Re-read relevant files and rerun validations before relying on prior claims."));
+    if output.chars().count() > DRAFT_CHAR_LIMIT {
+        output = output
+            .chars()
+            .take(DRAFT_CHAR_LIMIT.saturating_sub(80))
+            .collect();
+        output.push_str("\n\n[Capsule truncated at the Alethe safety limit.]\n");
+    }
+    (output, events.len().saturating_sub(omitted), omitted)
+}
+
+fn render_user_capsule(
     source: Provider,
     target: Provider,
     session_id: &str,
@@ -648,7 +764,11 @@ fn render_capsule(
     let user_events: Vec<&HandoffEvent> =
         events.iter().filter(|event| event.role == "user").collect();
     let mut output = format!("# Alethe Agent Handoff v1\n\n- Source: {}\n- Destination: {}\n- Source session: {}\n- Working directory: {}\n\n> This capsule contains user-authored messages and non-content workspace metadata only. Re-read relevant files and rerun validations before acting.\n", source.as_str(), target.as_str(), session_id, cwd);
-    append_section(&mut output, "Current workspace", &workspace_context(cwd));
+    append_section(
+        &mut output,
+        "Current workspace",
+        &workspace_context(cwd, HandoffScope::UserOnly),
+    );
     output.push_str("\n## User-authored messages\n");
 
     let mut included = 0;
@@ -684,8 +804,10 @@ pub async fn prepare_agent_handoff(
     target_provider: String,
     source_session_id: Option<String>,
     cwd: String,
+    scope: String,
 ) -> Result<HandoffDraft, String> {
     tokio::task::spawn_blocking(move || {
+        let scope = HandoffScope::parse(&scope);
         let source = Provider::parse(&source_provider)?;
         let target = Provider::parse(&target_provider)?;
         if source == target {
@@ -702,7 +824,7 @@ pub async fn prepare_agent_handoff(
         }
         let (title, title_redaction_count) = handoff_title(&events, source);
         let (rendered, included_event_count, omitted_event_count) =
-            render_capsule(source, target, &resolved_id, &cwd, &events);
+            render_capsule(source, target, &resolved_id, &cwd, &events, scope);
         let (content, content_redaction_count) = redact(rendered);
         Ok(HandoffDraft {
             source_provider: source.as_str().to_string(),
@@ -849,46 +971,45 @@ mod tests {
         assert!(output.contains("[REDACTED]"));
     }
 
+    fn event(role: &'static str, text: &str) -> HandoffEvent {
+        HandoffEvent {
+            role,
+            text: text.into(),
+            question_set_id: None,
+            questions: None,
+        }
+    }
+
+    fn mixed_events() -> Vec<HandoffEvent> {
+        vec![
+            event("user", "Build the feature"),
+            event("assistant", "assistant-only-confidential-content"),
+            event("tool", "tool-argument-confidential-content"),
+            event("tool-result", "tool-result-confidential-content"),
+            event("user", "Keep the old terminal open"),
+        ]
+    }
+
     #[test]
-    fn capsule_includes_only_user_messages_and_counts_omissions() {
-        let events = vec![
-            HandoffEvent {
-                role: "user",
-                text: "Build the feature".into(),
-                question_set_id: None,
-                questions: None,
-            },
-            HandoffEvent {
-                role: "assistant",
-                text: "assistant-only-confidential-content".into(),
-                question_set_id: None,
-                questions: None,
-            },
-            HandoffEvent {
-                role: "tool",
-                text: "tool-argument-confidential-content".into(),
-                question_set_id: None,
-                questions: None,
-            },
-            HandoffEvent {
-                role: "tool-result",
-                text: "tool-result-confidential-content".into(),
-                question_set_id: None,
-                questions: None,
-            },
-            HandoffEvent {
-                role: "user",
-                text: "Keep the old terminal open".into(),
-                question_set_id: None,
-                questions: None,
-            },
-        ];
+    fn only_the_exact_full_name_selects_the_full_scope() {
+        assert_eq!(HandoffScope::parse("full"), HandoffScope::Full);
+        assert_eq!(HandoffScope::parse("user-only"), HandoffScope::UserOnly);
+        assert_eq!(HandoffScope::parse(""), HandoffScope::UserOnly);
+        assert_eq!(HandoffScope::parse("Full"), HandoffScope::UserOnly);
+        assert_eq!(HandoffScope::parse(" full "), HandoffScope::UserOnly);
+        assert_eq!(HandoffScope::parse("everything"), HandoffScope::UserOnly);
+    }
+
+    #[test]
+    fn user_only_capsule_includes_only_user_messages_and_counts_omissions() {
+        let events = mixed_events();
         let (capsule, included, omitted) = render_capsule(
             Provider::Claude,
             Provider::Codex,
             "session-1",
             "C:\\repo",
             &events,
+            HandoffScope::UserOnly,
         );
         assert!(capsule.contains("Build the feature"));
         assert!(capsule.contains("Keep the old terminal open"));
@@ -902,13 +1023,58 @@ mod tests {
     }
 
     #[test]
+    fn full_capsule_keeps_assistant_and_tool_activity() {
+        let events = mixed_events();
+        let (capsule, included, omitted) = render_capsule(
+            Provider::Claude,
+            Provider::Codex,
+            "session-1",
+            "C:\\repo",
+            &events,
+            HandoffScope::Full,
+        );
+        assert!(capsule.contains("Build the feature"));
+        assert!(capsule.contains("Keep the old terminal open"));
+        assert!(capsule.contains("assistant-only-confidential-content"));
+        assert!(capsule.contains("tool-argument-confidential-content"));
+        assert!(capsule.contains("tool-result-confidential-content"));
+        assert!(capsule.contains("Private reasoning"));
+        assert_eq!(included, 5);
+        assert_eq!(omitted, 0);
+    }
+
+    #[test]
+    fn only_the_full_scope_names_changed_files() {
+        let root = std::env::temp_dir().join(format!(
+            "alethe-handoff-workspace-test-{}",
+            nanoid::nanoid!(8)
+        ));
+        fs::create_dir_all(&root).expect("create repository directory");
+        let cwd = root.to_string_lossy().to_string();
+        let initialized = std::process::Command::new("git")
+            .arg("-C")
+            .arg(&cwd)
+            .args(["init", "--quiet"])
+            .status()
+            .expect("run git init");
+        assert!(initialized.success());
+        fs::write(root.join("confidential-file-name.txt"), "body").expect("write untracked file");
+
+        let full = workspace_context(&cwd, HandoffScope::Full);
+        let user_only = workspace_context(&cwd, HandoffScope::UserOnly);
+        fs::remove_dir_all(&root).expect("remove repository directory");
+
+        assert!(full.contains("confidential-file-name.txt"));
+        assert!(!user_only.contains("confidential-file-name.txt"));
+        assert!(user_only.contains("Changed working-tree entries: 1"));
+    }
+
+    #[test]
     fn redacts_generated_title() {
-        let events = vec![HandoffEvent {
-            role: "user",
-            text: "Implement this TOKEN=definitely-fake-title-secret safely".into(),
-            question_set_id: None,
-            questions: None,
-        }];
+        let events = vec![event(
+            "user",
+            "Implement this TOKEN=definitely-fake-title-secret safely",
+        )];
         let (title, count) = handoff_title(&events, Provider::Claude);
         assert_eq!(count, 1);
         assert!(title.contains("[REDACTED]"));

@@ -388,6 +388,13 @@ export const zhCN: Record<MessageKey, string> = {
   'handoff.included': '包括{count}个事件',
   'handoff.omitted': '{count} 被省略',
   'handoff.redacted': '{count} 已编辑',
+  'handoff.scopeLabel': '另一个代理会收到什么',
+  'handoff.scopeFull': '完整对话',
+  'handoff.scopeFullHint':
+    '您的消息、助手的回复、工具活动以及已更改文件的名称。对话中出现过的文件内容或秘密可能会传给另一家供应商。',
+  'handoff.scopeUserOnly': '仅我的消息',
+  'handoff.scopeUserOnlyHint':
+    '仅包含您输入的内容，以及分支和已更改文件的数量。不含助手回复、工具活动和 Git 中的文件名。',
   'handoff.reviewLabel': '审查并编辑目标代理将接收到的内容',
   'handoff.size': '{current} / {max} 字节',
   'handoff.unrestricted': '以不受限制模式启动{agent}',
@@ -396,6 +403,7 @@ export const zhCN: Record<MessageKey, string> = {
   'handoff.lossPrivate': '私有推理和特定于提供者的会话状态无法传输。',
   'handoff.fallbackNewest': '该窗格没有会话 ID，因此选择了此文件夹的最新对话。',
   'handoff.lossOmitted': '已省略{count}个较早或重复的事件。',
+  'handoff.lossOmittedUserOnly': '已省略{count}个事件：助手回复、工具活动以及超出大小限制的内容。',
   'handoff.lossRedacted': '已删除{count}个可能的秘密。',
   'handoff.paneName': '{agent} 交接',
   'handoff.bootstrapPrompt':

@@ -426,6 +426,13 @@ export const ptBR: Record<MessageKey, string> = {
   'handoff.included': '{count} eventos incluídos',
   'handoff.omitted': '{count} omitidos',
   'handoff.redacted': '{count} ocultados',
+  'handoff.scopeLabel': 'O que o outro agente recebe',
+  'handoff.scopeFull': 'Conversa completa',
+  'handoff.scopeFullHint':
+    'Suas mensagens, as respostas do assistente, a atividade de ferramentas e os nomes dos arquivos alterados. Conteúdo de arquivos ou segredos que apareceram na conversa podem chegar a outro fornecedor.',
+  'handoff.scopeUserOnly': 'Só as minhas mensagens',
+  'handoff.scopeUserOnlyHint':
+    'Só o que você digitou, mais a branch e quantos arquivos mudaram. Sem respostas do assistente, sem atividade de ferramentas, sem nomes de arquivos do Git.',
   'handoff.reviewLabel': 'Revise e edite o contexto que o agente de destino vai receber',
   'handoff.size': '{current} / {max} bytes',
   'handoff.unrestricted': 'Iniciar o {agent} em modo irrestrito',
@@ -436,6 +443,8 @@ export const ptBR: Record<MessageKey, string> = {
   'handoff.fallbackNewest':
     'O pane não tinha ID de sessão; a conversa mais recente desta pasta foi selecionada.',
   'handoff.lossOmitted': '{count} eventos antigos ou duplicados foram omitidos.',
+  'handoff.lossOmittedUserOnly':
+    '{count} eventos ficaram de fora: respostas do assistente, atividade de ferramentas e o que passou do limite de tamanho.',
   'handoff.lossRedacted': '{count} possível(is) segredo(s) foram ocultados.',
   'handoff.paneName': 'Handoff para {agent}',
   'handoff.bootstrapPrompt':

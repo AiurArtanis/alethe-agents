@@ -415,6 +415,13 @@ export const en = {
   'handoff.included': '{count} events included',
   'handoff.omitted': '{count} omitted',
   'handoff.redacted': '{count} redacted',
+  'handoff.scopeLabel': 'What the other agent receives',
+  'handoff.scopeFull': 'Full conversation',
+  'handoff.scopeFullHint':
+    'Your messages, the assistant replies, tool activity and the names of changed files. File contents or secrets that appeared in the conversation may reach another vendor.',
+  'handoff.scopeUserOnly': 'Only my messages',
+  'handoff.scopeUserOnlyHint':
+    'Only what you typed, plus the branch and how many files changed. No assistant replies, no tool activity, no file names from Git.',
   'handoff.reviewLabel': 'Review and edit the context the destination agent will receive',
   'handoff.size': '{current} / {max} bytes',
   'handoff.unrestricted': 'Start {agent} in unrestricted mode',
@@ -425,6 +432,8 @@ export const en = {
   'handoff.fallbackNewest':
     'The pane had no session ID, so the newest conversation for this folder was selected.',
   'handoff.lossOmitted': '{count} older or duplicate events were omitted.',
+  'handoff.lossOmittedUserOnly':
+    '{count} events were left out: assistant replies, tool activity and anything over the size limit.',
   'handoff.lossRedacted': '{count} possible secret(s) were redacted.',
   'handoff.paneName': '{agent} handoff',
   'handoff.bootstrapPrompt':

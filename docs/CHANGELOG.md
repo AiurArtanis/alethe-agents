@@ -187,9 +187,13 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 - **The voice command UI is fully localized.** Every string in the command bar, the plan summary,
   the block and warning reasons, and the Jev history now goes through i18n in English and pt-BR,
   so nothing in the voice flow is hardcoded to a single language anymore.
-- Agent handoff packets now transfer only user-authored messages and non-content workspace metadata;
-  edited packets are redacted again when saved, and temporary context files use private,
-  no-overwrite storage.
+- **The handoff dialog asks what the other agent receives.** *Full conversation*, the default and
+  what a handoff carried before, sends your messages, the assistant replies, tool activity and the
+  names of changed files, so file contents or secrets that appeared in the conversation can reach
+  another vendor. *Only my messages* sends what you typed plus the branch and how many files
+  changed, and nothing else. The dialog remembers the last choice. In both, the packet is redacted
+  again when it is saved, after your edits, its generated title is redacted too, and the temporary
+  context file is created owner-only and never overwrites an existing one.
 
 ### Fixed
 

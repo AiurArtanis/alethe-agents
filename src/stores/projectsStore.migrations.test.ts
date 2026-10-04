@@ -262,6 +262,19 @@ describe('preference normalization', () => {
     })
   })
 
+  it('hands off the full conversation by default and narrows an unknown scope', () => {
+    expect(normalizePreferences(undefined).handoffScope).toBe('full')
+    expect(normalizePreferences({}).handoffScope).toBe('full')
+    expect(normalizePreferences({ ...DEFAULT_PREFERENCES }).handoffScope).toBe('full')
+    expect(
+      normalizePreferences({ ...DEFAULT_PREFERENCES, handoffScope: 'user-only' }).handoffScope,
+    ).toBe('user-only')
+    expect(
+      normalizePreferences({ ...DEFAULT_PREFERENCES, handoffScope: 'everything' as 'full' })
+        .handoffScope,
+    ).toBe('user-only')
+  })
+
   it('keeps Discord Rich Presence opt-in while preserving an existing choice', () => {
     expect(normalizePreferences(undefined).discordRichPresenceEnabled).toBe(false)
     expect(

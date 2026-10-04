@@ -168,6 +168,7 @@ export function normalizePreferences(raw: LegacyPreferences | undefined): Prefer
     topbarStyle: preferences.topbarStyle === 'three-areas' ? 'three-areas' : 'classic',
     viewPlacements: normalizeViewPlacements(preferences),
     mcpDefaultScope: preferences.mcpDefaultScope === 'project' ? 'project' : 'global',
+    handoffScope: normalizeHandoffScope(raw?.handoffScope),
     mcpOnboardingSeen: Boolean(preferences.mcpOnboardingSeen),
     setupWalkthrough: {
       ...DEFAULT_PREFERENCES.setupWalkthrough,
@@ -244,6 +245,15 @@ export function normalizePreferences(raw: LegacyPreferences | undefined): Prefer
     terminalFontFamily:
       normalizeNonEmptyString(raw?.terminalFontFamily) ?? DEFAULT_TERMINAL_FONT_FAMILY,
   }
+}
+
+/**
+ * A file saved before the choice existed keeps the full conversation. A value this build does
+ * not recognize is narrowed instead, matching what the backend does with one.
+ */
+function normalizeHandoffScope(value: unknown): Preferences['handoffScope'] {
+  if (value === undefined || value === null) return DEFAULT_PREFERENCES.handoffScope
+  return value === 'full' ? 'full' : 'user-only'
 }
 
 /** A cleared input persists as `''`; it must fall back instead of spawning an empty binary. */

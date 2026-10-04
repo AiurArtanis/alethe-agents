@@ -642,6 +642,8 @@ export type Preferences = {
   alwaysStartOnHome: boolean
 
   alwaysStartUnrestricted: boolean
+  /** Last scope chosen in the handoff dialog. */
+  handoffScope: HandoffScope
   /** Last terminal configuration submitted through the creation modal. */
   lastTerminalCreation: TerminalCreationPreset | null
 
@@ -847,6 +849,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   accountCreated: false,
   alwaysStartOnHome: false,
   alwaysStartUnrestricted: false,
+  handoffScope: 'full',
   lastTerminalCreation: null,
   topbarStyle: 'classic',
   viewPlacements: {},
@@ -1009,6 +1012,12 @@ export const PROVIDER_MODELS: Record<BuiltinAgentType, { id: string; label: stri
 }
 
 export type McpScope = 'global' | 'project'
+
+/**
+ * How much of a conversation a handoff carries to the other agent: everything, or only the
+ * messages the user wrote. The backend treats any other value as `user-only`.
+ */
+export type HandoffScope = 'full' | 'user-only'
 
 export type McpAgent = Extract<
   BuiltinAgentType,
