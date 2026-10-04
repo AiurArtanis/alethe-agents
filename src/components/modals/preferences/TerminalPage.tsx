@@ -322,6 +322,44 @@ export function TerminalPage({ enabledCount }: { enabledCount: number }) {
         </div>
       </SettingsSection>
 
+      <SettingsSection
+        id="agent-canvas-permissions"
+        title={t('prefs.experimentalPermissions')}
+        description={t('prefs.experimentalPermissionsDesc')}
+      >
+        <div className={styles.segmented}>
+          <button
+            type="button"
+            className={
+              preferences.experimentalAgentPermissionMode === 'ask'
+                ? styles.segmentActive
+                : undefined
+            }
+            aria-pressed={preferences.experimentalAgentPermissionMode === 'ask'}
+            onClick={() => setPreferences({ experimentalAgentPermissionMode: 'ask' })}
+          >
+            {t('prefs.experimentalPermissionsAsk')}
+          </button>
+          <button
+            type="button"
+            className={
+              preferences.experimentalAgentPermissionMode === 'bypass'
+                ? styles.segmentActive
+                : undefined
+            }
+            aria-pressed={preferences.experimentalAgentPermissionMode === 'bypass'}
+            onClick={() => setPreferences({ experimentalAgentPermissionMode: 'bypass' })}
+          >
+            {t('prefs.experimentalPermissionsBypass')}
+          </button>
+        </div>
+        <p className={styles.resourceHint}>
+          {preferences.experimentalAgentPermissionMode === 'bypass'
+            ? t('prefs.experimentalPermissionsBypassHint')
+            : t('prefs.experimentalPermissionsAskHint')}
+        </p>
+      </SettingsSection>
+
       {isMacOS() ? (
         <SettingsSection
           id="native-terminal-macos"

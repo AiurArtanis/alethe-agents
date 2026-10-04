@@ -6,6 +6,7 @@ import {
   legacyTodosFeatureFlag,
   normalizeEnabledFeatures,
 } from '../lib/features'
+import { normalizeExperimentalAgentPermissionMode } from '../lib/experimentalAgentPolicy'
 import { normalizeOrchestrationSettings } from '../lib/orchestrationSettings'
 import { recordLegacyGitFlag, recordLegacyTodosFlag } from '../lib/plugins/legacyMigration'
 import { normalizePort } from '../lib/router9'
@@ -169,6 +170,9 @@ export function normalizePreferences(raw: LegacyPreferences | undefined): Prefer
     viewPlacements: normalizeViewPlacements(preferences),
     mcpDefaultScope: preferences.mcpDefaultScope === 'project' ? 'project' : 'global',
     handoffScope: normalizeHandoffScope(raw?.handoffScope),
+    experimentalAgentPermissionMode: normalizeExperimentalAgentPermissionMode(
+      raw?.experimentalAgentPermissionMode,
+    ),
     mcpOnboardingSeen: Boolean(preferences.mcpOnboardingSeen),
     setupWalkthrough: {
       ...DEFAULT_PREFERENCES.setupWalkthrough,

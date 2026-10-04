@@ -669,6 +669,15 @@ export const zhCN: Record<MessageKey, string> = {
   'prefs.limitResetNotifyDesc': '在 Claude 或 Codex 的使用窗口重置时发送通知，并显示具体是哪个。',
   'prefs.limitResetNotifyOn': '开',
   'prefs.limitResetNotifyOff': '关',
+  'prefs.experimentalPermissions': 'Agent Canvas 权限',
+  'prefs.experimentalPermissionsDesc':
+    '实验性 Agent Canvas 启动的工作代理如何处理权限。对之后启动的代理生效，且仅保存在这台电脑上。',
+  'prefs.experimentalPermissionsAsk': '询问',
+  'prefs.experimentalPermissionsBypass': '跳过',
+  'prefs.experimentalPermissionsAskHint':
+    '代理保留自身的权限检查。可输入的终端会向你询问；后台运行的工作代理无人可问，因此需要批准的操作会被拒绝，并由该代理说明。',
+  'prefs.experimentalPermissionsBypassHint':
+    '代理无需询问即可运行命令和编辑文件：Claude 以 --dangerously-skip-permissions 启动，Codex 则关闭审批和沙箱。仅在你能接受代理任何操作的地方使用。',
   'prefs.dictation': '语音输入',
   'prefs.dictationDesc':
     '本地语音转文字，使用设备上的模型。按 {shortcut} 将文字口述到任何聚焦的面板中。',
@@ -2044,6 +2053,14 @@ export const zhCN: Record<MessageKey, string> = {
   'ws.copied': '已复制！',
   'ws.copy': '复制',
   'ws.agentsChangedRestart': '代理已更改 — 重启 Claude ↻',
+  'ws.permissionsChangedRestart': '权限模式已更改 — 重启 Claude ↻',
+  'ws.permissionsAsk': '权限：询问',
+  'ws.permissionsBypass': '权限：跳过',
+  'ws.permissionsAskTitle':
+    '代理在运行命令或编辑文件前会询问。后台工作代理无人可问，因此需要批准的操作会被拒绝。点击更改。',
+  'ws.permissionsBypassTitle': '代理无需询问即可运行命令和编辑文件。点击更改。',
+  'ws.workerAskRefused':
+    '询问模式：没有人能批准此工作代理，因此所有需要批准的操作均被拒绝。可在 偏好设置 → 终端和代理 中更改模式。',
   'ws.exitedCode': '退出（代码 {code}）',
   'ws.economyModeTitle':
     '经济模式：在文件夹的 .claude/agents/ 中写入/删除 Haiku 和 codex-executor 代理',
@@ -2461,6 +2478,11 @@ export const zhCN: Record<MessageKey, string> = {
   'sandbox.statusWorking': '工作中',
   'sandbox.statusDone': '完成',
   'sandbox.statusError': '错误',
+  'sandbox.statusBlocked': '已阻止',
+  'sandbox.approvalDeclinedCommand':
+    '因权限请求而停止：某条命令需要批准但无人应答，已被拒绝。可在 偏好设置 → 终端和代理 中更改模式。',
+  'sandbox.approvalDeclinedFileChange':
+    '因权限请求而停止：某项文件更改需要批准但无人应答，已被拒绝。可在 偏好设置 → 终端和代理 中更改模式。',
   'sandbox.terminalPreview': '终端预览',
   'sandbox.selectTerminal': '选择一个代理终端在此检查它。',
   'sandbox.resizeTerminal': '调整终端大小',

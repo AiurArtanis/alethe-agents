@@ -163,3 +163,5 @@ Custom grids support `colSpan`, `rowSpan`, drag-and-drop swapping, and resizable
 ## Agent Planning
 
 Agent Planning / Agent Canvas is experimental. It provides a visual control surface for coordinating agent sessions and workers from inside Alethe.
+
+Its agents follow a permission mode set in **Preferences → Terminal and agents → Agent Canvas permissions**: **Ask** (default) keeps each agent's own permission checks, and a background worker with nobody to answer has the action refused; **Bypass** lets agents run commands and edit files without asking. The mode is not synced between machines.
