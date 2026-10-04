@@ -95,6 +95,16 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   installing a missing agent installs it inside the distro. Graphify and AI memory stay off for
   these panes. The whole integration sits behind **Preferences → Features → WSL integration**, on
   by default; turning it off treats every folder as a Windows one again.
+
+- **Routing rules pick the role a delegated worker runs as.** The orchestration settings now carry
+  ordered rules over the task kind (`research`, `code`, `review`, `command`, `scrap`, `docs`), a
+  coarse effort class (`light`, `standard`, `deep`) and live quota gates per provider window. A
+  delegate call that names neither a role nor a model runs as the first matching rule's role; an
+  explicit role or model still wins. The quota share that counts as critical is now configurable
+  (default 80%), Opus-class roles can be kept out of rule routing, and when both providers are
+  past critical the settings choose between asking, running anyway with a note, or refusing the
+  delegation. Advanced role and quota selectors identify their providers with the existing compact
+  Claude Code and Codex marks.
 - **Preferences → Terminal → Shell** picks which binary plain Shell tabs open. Alethe still detects
   one on its own (PowerShell 7 when available, then Windows PowerShell; `$SHELL` elsewhere), so the
   setting only matters when you want a specific shell — PowerShell 7 installed outside PATH, or

@@ -97,6 +97,7 @@ describe('preference normalization', () => {
       maxConcurrent: 4,
       defaultTimeoutSeconds: 900,
       workerDisabledPlugins: [],
+      routing: DEFAULT_PREFERENCES.orchestration.routing,
     })
   })
 
@@ -277,6 +278,7 @@ describe('preference normalization', () => {
       defaultTimeoutSeconds: 900,
       roles: [reviewer, writer, { ...writer, name: 'thinker', effort: 'high' }],
       workerDisabledPlugins: [],
+      routing: DEFAULT_PREFERENCES.orchestration.routing,
     })
   })
 
