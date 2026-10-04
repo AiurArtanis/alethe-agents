@@ -2570,6 +2570,8 @@ export const ptBR: Record<MessageKey, string> = {
   'sync.error.access_denied': 'A autorização foi negada no GitHub.',
   'sync.error.code_expired': 'O código expirou — tente entrar de novo.',
   'sync.error.malformed_payload': 'Os dados na nuvem estão malformados.',
+  'sync.error.secure_store_unavailable':
+    'O cofre de credenciais do sistema não está disponível, então nada foi salvo. No Linux, instale e desbloqueie um cofre como o GNOME Keyring ou o KWallet e tente de novo.',
   'sync.error.generic': 'Falha na sincronização: {error}',
 
   /* ---- supervisor de recursos ---- */

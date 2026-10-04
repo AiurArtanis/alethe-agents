@@ -347,6 +347,19 @@ describe('todos normalization', () => {
     })
     expect(todos.find((t) => t.id === 'b')).not.toHaveProperty('prUrl')
   })
+
+  it('drops a legacy Spotify Client Secret while retaining the non-secret Client ID', () => {
+    const sentinel = 'legacy-client-secret-sentinel'
+    const preferences = normalizePreferences({
+      ...DEFAULT_PREFERENCES,
+      spotifyClientId: 'public-client-id',
+      spotifyClientSecret: sentinel,
+    })
+
+    expect(preferences.spotifyClientId).toBe('public-client-id')
+    expect(preferences.spotifyClientSecret).toBe('')
+    expect(JSON.stringify(preferences)).not.toContain(sentinel)
+  })
 })
 
 describe('projects file migration', () => {

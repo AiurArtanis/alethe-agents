@@ -482,6 +482,7 @@ pub fn delete_profile_state(app: &AppHandle, profile_id: &str) -> Result<Profile
     if target_dir.join("github_sync.json").is_file() {
         crate::secure_store::delete_github_sync_token(&target.id)?;
     }
+    crate::spotify::delete_profile_secrets(&target.id)?;
     if target_dir.exists() {
         fs::remove_dir_all(&target_dir).map_err(|error| error.to_string())?;
     }

@@ -361,6 +361,7 @@ function nextWriteSequence(): number {
 }
 
 function projectsPayload(state: ProjectsState): ProjectsFile {
+  const { spotifyClientSecret: _spotifyClientSecret, ...persistedPreferences } = state.preferences
   return {
     version: 9,
     groups: state.groups,
@@ -369,7 +370,7 @@ function projectsPayload(state: ProjectsState): ProjectsFile {
     todos: state.todos,
     activeProjectId: state.activeProjectId,
     workspace: state.workspace,
-    preferences: state.preferences,
+    preferences: persistedPreferences as Preferences,
     cliPaths: state.cliPaths,
   }
 }

@@ -2396,6 +2396,8 @@ export const zhCN: Record<MessageKey, string> = {
   'sync.error.access_denied': '在 GitHub 上授权被拒绝。',
   'sync.error.code_expired': '验证码已过期——请重试登录。',
   'sync.error.malformed_payload': '云数据格式错误。',
+  'sync.error.secure_store_unavailable':
+    '系统凭据存储不可用，因此未保存任何内容。在 Linux 上，请安装并解锁 GNOME Keyring 或 KWallet 等密钥环，然后重试。',
   'sync.error.generic': '同步失败：{error}',
   /* ---- resource supervisor ---- */
   'resource.warning.title': '内存使用正在增加',

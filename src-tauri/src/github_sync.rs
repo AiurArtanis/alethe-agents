@@ -481,7 +481,7 @@ mod tests {
             value: &str,
         ) -> Result<(), SecureStoreError> {
             if self.fail_set {
-                return Err(SecureStoreError::Unavailable("locked".to_string()));
+                return Err(SecureStoreError::Unavailable("write"));
             }
             self.values
                 .lock()

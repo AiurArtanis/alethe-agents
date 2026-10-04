@@ -144,6 +144,12 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Changed
 
+- **GitHub Sync and Spotify credentials live in the system credential store.** The GitHub Sync
+  token, the Spotify Client Secret and the Spotify access and refresh tokens are no longer kept as
+  plain text in the profile folder. What is already saved moves over on its own, and the plain-text
+  copy is only removed once the stored value has been read back; if the credential store cannot be
+  reached, nothing is lost and the app says so. Spotify credentials are also left out of exported
+  backups. On Linux this needs a keyring such as GNOME Keyring or KWallet.
 - **Remote Control fails closed.** Turning it on from the quick dialog or from Preferences now asks
   for confirmation first, spelling out which network the listeners open on, how long paired
   sessions last, and whether paired devices can send agent or shell input. It only reports itself
@@ -1246,10 +1252,6 @@ preferences; and three new agents — **Cursor CLI**, **Kiro CLI** and plain **W
 - Removed the previous app-icon themes; the icon picker now offers only the four Elite
   marks. Preferences still pointing at a removed icon are migrated to Elite Original on
   load. The UI themes they shared a name with are untouched.
-### Changed
-
-- GitHub Gist Sync now stores its token in the operating system credential store. Existing plaintext
-  profile tokens migrate only after a verified keyring write and remain intact if migration fails.
 
 ## [1.6.0] — 2026-08-17
 

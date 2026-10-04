@@ -2544,6 +2544,8 @@ export const en = {
   'sync.error.access_denied': 'Authorization was denied on GitHub.',
   'sync.error.code_expired': 'The code expired — try signing in again.',
   'sync.error.malformed_payload': 'The cloud data is malformed.',
+  'sync.error.secure_store_unavailable':
+    'The system credential store is not available, so nothing was saved. On Linux, install and unlock a keyring such as GNOME Keyring or KWallet, then try again.',
   'sync.error.generic': 'Sync failed: {error}',
 
   /* ---- resource supervisor ---- */
