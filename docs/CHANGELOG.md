@@ -144,6 +144,9 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Changed
 
+- **The MCP introduction no longer opens by itself.** It used to appear right after the first-run
+  setup closed, for anyone who already had MCP servers configured. It now opens only from
+  **Preferences → Features**.
 - **Usage reading is now opt-in, per provider.** Reading your Claude Code, Codex or Antigravity
   usage means using the credentials of the CLI already installed and contacting that provider, so
   Alethe now asks first. **Preferences → Integrations → AI usage reading** has one switch per
