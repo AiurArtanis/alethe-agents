@@ -187,6 +187,9 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 - **The voice command UI is fully localized.** Every string in the command bar, the plan summary,
   the block and warning reasons, and the Jev history now goes through i18n in English and pt-BR,
   so nothing in the voice flow is hardcoded to a single language anymore.
+- Agent handoff packets now transfer only user-authored messages and non-content workspace metadata;
+  edited packets are redacted again when saved, and temporary context files use private,
+  no-overwrite storage.
 
 ### Fixed
 
