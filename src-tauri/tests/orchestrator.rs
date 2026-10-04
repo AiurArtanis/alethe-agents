@@ -1310,6 +1310,21 @@ fn every_tool_response_carries_the_current_headroom() {
 }
 
 #[test]
+fn a_null_snapshot_forgets_an_agent_whose_usage_is_no_longer_read() {
+    let core = Core::default();
+    core.set_agent_fitness(
+        "claude",
+        json!({ "worst": "week", "used": 95, "rateLimited": false }),
+    );
+    assert!(call(&core, "alethe_status", json!({}))["fitness"]["claude"].is_object());
+
+    core.set_agent_fitness("claude", Value::Null);
+
+    let status = call(&core, "alethe_status", json!({}));
+    assert!(status["fitness"]["claude"].is_null(), "{status}");
+}
+
+#[test]
 fn the_worst_window_decides_headroom_even_when_the_five_hour_ones_are_tied() {
     let core = Core::default();
     core.set_agent_fitness(

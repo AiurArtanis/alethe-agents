@@ -172,8 +172,11 @@ export async function orchestratorCodexModels(): Promise<CodexModelOption[]> {
   return invoke<CodexModelOption[]>('orchestrator_codex_models')
 }
 
-/** Pushes an agent's remaining-limit snapshot into the orchestrator core, which cannot poll for it. */
-export async function setAgentFitness(agent: string, snapshot: AgentFitness): Promise<void> {
+/**
+ * Pushes an agent's remaining-limit snapshot into the orchestrator core, which cannot poll for it.
+ * `null` makes the core forget the agent, for when its usage is no longer read.
+ */
+export async function setAgentFitness(agent: string, snapshot: AgentFitness | null): Promise<void> {
   return invoke<void>('orchestrator_set_agent_fitness', { agent, snapshot })
 }
 

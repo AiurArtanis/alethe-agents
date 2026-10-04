@@ -17,6 +17,14 @@ export function useOrchestratorQuotaWarnings(): QuotaWarning[] {
   const claudeAccess = useProjectsStore((s) => s.preferences.usageAccess.claude)
   const codexAccess = useProjectsStore((s) => s.preferences.usageAccess.codex)
 
+  // A provider that is off must not leave its last reading behind in the orchestrator core.
+  useEffect(() => {
+    if (!claudeAccess) void setAgentFitness('claude', null).catch(() => undefined)
+  }, [claudeAccess])
+  useEffect(() => {
+    if (!codexAccess) void setAgentFitness('codex', null).catch(() => undefined)
+  }, [codexAccess])
+
   useEffect(() => {
     // Quota is only known for a provider whose usage reading is on. Without it the orchestrator
     // gets no fitness for that agent and no warning is raised: it runs as if quota were unknown.

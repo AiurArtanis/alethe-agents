@@ -1247,8 +1247,15 @@ impl Core {
         self.notify(&inner);
     }
 
+    /// A null snapshot forgets the agent: its usage is no longer being read, and an old reading
+    /// must not keep steering fallbacks or the headroom the planner is told about.
     pub fn set_agent_fitness(&self, agent: &str, snapshot: Value) {
-        guard(&self.fitness).insert(agent.to_string(), snapshot);
+        let mut fitness = guard(&self.fitness);
+        if snapshot.is_null() {
+            fitness.remove(agent);
+        } else {
+            fitness.insert(agent.to_string(), snapshot);
+        }
     }
 
     /// Every vendor's windows already collapsed to the worst one by the caller, so `used` is
