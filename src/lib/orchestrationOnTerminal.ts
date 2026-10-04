@@ -1,5 +1,6 @@
 import { useProjectsStore } from '../stores/projectsStore'
 import { hasOrchestratorTools, waitForOrchestratorTools } from './claudeMcpConfigs'
+import { enableOrchestratorFeature } from './orchestratorUsageAccess'
 
 /** How long a restarted (or resumed) Claude gets to come back with the orchestrator tools. */
 const TOOLS_TIMEOUT_MS = 20_000
@@ -52,10 +53,7 @@ export async function startOrchestrationOn({
 
     // Same as starting a planner from the new-terminal dialog: the feature has to be on for the
     // launch to include the orchestrator tools. Only after the user agreed to go ahead.
-    const { preferences, setPreferences } = useProjectsStore.getState()
-    if (!preferences.enabledFeatures.orchestrator) {
-      setPreferences({ enabledFeatures: { ...preferences.enabledFeatures, orchestrator: true } })
-    }
+    enableOrchestratorFeature()
     if (needsRestart) {
       if (!(await restart())) return 'failed'
       if (!(await waitForOrchestratorTools(ptyId, TOOLS_TIMEOUT_MS))) return 'failed'

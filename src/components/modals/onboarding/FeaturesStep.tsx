@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 
 import { FEATURES, type FeatureDefinition } from '../../../lib/features'
 import { type TFunction, useT } from '../../../lib/i18n'
+import { enableOrchestratorFeature } from '../../../lib/orchestratorUsageAccess'
 import type { FeatureId } from '../../../lib/types'
 import { useProjectsStore } from '../../../stores/projectsStore'
 import { FEATURE_ICONS } from '../../icons/featureIcons'
@@ -81,6 +82,10 @@ export function FeaturesStep({
 
   const toggle = (feature: FeatureDefinition) => {
     const active = enabledFeatures[feature.id]
+    if (feature.id === 'orchestrator' && !active) {
+      enableOrchestratorFeature()
+      return
+    }
     setPreferences({
       enabledFeatures: { ...enabledFeatures, [feature.id]: !active },
     })

@@ -144,6 +144,16 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Changed
 
+- **Usage reading is now opt-in, per provider.** Reading your Claude Code, Codex or Antigravity
+  usage means using the credentials of the CLI already installed and contacting that provider, so
+  Alethe now asks first. **Preferences → Integrations → AI usage reading** has one switch per
+  provider, and onboarding asks the same question. While a provider is off, Alethe never reads its
+  credentials or contacts it: no check at startup, none in the background, none when the usage
+  panel opens. Hiding a card or a topbar pill is still a separate, purely visual choice. A card
+  whose provider is off says so and offers to turn it on. New profiles start with all three off;
+  existing profiles keep them on. Turning the orchestrator on turns the reading on for Claude Code
+  and Codex, which it uses to warn about quota and to pick roles, and says so in a notification;
+  you can turn them off again and the orchestrator simply runs without quota information.
 - **GitHub Sync and Spotify credentials live in the system credential store.** The GitHub Sync
   token, the Spotify Client Secret and the Spotify access and refresh tokens are no longer kept as
   plain text in the profile folder. What is already saved moves over on its own, and the plain-text
