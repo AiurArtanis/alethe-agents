@@ -443,6 +443,7 @@ mod tests {
         fn key(profile_id: &str, kind: SecretKind) -> String {
             let suffix = match kind {
                 SecretKind::GithubSyncToken => "github",
+                _ => "other",
             };
             format!("{profile_id}:{suffix}")
         }
