@@ -61,6 +61,11 @@ export const ptBR: Record<MessageKey, string> = {
   'onboarding.agentsEnabledOf': '{active} de {total} ligadas',
   'onboarding.agentChecking': 'Verificando',
   'onboarding.agentReady': 'pronto',
+  'onboarding.usageTitle': 'Mostrar seus limites de uso?',
+  'onboarding.usageSubtitle':
+    'O Alethe pode mostrar quanto de cada plano você já usou. Para ler isso, o Alethe usa as credenciais da CLI já instalada neste computador e contata o provedor. Tudo fica desligado até você ligar.',
+  'onboarding.usageFooter':
+    'Nada é lido enquanto um provedor está desligado · altere depois em Preferências',
   'onboarding.featuresTitle': 'Escolha seus recursos',
   'onboarding.featuresSubtitle':
     'Comece enxuto. Cada módulo que você ligar aparece na interface, e dá pra mudar quando quiser nas Preferências.',
@@ -1412,6 +1417,9 @@ export const ptBR: Record<MessageKey, string> = {
   'widget.antigravityNotSignedIn': 'sem login no agy',
   'widget.antigravityUsageHint': 'rode agy e faça login para ver as quotas ao vivo',
   'widget.usageUnavailable': 'uso indisponível',
+  'widget.usageOff': 'uso desligado',
+  'widget.usageOffHint': 'ligar usa seu login do {provider} e contata a {vendor}',
+  'widget.turnOnUsage': 'ligar',
   'widget.mostUsed': 'mais consumido',
   'widget.mostUsedBucket': 'mais consumido · {name}',
   'widget.remainingLabel': 'restante',
@@ -1745,6 +1753,13 @@ export const ptBR: Record<MessageKey, string> = {
   'usageModal.showInTopbar': 'Topbar',
   'usageModal.allHidden':
     'Todos os itens de uso estão ocultos. Reative-os no painel de detalhes de uso de IA.',
+  'prefs.usageAccess': 'Leitura de uso de IA',
+  'prefs.usageAccessDesc':
+    'Escolha de quais provedores o Alethe lê o seu uso. Ligar um deles usa as credenciais da CLI já instalada neste computador e contata esse provedor. Enquanto estiver desligado, o Alethe nunca lê essas credenciais nem contata o provedor.',
+  'usageAccess.providerHint': 'Usa o login do {provider} neste computador e contata a {vendor}.',
+  'usageAccess.orchestratorToastTitle': 'Leitura de uso ligada',
+  'usageAccess.orchestratorToastBody':
+    'O orquestrador usa a cota para avisar você e escolher os papéis, então o Alethe agora lê o uso de {providers} com as credenciais da CLI instalada. Você pode desligar em Preferências > Integrações.',
   'ui.titlebar.itemClaude': 'Uso do Claude Code',
   'ui.titlebar.itemCodex': 'Uso do Codex',
   'ui.titlebar.itemAntigravity': 'Status do Antigravity',

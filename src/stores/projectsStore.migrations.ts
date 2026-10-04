@@ -22,6 +22,7 @@ import {
   type Project,
   type ProjectsFile,
   type TodoItem,
+  type UsageProviderId,
   type WorkspaceContainer,
   type WorkspaceRecentTab,
   type WorkspaceTab,
@@ -87,6 +88,32 @@ function normalizeViewPlacements(
   return placements
 }
 
+const USAGE_PROVIDER_IDS = Object.keys(DEFAULT_PREFERENCES.usageAccess) as UsageProviderId[]
+
+function isUsageAccessRecord(value: unknown): value is Partial<Record<UsageProviderId, unknown>> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** A provider the saved choice does not name stays off: reading it was never agreed to. */
+function normalizeUsageAccess(raw: unknown): Preferences['usageAccess'] {
+  const saved = isUsageAccessRecord(raw) ? raw : {}
+  return Object.fromEntries(
+    USAGE_PROVIDER_IDS.map((id) => [id, saved[id] === true]),
+  ) as Preferences['usageAccess']
+}
+
+/**
+ * A file saved before the usage consent existed belongs to someone who already had the meters
+ * running, so every provider stays on for them. Only a profile with no saved file starts off.
+ */
+function usageAccessOfSavedFile(rawPreferences: unknown): Preferences['usageAccess'] {
+  const raw = (rawPreferences as LegacyPreferences | undefined)?.usageAccess
+  if (isUsageAccessRecord(raw)) return normalizeUsageAccess(raw)
+  return Object.fromEntries(
+    USAGE_PROVIDER_IDS.map((id) => [id, true]),
+  ) as Preferences['usageAccess']
+}
+
 export function normalizePreferences(raw: LegacyPreferences | undefined): Preferences {
   // Git Control became a plugin; its old toggle is handed to the plugin host.
   recordLegacyGitFlag(legacyGitFeatureFlag(raw))
@@ -125,6 +152,7 @@ export function normalizePreferences(raw: LegacyPreferences | undefined): Prefer
     enabledAgents: { ...DEFAULT_PREFERENCES.enabledAgents, ...preferences.enabledAgents },
 
     enabledFeatures: normalizeEnabledFeatures(raw),
+    usageAccess: normalizeUsageAccess(raw?.usageAccess),
     orchestration: normalizeOrchestrationSettings(preferences.orchestration),
     leftSidebarVisible: raw?.leftSidebarVisible ?? true,
     rightSidebarVisible: raw?.rightSidebarVisible ?? true,
@@ -489,6 +517,7 @@ export function migrate(parsed: any): ProjectsFile {
     ...base,
     version: 9,
     projects,
+    preferences: { ...base.preferences, usageAccess: usageAccessOfSavedFile(parsed.preferences) },
     workspace: {
       ...base.workspace,
       containers: migrateSnapshot(

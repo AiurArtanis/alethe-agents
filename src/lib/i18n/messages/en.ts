@@ -58,6 +58,10 @@ export const en = {
   'onboarding.agentsEnabledOf': '{active} of {total} enabled',
   'onboarding.agentChecking': 'Checking',
   'onboarding.agentReady': 'ready',
+  'onboarding.usageTitle': 'Show your usage limits?',
+  'onboarding.usageSubtitle':
+    'Alethe can show how much of each plan you have used. To read it, Alethe uses the credentials of the CLI already installed on this computer and contacts the provider. Everything is off until you turn it on.',
+  'onboarding.usageFooter': 'Nothing is read while a provider is off · change later in Preferences',
   'onboarding.featuresTitle': 'Choose your features',
   'onboarding.featuresSubtitle':
     'Start lean. Each module you enable shows up in the interface, and you can change them any time in Preferences.',
@@ -1390,6 +1394,9 @@ export const en = {
   'widget.antigravityNotSignedIn': 'not signed in to agy',
   'widget.antigravityUsageHint': 'run agy and sign in to see live quotas',
   'widget.usageUnavailable': 'usage unavailable',
+  'widget.usageOff': 'usage is off',
+  'widget.usageOffHint': 'turning it on uses your {provider} sign-in and contacts {vendor}',
+  'widget.turnOnUsage': 'turn on',
   'widget.mostUsed': 'most used',
   'widget.mostUsedBucket': 'most used · {name}',
   'widget.remainingLabel': 'remaining',
@@ -1719,6 +1726,13 @@ export const en = {
   'usageModal.showInTopbar': 'Topbar',
   'usageModal.allHidden':
     'All usage items are hidden. Re-enable them in the AI usage details panel.',
+  'prefs.usageAccess': 'AI usage reading',
+  'prefs.usageAccessDesc':
+    'Choose which providers Alethe reads your usage from. Turning one on uses the credentials of the CLI already installed on this computer and contacts that provider. While it is off, Alethe never reads those credentials or contacts the provider.',
+  'usageAccess.providerHint': 'Uses the {provider} sign-in on this computer and contacts {vendor}.',
+  'usageAccess.orchestratorToastTitle': 'Usage reading turned on',
+  'usageAccess.orchestratorToastBody':
+    'The orchestrator uses quota to warn you and to pick roles, so Alethe now reads usage for {providers} with the installed CLI credentials. You can turn it off in Preferences > Integrations.',
   'ui.titlebar.itemClaude': 'Claude Code usage',
   'ui.titlebar.itemCodex': 'Codex usage',
   'ui.titlebar.itemAntigravity': 'Antigravity status',

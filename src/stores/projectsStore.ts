@@ -13,6 +13,7 @@ import {
   saveProjectsFile,
 } from '../lib/tauri'
 import { getProjectDefaultCwd, getProjectRepoRoot } from '../lib/terminalFactory'
+import { clearAllTtlCaches } from '../lib/ttlCache'
 import {
   type AgentHandoffBootstrap,
   type AgentRuntimeProfile,
@@ -36,6 +37,7 @@ import {
   type WorkspaceTab,
   type WorkspaceViewSnapshot,
 } from '../lib/types'
+import { setUsageAccess } from '../lib/usageAccess'
 import {
   captureWorkspaceSnapshot,
   cloneWorkspaceSnapshot,
@@ -50,6 +52,7 @@ import { createGroupsSlice, createProjectsSlice } from './projectsStore.projectS
 import { createPreferencesSlice, createSubTabsSlice } from './projectsStore.slices'
 import { createContainersSlice, createTerminalsSlice } from './projectsStore.terminalSlices'
 import { createWorkspaceSlice } from './projectsStore.workspaceSlices'
+import { useUiStore } from './uiStore'
 
 export { getProjectDefaultCwd, getProjectRepoRoot }
 export {
@@ -784,6 +787,22 @@ export const useProjectsStore = create<ProjectsState>((set, get) => {
     ...createSubTabsSlice(sliceCtx),
     ...createPreferencesSlice(sliceCtx),
   }
+})
+
+// Mirrors the usage consent into the gate every usage read goes through. A provider that was just
+// turned off loses its cached reading and whatever of it is on screen.
+useProjectsStore.subscribe((state, previous) => {
+  if (state.preferences.usageAccess === previous.preferences.usageAccess) return
+  const revoked = setUsageAccess(state.preferences.usageAccess)
+  if (revoked.length === 0) return
+  clearAllTtlCaches()
+  const ui = useUiStore.getState()
+  if (revoked.includes('claude')) {
+    ui.setClaudeUsage(null)
+    ui.setClaudeUsageError(null)
+  }
+  if (revoked.includes('codex')) ui.setCodexUsage(null)
+  if (revoked.includes('antigravity')) ui.setAntigravityUsage(null)
 })
 
 /** Flushes the debounced document before the native window is destroyed. */

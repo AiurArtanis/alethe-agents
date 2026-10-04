@@ -1477,6 +1477,10 @@
   font-size: 11px;
   color: var(--text-quaternary);
 }
+.usageEmptyAction {
+  composes: resetCreditButton;
+  margin-top: 6px;
+}
 
 /* ---- heatmap wrapper ---- */
 

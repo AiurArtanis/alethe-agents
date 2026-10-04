@@ -301,6 +301,14 @@ export function PreferencesModal() {
       },
       {
         category: 'integrations',
+        target: 'usage-access',
+        label: t('prefs.usageAccess'),
+        description: t('prefs.usageAccessDesc'),
+        keywords:
+          'usage quota limits consent privacy credentials claude codex antigravity uso limite privacidade credenciais',
+      },
+      {
+        category: 'integrations',
         target: 'terminal-command',
         label: t('prefs.cliCommand'),
         description: t('prefs.cliCommandDesc'),

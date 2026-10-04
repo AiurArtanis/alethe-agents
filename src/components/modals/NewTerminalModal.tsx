@@ -25,6 +25,7 @@ import { DEFAULT_GRID_ID } from '../../lib/projectGrids'
 import { router9SupportsAgent } from '../../lib/router9'
 import { isShellAgentType, type AgentRuntimeProfile, type AgentType } from '../../lib/types'
 import { wslTargetFor } from '../../lib/wsl'
+import { enableOrchestratorFeature } from '../../lib/orchestratorUsageAccess'
 import { getProjectDefaultCwd, useProjectsStore } from '../../stores/projectsStore'
 import { useUiStore } from '../../stores/uiStore'
 import { AgentIcon } from '../icons/AgentIcons'
@@ -64,7 +65,6 @@ export function NewTerminalModal() {
   const createOrchestratorPane = useProjectsStore((s) => s.createOrchestratorPane)
   const groupPanes = useProjectsStore((s) => s.groupPanes)
   const alwaysStartUnrestricted = useProjectsStore((s) => s.preferences.alwaysStartUnrestricted)
-  const enabledFeatures = useProjectsStore((s) => s.preferences.enabledFeatures)
   const setPreferences = useProjectsStore((s) => s.setPreferences)
   const project = useProjectsStore((s) =>
     context?.projectId ? (s.projects.find((p) => p.id === context.projectId) ?? null) : null,
@@ -210,10 +210,8 @@ export function NewTerminalModal() {
     }
     // The planner must receive the orchestration MCP config on its first mount. Update the feature
     // before adding the terminal so no restart is needed.
-    setPreferences({
-      ...(orchestrating ? { enabledFeatures: { ...enabledFeatures, orchestrator: true } } : {}),
-      lastTerminalCreation: creation,
-    })
+    if (orchestrating) enableOrchestratorFeature()
+    setPreferences({ lastTerminalCreation: creation })
     const terminal = await createAgentTerminal(context.projectId, {
       ...creation,
       gridId: selectedGridId === UNGROUPED_GRID ? undefined : selectedGridId,

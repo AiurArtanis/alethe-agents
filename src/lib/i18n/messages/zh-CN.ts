@@ -54,6 +54,10 @@ export const zhCN: Record<MessageKey, string> = {
   'onboarding.agentsEnabledOf': '已启用 {active} / {total}',
   'onboarding.agentChecking': '检查中',
   'onboarding.agentReady': '就绪',
+  'onboarding.usageTitle': '显示你的用量限额？',
+  'onboarding.usageSubtitle':
+    'Alethe 可以显示每个套餐已使用的额度。读取时，Alethe 会使用这台电脑上已安装的 CLI 的凭据，并联系对应的提供商。在你开启之前，全部保持关闭。',
+  'onboarding.usageFooter': '提供商关闭时不会读取任何内容 · 之后可在偏好设置中更改',
   'onboarding.featuresTitle': '选择功能',
   'onboarding.featuresSubtitle':
     '从精简开始。你开启的每个模块都会出现在界面中，之后可随时在偏好设置中更改。',
@@ -1295,6 +1299,9 @@ export const zhCN: Record<MessageKey, string> = {
   'widget.antigravityNotSignedIn': '未登录到agy',
   'widget.antigravityUsageHint': '运行 agy 并登录以查看实时配额',
   'widget.usageUnavailable': '无法使用',
+  'widget.usageOff': '用量读取已关闭',
+  'widget.usageOffHint': '开启后将使用你的 {provider} 登录信息并联系 {vendor}',
+  'widget.turnOnUsage': '开启',
   'widget.mostUsed': '最常用',
   'widget.mostUsedBucket': '最常用 · {name}',
   'widget.remainingLabel': '剩余',
@@ -1607,6 +1614,13 @@ export const zhCN: Record<MessageKey, string> = {
   'usageModal.showInUsagePanel': '使用面板',
   'usageModal.showInTopbar': '顶部栏',
   'usageModal.allHidden': '所有使用项都已隐藏。请在 AI 使用详情面板中重新启用它们。',
+  'prefs.usageAccess': 'AI 用量读取',
+  'prefs.usageAccessDesc':
+    '选择 Alethe 从哪些提供商读取你的用量。开启后会使用这台电脑上已安装的 CLI 的凭据，并联系该提供商。关闭时，Alethe 不会读取这些凭据，也不会联系该提供商。',
+  'usageAccess.providerHint': '使用这台电脑上的 {provider} 登录信息，并联系 {vendor}。',
+  'usageAccess.orchestratorToastTitle': '已开启用量读取',
+  'usageAccess.orchestratorToastBody':
+    '编排器需要根据配额发出提醒并选择角色，因此 Alethe 现在会使用已安装 CLI 的凭据读取 {providers} 的用量。你可以在“偏好设置 > 集成”中关闭。',
   'ui.titlebar.itemClaude': 'Claude 代码使用',
   'ui.titlebar.itemCodex': '法典使用',
   'ui.titlebar.itemAntigravity': 'Antigravity 状态',

@@ -23,6 +23,9 @@ export type BuiltinAgentType =
  */
 export type AgentType = BuiltinAgentType | (string & {})
 
+/** Providers whose subscription usage Alethe can read. */
+export type UsageProviderId = 'claude' | 'codex' | 'antigravity'
+
 export const AGENT_TYPE_LABELS: Record<BuiltinAgentType, string> = {
   claude: 'Claude Code',
   codex: 'Codex',
@@ -655,6 +658,11 @@ export type Preferences = {
   spotifyClientSecret: string
   /** Exibe a atividade atual do Alethe no perfil do Discord. */
   discordRichPresenceEnabled: boolean
+  /**
+   * Consent to read each provider's usage: doing so uses the credentials of the installed CLI and
+   * contacts the provider. Off for a new profile; nothing reads a provider that is off.
+   */
+  usageAccess: Record<UsageProviderId, boolean>
   /** Usage cards shown in the AI usage details modal and the home usage strip. */
   usageShowClaude: boolean
   usageShowCodex: boolean
@@ -845,6 +853,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   spotifyClientId: '',
   spotifyClientSecret: '',
   discordRichPresenceEnabled: false,
+  usageAccess: { claude: false, codex: false, antigravity: false },
   usageShowClaude: true,
   usageShowCodex: true,
   usageShowAntigravity: true,
