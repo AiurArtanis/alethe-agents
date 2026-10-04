@@ -144,6 +144,17 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Changed
 
+- **Agent Canvas workers now ask before acting — behaviour change.** The experimental Agent Canvas
+  used to start every agent with its permission checks off, without saying so. It now has a
+  permission mode, **Ask** by default for new and existing profiles: Claude starts without
+  `--dangerously-skip-permissions` and Codex with an on-request approval policy and a
+  workspace-write sandbox. The lead Claude terminal asks you in the terminal as usual. A worker
+  running in the background has nobody to ask, so an action that needs approval is refused instead
+  of approved automatically — **if you already use the Canvas, expect such workers to stop where
+  they used to carry on**; the worker card says why. To let agents run commands and edit files
+  without asking again, switch **Preferences → Terminal and agents → Agent Canvas permissions** to
+  **Bypass**. The Canvas toolbar shows the current mode and opens that setting. The choice stays on
+  this computer and is not synced. Regular terminal tabs and the orchestrator are not affected.
 - **The MCP introduction no longer opens by itself.** It used to appear right after the first-run
   setup closed, for anyone who already had MCP servers configured. It now opens only from
   **Preferences → Features**.

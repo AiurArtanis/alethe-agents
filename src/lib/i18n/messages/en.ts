@@ -721,6 +721,15 @@ export const en = {
     'Notify when a Claude or Codex usage window resets, showing which one.',
   'prefs.limitResetNotifyOn': 'On',
   'prefs.limitResetNotifyOff': 'Off',
+  'prefs.experimentalPermissions': 'Agent Canvas permissions',
+  'prefs.experimentalPermissionsDesc':
+    'How the worker agents started by the experimental Agent Canvas handle permissions. Applies to agents started from now on, and stays on this computer.',
+  'prefs.experimentalPermissionsAsk': 'Ask',
+  'prefs.experimentalPermissionsBypass': 'Bypass',
+  'prefs.experimentalPermissionsAskHint':
+    'Agents keep their own permission checks. A terminal you can type in asks you; a worker running in the background has nobody to ask, so an action that needs approval is refused and the worker says so.',
+  'prefs.experimentalPermissionsBypassHint':
+    'Agents run commands and edit files without asking: Claude starts with --dangerously-skip-permissions, Codex with approvals and its sandbox turned off. Use it only where you accept whatever the agent does.',
   'prefs.dictation': 'Voice dictation',
   'prefs.dictationDesc':
     'Local speech-to-text with on-device models. Press {shortcut} to dictate text into any focused pane.',
@@ -2167,6 +2176,15 @@ export const en = {
   'ws.copied': 'copied!',
   'ws.copy': 'copy',
   'ws.agentsChangedRestart': 'agents changed — restart claude ↻',
+  'ws.permissionsChangedRestart': 'permission mode changed — restart claude ↻',
+  'ws.permissionsAsk': 'permissions: ask',
+  'ws.permissionsBypass': 'permissions: bypass',
+  'ws.permissionsAskTitle':
+    'Agents ask before running commands or editing files. A background worker has nobody to ask, so what needs approval is refused. Click to change.',
+  'ws.permissionsBypassTitle':
+    'Agents run commands and edit files without asking. Click to change.',
+  'ws.workerAskRefused':
+    'Ask mode: nobody could approve this worker, so any action that needed approval was refused. Change the mode in Preferences → Terminal and agents.',
   'ws.exitedCode': 'exited (code {code})',
   'ws.economyModeTitle':
     "Economy mode: writes/removes Haiku and codex-executor agents in the folder's .claude/agents/",
@@ -2616,6 +2634,11 @@ export const en = {
   'sandbox.statusWorking': 'Working',
   'sandbox.statusDone': 'Done',
   'sandbox.statusError': 'Error',
+  'sandbox.statusBlocked': 'Blocked',
+  'sandbox.approvalDeclinedCommand':
+    'Stopped by a permission request: a command needed approval and nobody could answer, so it was declined. Change the mode in Preferences → Terminal and agents.',
+  'sandbox.approvalDeclinedFileChange':
+    'Stopped by a permission request: a file change needed approval and nobody could answer, so it was declined. Change the mode in Preferences → Terminal and agents.',
   'sandbox.terminalPreview': 'Terminal preview',
   'sandbox.selectTerminal': 'Select an agent terminal to inspect it here.',
   'sandbox.resizeTerminal': 'Resize terminal',

@@ -293,6 +293,14 @@ export function PreferencesModal() {
       },
       {
         category: 'terminal',
+        target: 'agent-canvas-permissions',
+        label: t('prefs.experimentalPermissions'),
+        description: t('prefs.experimentalPermissionsDesc'),
+        keywords:
+          'permission permissions ask bypass approval canvas sandbox worker skip dangerously permissão permissões aprovação 权限 审批',
+      },
+      {
+        category: 'terminal',
         target: 'reset-session',
         label: t('prefs.resetSession'),
         description: t('prefs.resetSessionDesc'),
@@ -388,7 +396,8 @@ export function PreferencesModal() {
     setCategory(initial)
     setQuery('')
     setResultCursor(0)
-    setPendingTarget(null)
+    // A caller can open the modal on one specific setting, the same way a search result does.
+    setPendingTarget(typeof modalContext?.target === 'string' ? modalContext.target : null)
   }, [open, modalContext])
 
   useEffect(() => {

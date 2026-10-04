@@ -244,6 +244,13 @@ export const UNRESTRICTED_FLAG: Record<BuiltinAgentType, string | null> = {
   codewhale: null,
 }
 
+/**
+ * How the experimental Agent Canvas and Agent Sandbox workers handle permissions: `ask` keeps the
+ * agent's own checks, `bypass` lets it run commands and edit files without asking. The arguments
+ * each mode maps to live in `experimentalAgentPolicy.ts`.
+ */
+export type ExperimentalAgentPermissionMode = 'ask' | 'bypass'
+
 export type PaneKind =
   | 'terminal'
   | 'markdown'
@@ -642,6 +649,11 @@ export type Preferences = {
   alwaysStartOnHome: boolean
 
   alwaysStartUnrestricted: boolean
+  /**
+   * Permission mode of the experimental Agent Canvas and Agent Sandbox workers. A per-machine
+   * choice: it is deliberately left out of cloud sync.
+   */
+  experimentalAgentPermissionMode: ExperimentalAgentPermissionMode
   /** Last scope chosen in the handoff dialog. */
   handoffScope: HandoffScope
   /** Last terminal configuration submitted through the creation modal. */
@@ -849,6 +861,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   accountCreated: false,
   alwaysStartOnHome: false,
   alwaysStartUnrestricted: false,
+  experimentalAgentPermissionMode: 'ask',
   handoffScope: 'full',
   lastTerminalCreation: null,
   topbarStyle: 'classic',

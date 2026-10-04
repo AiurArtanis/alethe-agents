@@ -25,6 +25,24 @@ describe('preference normalization', () => {
     })
   })
 
+  it('starts experimental agent workers in ask mode for new and existing profiles', () => {
+    expect(DEFAULT_PREFERENCES.experimentalAgentPermissionMode).toBe('ask')
+    expect(normalizePreferences({}).experimentalAgentPermissionMode).toBe('ask')
+    expect(
+      normalizePreferences({
+        ...DEFAULT_PREFERENCES,
+        experimentalAgentPermissionMode: 'yolo' as never,
+      }).experimentalAgentPermissionMode,
+    ).toBe('ask')
+  })
+
+  it('keeps a chosen bypass mode for experimental agent workers', () => {
+    expect(
+      normalizePreferences({ ...DEFAULT_PREFERENCES, experimentalAgentPermissionMode: 'bypass' })
+        .experimentalAgentPermissionMode,
+    ).toBe('bypass')
+  })
+
   it('backfills the shell and terminal font of a file saved before they existed', () => {
     const preferences = normalizePreferences({})
 

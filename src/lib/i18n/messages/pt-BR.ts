@@ -735,6 +735,15 @@ export const ptBR: Record<MessageKey, string> = {
     'Notifica quando uma janela de uso do Claude ou Codex reseta, mostrando qual.',
   'prefs.limitResetNotifyOn': 'Ligado',
   'prefs.limitResetNotifyOff': 'Desligado',
+  'prefs.experimentalPermissions': 'Permissões do Agent Canvas',
+  'prefs.experimentalPermissionsDesc':
+    'Como os agentes workers iniciados pelo Agent Canvas experimental lidam com permissões. Vale para os agentes iniciados a partir de agora e fica só neste computador.',
+  'prefs.experimentalPermissionsAsk': 'Perguntar',
+  'prefs.experimentalPermissionsBypass': 'Ignorar',
+  'prefs.experimentalPermissionsAskHint':
+    'Os agentes mantêm as próprias verificações de permissão. Um terminal em que você pode digitar pergunta a você; um worker rodando em segundo plano não tem a quem perguntar, então a ação que precisa de aprovação é recusada e o worker avisa.',
+  'prefs.experimentalPermissionsBypassHint':
+    'Os agentes executam comandos e editam arquivos sem perguntar: o Claude inicia com --dangerously-skip-permissions e o Codex com as aprovações e o sandbox desligados. Use só onde você aceita o que o agente fizer.',
   'prefs.dictation': 'Ditado por voz',
   'prefs.dictationDesc':
     'Speech-to-text local com modelos no dispositivo. Pressione {shortcut} para ditar texto em qualquer painel focado.',
@@ -2196,6 +2205,15 @@ export const ptBR: Record<MessageKey, string> = {
   'ws.copied': 'copiado!',
   'ws.copy': 'copiar',
   'ws.agentsChangedRestart': 'agents mudaram — reinicia o claude ↻',
+  'ws.permissionsChangedRestart': 'modo de permissão mudou — reinicia o claude ↻',
+  'ws.permissionsAsk': 'permissões: perguntar',
+  'ws.permissionsBypass': 'permissões: ignorar',
+  'ws.permissionsAskTitle':
+    'Os agentes perguntam antes de executar comandos ou editar arquivos. Um worker em segundo plano não tem a quem perguntar, então o que precisa de aprovação é recusado. Clique para alterar.',
+  'ws.permissionsBypassTitle':
+    'Os agentes executam comandos e editam arquivos sem perguntar. Clique para alterar.',
+  'ws.workerAskRefused':
+    'Modo perguntar: ninguém podia aprovar este worker, então qualquer ação que precisava de aprovação foi recusada. Altere o modo em Preferências → Terminal e agentes.',
   'ws.exitedCode': 'encerrado (code {code})',
   'ws.economyModeTitle':
     'Modo economia: escreve/remove agents Haiku e codex-executor em .claude/agents/ da pasta',
@@ -2643,6 +2661,11 @@ export const ptBR: Record<MessageKey, string> = {
   'sandbox.statusWorking': 'Trabalhando',
   'sandbox.statusDone': 'Concluído',
   'sandbox.statusError': 'Erro',
+  'sandbox.statusBlocked': 'Bloqueado',
+  'sandbox.approvalDeclinedCommand':
+    'Parado por um pedido de permissão: um comando precisava de aprovação e ninguém podia responder, então foi recusado. Altere o modo em Preferências → Terminal e agentes.',
+  'sandbox.approvalDeclinedFileChange':
+    'Parado por um pedido de permissão: uma alteração de arquivo precisava de aprovação e ninguém podia responder, então foi recusada. Altere o modo em Preferências → Terminal e agentes.',
   'sandbox.terminalPreview': 'Prévia do terminal',
   'sandbox.selectTerminal': 'Selecione um terminal de agente para inspecioná-lo aqui.',
   'sandbox.resizeTerminal': 'Redimensionar terminal',
