@@ -1102,6 +1102,12 @@ fn the_observer_sees_every_state_change() {
         json!({ "cwd": dir.to_string_lossy(), "tasks": ["anything"] }),
     );
 
+    // Snapshots reach the observer on its own thread, so a slow machine may not have delivered
+    // them yet when the call returns.
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    while seen.lock().expect("seen").is_empty() && std::time::Instant::now() < deadline {
+        thread::sleep(Duration::from_millis(20));
+    }
     let snapshots = seen.lock().expect("seen");
     assert!(!snapshots.is_empty(), "the observer was never called");
     let last = snapshots.last().expect("a snapshot");
