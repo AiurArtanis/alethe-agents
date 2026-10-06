@@ -78,6 +78,12 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   guide to the app before answering, then walks you through the screens instead of guessing. It is
   told never to edit Alethe's own settings files, which the running app would overwrite.
 
+- **Custom agents.** Preferences → Terminal and agents has a Custom agents section where you
+  can add your own agent CLIs with an ID, display name, CLI command, optional unrestricted flag,
+  accent color and icon. They appear next to the built-ins in the new-terminal and new-tab
+  pickers, open a real terminal with the configured command, and persist across restarts. The
+  icon can be a built-in preset, a local square `.ico` file (up to 512KB, kept in app data), or
+  an `https` image link ending in `.png`, `.jpg` or `.jpeg`.
 - **Projects inside WSL.** On Windows, a project or terminal whose folder lives under
   `\\wsl.localhost\<distro>\…` now runs inside that distro: shell tabs open the distro's login
   shell in the right Linux directory, and agent tabs run the CLI installed in the distro, found
