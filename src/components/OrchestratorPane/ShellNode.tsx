@@ -48,7 +48,16 @@ type ShellNodeProps = {
 }
 
 /** The canvas card for a shell: same footprint as a worker node, connected to whoever opened it. */
-export function ShellNode({ shell, node, selected, busy, onOpen, onControl, bind, t }: ShellNodeProps) {
+export function ShellNode({
+  shell,
+  node,
+  selected,
+  busy,
+  onOpen,
+  onControl,
+  bind,
+  t,
+}: ShellNodeProps) {
   const [output, setOutput] = useState('')
 
   // A running shell is read every few seconds while its card is on screen; a finished one once.

@@ -38,8 +38,7 @@ import {
 } from './nodeFormat'
 
 export type InspectorTarget =
-  | { kind: 'worker'; job: OrchestratorJob }
-  | { kind: 'shell'; shell: OrchestratorShell }
+  { kind: 'worker'; job: OrchestratorJob } | { kind: 'shell'; shell: OrchestratorShell }
 
 export type OrchestratorInspectorProps = {
   target: InspectorTarget
@@ -266,7 +265,9 @@ function WorkerBody({
                       onClick={() =>
                         detached
                           ? void openInBrowser(item.value).catch(() => undefined)
-                          : useProjectsStore.getState().createWebPane(projectId, { url: item.value })
+                          : useProjectsStore
+                              .getState()
+                              .createWebPane(projectId, { url: item.value })
                       }
                     >
                       <Globe2 size={13} />

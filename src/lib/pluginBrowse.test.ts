@@ -76,7 +76,10 @@ describe('narrowing the list', () => {
 
   it('offers only the capabilities that actually appear', () => {
     expect(
-      capabilityFacets([row({ capabilities: ['ui.theme'] }), row({ capabilities: ['ui.command'] })]),
+      capabilityFacets([
+        row({ capabilities: ['ui.theme'] }),
+        row({ capabilities: ['ui.command'] }),
+      ]),
     ).toEqual(['ui.command', 'ui.theme'])
   })
 })
@@ -129,17 +132,20 @@ describe('one list from the catalogue and what is installed', () => {
   }
 
   it('shows a plugin present in both exactly once', () => {
-    const rows = mergeRows([listed], [
-      {
-        id: 'jbnado.hello',
-        name: 'Hello World',
-        description: 'A worked example.',
-        version: '0.1.0',
-        capabilities: ['ui.sidebarTab', 'ui.command'],
-        enabled: true,
-        origin: 'local',
-      },
-    ])
+    const rows = mergeRows(
+      [listed],
+      [
+        {
+          id: 'jbnado.hello',
+          name: 'Hello World',
+          description: 'A worked example.',
+          version: '0.1.0',
+          capabilities: ['ui.sidebarTab', 'ui.command'],
+          enabled: true,
+          origin: 'local',
+        },
+      ],
+    )
     expect(rows).toHaveLength(1)
     expect(rows[0].installed).toBe(true)
     expect(rows[0].updateTo).toBe('0.2.0')
@@ -148,49 +154,58 @@ describe('one list from the catalogue and what is installed', () => {
   })
 
   it('offers no update when the installed version is the listed one', () => {
-    const rows = mergeRows([listed], [
-      {
-        id: 'jbnado.hello',
-        name: 'Hello World',
-        description: '',
-        version: '0.2.0',
-        capabilities: ['ui.sidebarTab'],
-        enabled: true,
-        origin: 'local',
-      },
-    ])
+    const rows = mergeRows(
+      [listed],
+      [
+        {
+          id: 'jbnado.hello',
+          name: 'Hello World',
+          description: '',
+          version: '0.2.0',
+          capabilities: ['ui.sidebarTab'],
+          enabled: true,
+          origin: 'local',
+        },
+      ],
+    )
     expect(rows[0].updateTo).toBeNull()
   })
 
   it('keeps a plugin that no listing mentions, and marks it uninstallable from here', () => {
-    const rows = mergeRows([], [
-      {
-        id: 'local.only',
-        name: 'Local Only',
-        description: 'Imported from a folder.',
-        version: '1.0.0',
-        capabilities: [],
-        enabled: false,
-        origin: 'local',
-      },
-    ])
+    const rows = mergeRows(
+      [],
+      [
+        {
+          id: 'local.only',
+          name: 'Local Only',
+          description: 'Imported from a folder.',
+          version: '1.0.0',
+          capabilities: [],
+          enabled: false,
+          origin: 'local',
+        },
+      ],
+    )
     expect(rows[0].origin).toBe('local')
     expect(rows[0].installable).toBe(false)
   })
 
   it('never offers an update for a listing that cannot be installed from here', () => {
     const pointer: CatalogPlugin = { ...listed, package: undefined }
-    const rows = mergeRows([pointer], [
-      {
-        id: 'jbnado.hello',
-        name: 'Hello World',
-        description: '',
-        version: '0.1.0',
-        capabilities: [],
-        enabled: true,
-        origin: 'local',
-      },
-    ])
+    const rows = mergeRows(
+      [pointer],
+      [
+        {
+          id: 'jbnado.hello',
+          name: 'Hello World',
+          description: '',
+          version: '0.1.0',
+          capabilities: [],
+          enabled: true,
+          origin: 'local',
+        },
+      ],
+    )
     expect(rows[0].updateTo).toBeNull()
   })
 })

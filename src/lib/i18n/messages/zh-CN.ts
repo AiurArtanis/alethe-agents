@@ -3008,7 +3008,8 @@ export const zhCN: Record<MessageKey, string> = {
   'voice.history.voiceMs': '声音 {ms} 毫秒',
   'voice.confirm.run': '运行',
   'voice.confirm.cancel': '取消',
-  'aiMemory.panelCaptures': 'Alethe 启动的智能体的每条提示和每次工具调用都会被记录下来，以 markdown 形式保存在 git 仓库中，并附带搜索索引 —— 两者都在本机，不用 Alethe 也能阅读。',
+  'aiMemory.panelCaptures':
+    'Alethe 启动的智能体的每条提示和每次工具调用都会被记录下来，以 markdown 形式保存在 git 仓库中，并附带搜索索引 —— 两者都在本机，不用 Alethe 也能阅读。',
   'aiMemory.checking': '正在检查…',
   'aiMemory.install': '安装 ai-memory',
   'aiMemory.installing': '正在安装…',
@@ -3024,16 +3025,20 @@ export const zhCN: Record<MessageKey, string> = {
   'aiMemory.stopping': '正在停止…',
   'aiMemory.running': '正在 {endpoint} 上响应',
   'aiMemory.stopped': '未运行',
-  'aiMemory.portBusy': '{endpoint} 上已有其他程序在响应，且不是 Alethe 启动的 —— 很可能是你自己的副本。Alethe 不会干预它。',
+  'aiMemory.portBusy':
+    '{endpoint} 上已有其他程序在响应，且不是 Alethe 启动的 —— 很可能是你自己的副本。Alethe 不会干预它。',
   'aiMemory.counts': '{pages} 个页面 · {sessions} 个会话 · {observations} 条观察',
   'aiMemory.installError': '无法安装 ai-memory。',
   'aiMemory.startError': '无法启动 ai-memory。',
   'aiMemory.stopError': '无法停止 ai-memory。',
-  'aiMemory.error.portInUse': '该端口上已有其他程序在响应 —— 很可能是你自己的 ai-memory 副本。让它继续运行并改用它即可。',
-  'aiMemory.error.unsupportedPlatform': 'ai-memory 没有为此平台发布构建，因此这里没有可安装的内容。',
+  'aiMemory.error.portInUse':
+    '该端口上已有其他程序在响应 —— 很可能是你自己的 ai-memory 副本。让它继续运行并改用它即可。',
+  'aiMemory.error.unsupportedPlatform':
+    'ai-memory 没有为此平台发布构建，因此这里没有可安装的内容。',
   'aiMemory.error.binaryMissing': '下载已完成，但其中没有 ai-memory 可执行文件。请重新安装。',
   'prefs.orchestratorShortcuts': '编排快捷指令',
-  'prefs.orchestratorShortcutsDesc': '给主智能体的一键指令。在面板上点击后会写入主智能体的终端，你可以在发送前编辑。',
+  'prefs.orchestratorShortcutsDesc':
+    '给主智能体的一键指令。在面板上点击后会写入主智能体的终端，你可以在发送前编辑。',
   'prefs.shortcutName': '名称',
   'prefs.shortcutText': '消息',
   'prefs.shortcutRule': '显示于',
@@ -3048,7 +3053,8 @@ export const zhCN: Record<MessageKey, string> = {
   'prefs.shortcutsEmpty': '你没有任何快捷指令。恢复默认即可找回 Alethe 自带的指令。',
   'prefs.shortcutsRestoreDefaults': '恢复默认',
   'prefs.workerRules': '委派工作的规则',
-  'prefs.workerRulesDesc': 'Alethe 告诉被委派智能体的内容。通用规则集随每个任务发送；主智能体会指定与工作匹配的规则集。仓库自身的约定始终优先于这些规则。',
+  'prefs.workerRulesDesc':
+    'Alethe 告诉被委派智能体的内容。通用规则集随每个任务发送；主智能体会指定与工作匹配的规则集。仓库自身的约定始终优先于这些规则。',
   'prefs.ruleSetName': '规则集名称',
   'prefs.ruleSetText': '规则',
   'prefs.ruleSetSize': '{count} 个字符，随此规则集的每个任务发送',
@@ -3058,7 +3064,8 @@ export const zhCN: Record<MessageKey, string> = {
   'prefs.ruleSetNewName': '新规则集',
   'prefs.ruleSetsEmpty': '委派的工作不会附带任何规则。',
   'prefs.ruleSetsLoading': '正在加载 Alethe 的规则…',
-  'prefs.ruleSetsUnavailable': '无法加载 Alethe 的规则集，因此暂时无法编辑。智能体收到的规则保持不变。',
+  'prefs.ruleSetsUnavailable':
+    '无法加载 Alethe 的规则集，因此暂时无法编辑。智能体收到的规则保持不变。',
   'prefs.ruleSetsRetry': '重试',
   'prefs.ruleSetsRestoreAll': '恢复 Alethe 的规则集',
   'prefs.pluginsMarketplaceDesc': '在独立窗口中浏览、搜索和安装插件。',
@@ -3099,7 +3106,8 @@ export const zhCN: Record<MessageKey, string> = {
   'market.detailCapabilities': '它能做什么',
   'market.detailRepo': '源代码',
   'market.notInstallable': '此条目指向一个页面而不是发布的安装包，因此 Alethe 无法替你安装。',
-  'market.fullPower': '插件拥有与 Alethe 本身相同的权限。能力声明只是说明，而不是限制 —— 只安装你有理由信任的插件。',
+  'market.fullPower':
+    '插件拥有与 Alethe 本身相同的权限。能力声明只是说明，而不是限制 —— 只安装你有理由信任的插件。',
   'market.uninstallWarning': '卸载会移除该插件及其存储的数据。',
   'market.installDone': '{name} 已安装',
   'market.installDoneBody': '在你启用它并接受其能力之前，它保持停用状态。',
@@ -3120,18 +3128,22 @@ export const zhCN: Record<MessageKey, string> = {
   'orchestrator.shell.failed': 'Shell 没有响应',
   'orchestrator.shell.viewGone': '此 shell 未在运行。请从编排面板重新启动它。',
   'orchestrator.shortcut.applyName': '应用',
-  'orchestrator.shortcut.applyText': '将工作者 {jobId} 的成果并入项目：提交它在 {worktree} 中留下的内容，把 {branch} 合并到当前分支，如有冲突请告诉我。',
+  'orchestrator.shortcut.applyText':
+    '将工作者 {jobId} 的成果并入项目：提交它在 {worktree} 中留下的内容，把 {branch} 合并到当前分支，如有冲突请告诉我。',
   'orchestrator.shortcut.reviewName': '审查',
-  'orchestrator.shortcut.reviewText': '阅读工作者 {jobId} 的报告和差异，然后告诉我它是否完成了要求的工作，以及你会做哪些修改。',
+  'orchestrator.shortcut.reviewText':
+    '阅读工作者 {jobId} 的报告和差异，然后告诉我它是否完成了要求的工作，以及你会做哪些修改。',
   'orchestrator.shortcut.continueName': '继续',
-  'orchestrator.shortcut.continueText': '在工作者 {jobId} 现有的会话中给它更多工作，保留它已经了解的一切。',
+  'orchestrator.shortcut.continueText':
+    '在工作者 {jobId} 现有的会话中给它更多工作，保留它已经了解的一切。',
   'orchestrator.runRulesTitle': '此次运行委派时使用的规则集',
   'orchestrator.reportTab': '报告',
   'orchestrator.diffTab': '差异',
   'orchestrator.stopWorker': '停止此工作者',
   'orchestrator.inspectorClose': '关闭',
   'orchestrator.shellCwd': '位于 {path}',
-  'orchestrator.noPlannerForShortcuts': '启动此工作者的智能体已不再打开，因此没有可以发送指令的对象。',
+  'orchestrator.noPlannerForShortcuts':
+    '启动此工作者的智能体已不再打开，因此没有可以发送指令的对象。',
   'router9.installDone': '9router 已安装，可以开始路由。',
   'router9.installFailed': '9router 未能安装。安装程序的输出如下。',
   'router9.uninstallDone': '已从 Alethe 的文件夹中移除 9router。',

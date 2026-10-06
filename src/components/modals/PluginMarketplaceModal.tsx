@@ -226,7 +226,8 @@ export function PluginMarketplaceModal() {
         </button>
       )
     }
-    if (row.installed) return <span className={styles.installedMark}>{t('market.installedMark')}</span>
+    if (row.installed)
+      return <span className={styles.installedMark}>{t('market.installedMark')}</span>
     if (!row.installable) return null
     return (
       <button
@@ -460,7 +461,9 @@ export function PluginMarketplaceModal() {
               <section className={styles.main}>
                 <div className={styles.status}>
                   <span>{t('market.results', { count: visible.length })}</span>
-                  {snapshot?.stale ? <span className={styles.stale}>{t('market.stale')}</span> : null}
+                  {snapshot?.stale ? (
+                    <span className={styles.stale}>{t('market.stale')}</span>
+                  ) : null}
                   <button
                     type="button"
                     className={styles.refresh}

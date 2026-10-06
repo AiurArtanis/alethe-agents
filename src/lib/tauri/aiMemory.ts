@@ -32,3 +32,26 @@ export async function aiMemoryOpenCodeConfigWrite(repo: string): Promise<void> {
 export async function aiMemoryCodexConfigWrite(repo: string): Promise<void> {
   await invoke('ai_memory_codex_config_write', { repo })
 }
+
+export type AiMemoryCounts = { sessions: number; observations: number; pages: number }
+
+export async function aiMemoryInstall(): Promise<string> {
+  return invoke<string>('ai_memory_install')
+}
+
+export async function aiMemoryStart(port?: number): Promise<void> {
+  await invoke('ai_memory_start', { port })
+}
+
+export async function aiMemoryStop(): Promise<void> {
+  await invoke('ai_memory_stop')
+}
+
+/**
+ * `null` means ai-memory could not be asked — the server is unreachable, `status` exited non-zero —
+ * which is not the same thing as a store that has nothing in it yet. Callers must tell the two apart
+ * rather than falling back to zeros for both.
+ */
+export async function aiMemoryCounts(): Promise<AiMemoryCounts | null> {
+  return invoke<AiMemoryCounts | null>('ai_memory_counts', {})
+}

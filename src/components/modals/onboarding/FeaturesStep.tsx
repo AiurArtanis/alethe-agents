@@ -1,7 +1,7 @@
 import { AppWindow, ChevronDown, Search, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
-import { type FeatureDefinition,FEATURES } from '../../../lib/features'
+import { type FeatureDefinition, FEATURES } from '../../../lib/features'
 import { type TFunction, useT } from '../../../lib/i18n'
 import { enableOrchestratorFeature } from '../../../lib/orchestratorUsageAccess'
 import type { FeatureId } from '../../../lib/types'

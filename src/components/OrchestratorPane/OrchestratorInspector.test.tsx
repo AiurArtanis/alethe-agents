@@ -158,10 +158,7 @@ describe('OrchestratorInspector', () => {
     )
     expect(screen.getByTestId('xterm')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'orchestrator.shell.stop' }))
-    expect(onShellControl).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'shell-01' }),
-      'stop',
-    )
+    expect(onShellControl).toHaveBeenCalledWith(expect.objectContaining({ id: 'shell-01' }), 'stop')
   })
 
   it('closes on Escape', () => {

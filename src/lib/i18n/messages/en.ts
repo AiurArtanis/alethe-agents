@@ -993,8 +993,7 @@ export const en = {
   'prefs.pluginsCatalogEmpty': 'No plugins are listed yet.',
 
   // Plugin marketplace — its own window, because browsing and configuring are different tasks.
-  'prefs.pluginsMarketplaceDesc':
-    'Browse, search and install plugins in a window of its own.',
+  'prefs.pluginsMarketplaceDesc': 'Browse, search and install plugins in a window of its own.',
   'prefs.pluginsMarketplaceOpen': 'Open the marketplace',
   'market.title': 'Plugins',
   'market.search': 'Search plugins',

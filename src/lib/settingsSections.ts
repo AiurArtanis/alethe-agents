@@ -39,7 +39,7 @@ const listeners = new Set<() => void>()
 
 export function collapsedSections(): CollapsedSections {
   if (cache) return cache
-  let raw: string | null = null
+  let raw: string | null
   try {
     raw = readScopedStorage(STORAGE_KEY)
   } catch {

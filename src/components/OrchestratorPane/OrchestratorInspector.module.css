@@ -103,7 +103,9 @@
   border: 1px solid transparent;
   border-radius: var(--radius-md, 8px);
   cursor: pointer;
-  transition: background var(--anim-fast) ease, color var(--anim-fast) ease;
+  transition:
+    background var(--anim-fast) ease,
+    color var(--anim-fast) ease;
 }
 
 .headBtn:hover:not(:disabled) {
@@ -129,7 +131,9 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md, 8px);
   cursor: pointer;
-  transition: color var(--anim-fast) ease, border-color var(--anim-fast) ease;
+  transition:
+    color var(--anim-fast) ease,
+    border-color var(--anim-fast) ease;
 }
 
 .shortcutBtn:hover {
@@ -280,7 +284,9 @@
   background: var(--bg-sunken);
   border: 1px solid var(--border);
   border-radius: 6px;
-  transition: border-color 0.15s, opacity 0.15s;
+  transition:
+    border-color 0.15s,
+    opacity 0.15s;
 }
 
 .mediaFigure:hover .mediaThumb {

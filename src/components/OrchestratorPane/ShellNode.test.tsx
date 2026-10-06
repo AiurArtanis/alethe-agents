@@ -3,7 +3,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const { orchestratorShellOutput } = vi.hoisted(() => ({
   orchestratorShellOutput: vi.fn(() =>
-    Promise.resolve({ shellId: 'shell-01', status: 'running', exitCode: null, output: 'listening on :3000' }),
+    Promise.resolve({
+      shellId: 'shell-01',
+      status: 'running',
+      exitCode: null,
+      output: 'listening on :3000',
+    }),
   ),
 }))
 vi.mock('../../lib/tauri/orchestrator', () => ({ orchestratorShellOutput }))
@@ -29,7 +34,10 @@ const node: GraphNode = {
   height: 80,
 }
 
-function shell(status: BoardShell['status'] = 'running', exitCode: number | null = null): BoardShell {
+function shell(
+  status: BoardShell['status'] = 'running',
+  exitCode: number | null = null,
+): BoardShell {
   return {
     id: 'shell-01',
     name: 'npm',

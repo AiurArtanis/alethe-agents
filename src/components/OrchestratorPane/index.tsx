@@ -762,7 +762,9 @@ function ShellGroupNode({ node, attachment, count, bind, t }: ShellGroupNodeProp
         </span>
         <span className={styles.runFoot}>
           <span>
-            {t(count === 1 ? 'orchestrator.shellCount' : 'orchestrator.shellCountPlural', { count })}
+            {t(count === 1 ? 'orchestrator.shellCount' : 'orchestrator.shellCountPlural', {
+              count,
+            })}
           </span>
         </span>
       </div>
@@ -966,7 +968,8 @@ export const OrchestratorPane = memo(function OrchestratorPane({
   )
   const shellById = useMemo(() => new Map(shells.map((shell) => [shell.id, shell])), [shells])
   const layoutShells = useMemo<LayoutShell[]>(
-    () => shells.map((shell) => ({ id: shell.id, attachment: shell.attachment, status: shell.status })),
+    () =>
+      shells.map((shell) => ({ id: shell.id, attachment: shell.attachment, status: shell.status })),
     [shells],
   )
   // Only the first image a worker's report mentions gets promoted to its own canvas card — enough
@@ -1235,7 +1238,11 @@ export const OrchestratorPane = memo(function OrchestratorPane({
     setActiveTerminal(target.projectId, target.terminalId)
     requestPaneFocus(target.terminalId)
     setActiveView('workspace')
-    await writePtyChunked(job.plannerId, renderShortcut(shortcut, job, project?.defaultCwd ?? null), true)
+    await writePtyChunked(
+      job.plannerId,
+      renderShortcut(shortcut, job, project?.defaultCwd ?? null),
+      true,
+    )
   }
 
   const loadDiff = async (jobId: string) => {
@@ -1268,7 +1275,10 @@ export const OrchestratorPane = memo(function OrchestratorPane({
       const candidate = shellTerminalPlan(proj.terminals, shell, isLive)
       if (candidate.action === 'reuse') return { plan: candidate, ownerProjectId: proj.id }
     }
-    return { plan: shellTerminalPlan(project?.terminals ?? [], shell, isLive), ownerProjectId: projectId }
+    return {
+      plan: shellTerminalPlan(project?.terminals ?? [], shell, isLive),
+      ownerProjectId: projectId,
+    }
   }
 
   // A view onto the running shell, never a new one — except a tab left over from a view that
@@ -1365,7 +1375,12 @@ export const OrchestratorPane = memo(function OrchestratorPane({
                     tokens: formatTokens(spend.totalTokens) ?? '0',
                   })}
                 >
-                  <AgentGlyph agent={spend.agent} theme={theme} size={11} className={styles.glyph} />
+                  <AgentGlyph
+                    agent={spend.agent}
+                    theme={theme}
+                    size={11}
+                    className={styles.glyph}
+                  />
                   <span>{spend.agent}</span>
                   <b>{price}</b>
                 </span>
@@ -1771,7 +1786,12 @@ export const OrchestratorPane = memo(function OrchestratorPane({
                         onPointerDown={(event) => event.stopPropagation()}
                         onClick={() => openPlanner(plannerKey(group))}
                       >
-                        <AgentGlyph agent={group.agent} theme={theme} size={12} className={styles.glyph} />
+                        <AgentGlyph
+                          agent={group.agent}
+                          theme={theme}
+                          size={12}
+                          className={styles.glyph}
+                        />
                         <span className={styles.attentionName}>
                           {group.label ?? t('orchestrator.noPlanner')}
                         </span>
@@ -1800,7 +1820,9 @@ export const OrchestratorPane = memo(function OrchestratorPane({
             inspectorTarget.kind === 'worker' ? inspectorTarget.job.id : '',
           )}
           shortcuts={shortcuts}
-          plannerAlive={inspectorTarget.kind === 'worker' ? plannerAliveFor(inspectorTarget.job) : true}
+          plannerAlive={
+            inspectorTarget.kind === 'worker' ? plannerAliveFor(inspectorTarget.job) : true
+          }
           shellBusy={
             inspectorTarget.kind === 'shell' ? shellBusy.has(inspectorTarget.shell.id) : false
           }

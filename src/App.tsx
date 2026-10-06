@@ -71,7 +71,11 @@ import { applyLegacyPluginMigrations } from './lib/plugins'
 import { visibilityFromPanelResize, widthFromPanelResize } from './lib/sidebarPanelState'
 import { setMaxConcurrentSpawns } from './lib/spawnQueue'
 import { ghosttyKillAll, setWindowOpacity, setWslIntegrationEnabled } from './lib/tauri'
-import { getLastCrashReport, orchestratorDefaultRuleSets, orchestratorSetRuleSets } from './lib/tauri'
+import {
+  getLastCrashReport,
+  orchestratorDefaultRuleSets,
+  orchestratorSetRuleSets,
+} from './lib/tauri'
 import { rememberBootAppearance } from './lib/bootAppearance'
 import { loadThemeIconBytes } from './lib/themeIcons'
 import { useAppliedTheme } from './lib/themes'
@@ -455,7 +459,9 @@ export default function App() {
       if (rulesPublishTokenRef.current !== token) return
       await orchestratorSetRuleSets(sets)
     }
-    void publish().catch((error) => console.error('[rules] could not publish the rule sets:', error))
+    void publish().catch((error) =>
+      console.error('[rules] could not publish the rule sets:', error),
+    )
   }, [hydrated, storedRuleSets])
 
   useEffect(() => {

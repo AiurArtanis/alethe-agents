@@ -63,7 +63,11 @@ describe('shellsForBoard', () => {
   })
 
   it('keeps an orphaned shell (its planner is gone) matched by cwd under the project', () => {
-    const shell = makeShell({ id: 'c', owner: { kind: 'planner', id: 'p-gone' }, cwd: 'C:\\proj\\sub' })
+    const shell = makeShell({
+      id: 'c',
+      owner: { kind: 'planner', id: 'p-gone' },
+      cwd: 'C:\\proj\\sub',
+    })
     const result = shellsForBoard([shell], {
       activePlannerId: 'p1',
       livePlannerIds: new Set(['p1']),
@@ -139,7 +143,7 @@ describe('shellsForBoard attachment', () => {
     ...base,
     id,
     cwd,
-    owner: ownerId ? ({ kind: 'planner' as const, id: ownerId }) : null,
+    owner: ownerId ? { kind: 'planner' as const, id: ownerId } : null,
     ptyId: `orchestrator-${id}`,
   })
 
@@ -152,7 +156,7 @@ describe('shellsForBoard attachment', () => {
     expect(shells.map((s) => s.attachment)).toEqual(['attached'])
   })
 
-  it("marks a shell whose planner is gone detached, when its cwd is under the project", () => {
+  it('marks a shell whose planner is gone detached, when its cwd is under the project', () => {
     const shells = shellsForBoard([shell('shell-02', 'p9', 'C:\\app\\api')], {
       activePlannerId: 'p1',
       livePlannerIds: new Set(['p1']),

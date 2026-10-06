@@ -954,7 +954,8 @@ export const ptBR: Record<MessageKey, string> = {
   'prefs.shortcutAdd': 'Adicionar atalho',
   'prefs.shortcutNewName': 'Novo atalho',
   'prefs.shortcutPlaceholders': 'Disponíveis: {jobId}, {agent}, {branch}, {worktree}, {project}.',
-  'prefs.shortcutsEmpty': 'Você não tem atalhos. Restaure os padrões para trazer os do Alethe de volta.',
+  'prefs.shortcutsEmpty':
+    'Você não tem atalhos. Restaure os padrões para trazer os do Alethe de volta.',
   'prefs.shortcutsRestoreDefaults': 'Restaurar padrões',
   'prefs.workerRules': 'Regras para o trabalho delegado',
   'prefs.workerRulesDesc':
@@ -1011,8 +1012,7 @@ export const ptBR: Record<MessageKey, string> = {
   'prefs.pluginsCatalogEmpty': 'Nenhum plugin listado ainda.',
 
   // Plugin marketplace — its own window, because browsing and configuring are different tasks.
-  'prefs.pluginsMarketplaceDesc':
-    'Navegue, busque e instale plugins numa janela só para isso.',
+  'prefs.pluginsMarketplaceDesc': 'Navegue, busque e instale plugins numa janela só para isso.',
   'prefs.pluginsMarketplaceOpen': 'Abrir o marketplace',
   'market.title': 'Plugins',
   'market.search': 'Buscar plugins',
@@ -1055,7 +1055,8 @@ export const ptBR: Record<MessageKey, string> = {
     'Um plugin roda com o mesmo poder do próprio Alethe. As capacidades são uma declaração, não uma jaula — instale o que você tem motivo para confiar.',
   'market.uninstallWarning': 'Desinstalar remove o plugin e os dados que ele guardou.',
   'market.installDone': '{name} instalado',
-  'market.installDoneBody': 'Ele fica desabilitado até você habilitar e aceitar o que ele pode fazer.',
+  'market.installDoneBody':
+    'Ele fica desabilitado até você habilitar e aceitar o que ele pode fazer.',
   'market.installFailed': 'Não foi possível instalar esse plugin.',
   'prefs.pluginsCatalogError': 'Não foi possível carregar a lista de plugins.',
   'prefs.pluginsCatalogInstalled': 'Instalado',

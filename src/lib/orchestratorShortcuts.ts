@@ -67,7 +67,8 @@ export function renderShortcut(
     worktree: job.worktree ?? '',
     project: projectCwd ?? '',
   }
-  return shortcut.text.replace(/\{(jobId|agent|branch|worktree|project)\}/g, (_, key: string) =>
-    values[key] ?? '',
+  return shortcut.text.replace(
+    /\{(jobId|agent|branch|worktree|project)\}/g,
+    (_, key: string) => values[key] ?? '',
   )
 }
