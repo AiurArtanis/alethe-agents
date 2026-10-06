@@ -1,14 +1,5 @@
-   
-                                                                        
-                                                                             
-                                                                           
-                                                                             
-                  
-  
-                                                                     
-                                                              
-   
-
+import { claudeLaunchExtras, graphifyRepoOf, recordClaudeLaunch } from './claudeMcpConfigs'
+import { claudeLaunchFlags } from './sessionLaunch'
 import { conversationFields, getActiveSessions, saveSession } from './sessionResume'
 import { acquireSpawnSlot, releaseSpawnSlot } from './spawnQueue'
 import {
@@ -27,7 +18,6 @@ const RESUMABLE: AgentType[] = ['claude', 'codex', 'cursor', 'opencode', 'antigr
 
 export type ResetLastSessionResult = { resumed: number; total: number }
 
-                                                                              
 function stripFlagWithValue(args: string[], flag: string): string[] {
   const out: string[] = []
   for (let i = 0; i < args.length; i++) {
@@ -40,19 +30,12 @@ function stripFlagWithValue(args: string[], flag: string): string[] {
   return out
 }
 
-                                                                               
 type SessionExclude = {
-                                                                             
   id?: string
-                                                                       
+
   before?: number
 }
 
-   
-                                                                             
-                                                                              
-                                                                            
-   
 function pickSessionId(
   sessions: ReadonlyArray<{ id: string; modified_at_ms: number }>,
   exclude: SessionExclude,
@@ -64,7 +47,7 @@ function pickSessionId(
   return pool.reduce((a, b) => (b.modified_at_ms > a.modified_at_ms ? b : a)).id
 }
 
-/** Acha o ID da conversa a retomar no disco para o cwd, por agente. */
+/** Finds the on-disk ID of the conversation to resume for the cwd, per agent. */
 async function latestSessionId(
   agent: AgentType,
   cwd: string,
@@ -76,10 +59,6 @@ async function latestSessionId(
     if (agent === 'codex') return pickSessionId(await snapshotCodexSessions(cwd), exclude)
     if (agent === 'claude') return pickSessionId(await snapshotClaudeSessions(cwd), exclude)
     if (agent === 'opencode') {
-                                                                          
-                                                         
-                                                                               
-                                                  
       if (savedOpenCodeId) return savedOpenCodeId
       const sessions = await snapshotOpenCodeSessions(cwd)
       if (sessions.length > 0) {
@@ -95,7 +74,6 @@ async function latestSessionId(
   return null
 }
 
-                                                                             
 function buildResumeArgs(agent: AgentType, baseArgs: string[], sessionId: string | null): string[] {
   if (agent === 'claude') {
     // Tira qualquer --resume <id> / --continue antigos e reinjeta o novo.
@@ -103,7 +81,7 @@ function buildResumeArgs(agent: AgentType, baseArgs: string[], sessionId: string
     return sessionId ? ['--resume', sessionId, ...clean] : ['--continue', ...clean]
   }
   if (agent === 'codex') {
-    // codex usa `resume <id>` / `resume --last` como subcomando (1º arg).
+    // Codex takes `resume <id>` / `resume --last` as a subcommand (first argument).
     let clean = baseArgs
     if (baseArgs[0] === 'resume') {
       const rest = baseArgs.slice(1)
@@ -124,8 +102,7 @@ function buildResumeArgs(agent: AgentType, baseArgs: string[], sessionId: string
     )
     return sessionId ? ['--resume', sessionId, ...clean] : ['--continue', ...clean]
   }
-                                                                          
-                            
+
   const clean = stripFlagWithValue(baseArgs, '--session').filter(
     (a) => a !== '--resume' && a !== '--continue',
   )
@@ -142,7 +119,6 @@ type ResumeTarget = {
   extraArgs: string[]
 }
 
-                                                                       
 function collectLivePanes(): ResumeTarget[] {
   const { projects } = useProjectsStore.getState()
   const { byPtyId } = useTerminalsStore.getState()
@@ -168,24 +144,10 @@ function collectLivePanes(): ResumeTarget[] {
   return targets
 }
 
-   
-                                                                          
-                                                                           
-                                                            
-   
 export function countLiveResumablePanes(): number {
   return collectLivePanes().length
 }
 
-   
-                                                                   
-                                                                  
-  
-                                                                             
-                                                                            
-                                                                          
-                                                                    
-   
 export async function resetLastSession(): Promise<ResetLastSessionResult> {
   const targets = collectLivePanes()
   let resumed = 0
@@ -200,7 +162,6 @@ export async function resetLastSession(): Promise<ResetLastSessionResult> {
         cwd = (live ?? '').trim()
       }
 
-                                                                         
       const active = getActiveSessions()[target.ptyId]
       const exclude: SessionExclude = {
         id:
@@ -213,9 +174,23 @@ export async function resetLastSession(): Promise<ResetLastSessionResult> {
       }
       const savedOpenCodeId = target.agent === 'opencode' ? active?.opencodeSessionId : undefined
       const sessionId = await latestSessionId(target.agent, cwd, exclude, savedOpenCodeId)
-      const extraArgs = buildResumeArgs(target.agent, target.extraArgs, sessionId)
+      // Claude only reads its MCP servers and hooks at launch; resuming without them loses them.
+      const project = useProjectsStore
+        .getState()
+        .projects.find((entry) => entry.id === target.projectId)
+      const claudeExtras =
+        target.agent === 'claude'
+          ? await claudeLaunchExtras({
+              ptyId: target.ptyId,
+              cwd,
+              graphifyRepo: graphifyRepoOf(project, cwd),
+            })
+          : undefined
+      const extraArgs = [
+        ...buildResumeArgs(target.agent, target.extraArgs, sessionId),
+        ...claudeLaunchFlags(claudeExtras?.mcpConfigPaths, claudeExtras?.hooksSettingsPath),
+      ]
 
-                                                                        
       useTerminalsStore.getState().beginRestart(target.ptyId)
       await restartPty({
         id: target.ptyId,
@@ -225,11 +200,11 @@ export async function resetLastSession(): Promise<ResetLastSessionResult> {
         cwd: cwd || undefined,
         extraArgs,
       })
+      if (claudeExtras) recordClaudeLaunch(target.ptyId, claudeExtras.orchestrator)
       window.dispatchEvent(
         new CustomEvent('alethe:terminal-resize-request', { detail: { ptyId: target.ptyId } }),
       )
 
-                                                                          
       saveSession(target.ptyId, {
         sessionId: target.ptyId,
         ...conversationFields(target.agent, sessionId ?? undefined),
@@ -245,7 +220,7 @@ export async function resetLastSession(): Promise<ResetLastSessionResult> {
 
       resumed++
     } catch {
-                                                 
+      // One session failing to resume must not stop the others; the slot is released below.
     } finally {
       releaseSpawnSlot()
     }

@@ -11,6 +11,9 @@ export type BuiltinAgentType =
   | 'mimo'
   | 'antigravity'
   | 'kiro'
+  | 'kimi'
+  | 'grok'
+  | 'codewhale'
 
 /**
  * An agent type id. Open on purpose: plugins contribute agent providers at
@@ -19,6 +22,9 @@ export type BuiltinAgentType =
  * an id resolves.
  */
 export type AgentType = BuiltinAgentType | (string & {})
+
+/** Providers whose subscription usage Alethe can read. */
+export type UsageProviderId = 'claude' | 'codex' | 'antigravity'
 
 export const AGENT_TYPE_LABELS: Record<BuiltinAgentType, string> = {
   claude: 'Claude Code',
@@ -30,6 +36,9 @@ export const AGENT_TYPE_LABELS: Record<BuiltinAgentType, string> = {
   mimo: 'Mimo',
   freebuff: 'Freebuff',
   kiro: 'Kiro CLI',
+  kimi: 'Kimi Code',
+  grok: 'Grok Build',
+  codewhale: 'Codewhale',
   shell: 'Shell',
   wsl: 'WSL',
 }
@@ -44,6 +53,9 @@ export const ALL_AGENT_TYPES: BuiltinAgentType[] = [
   'mimo',
   'freebuff',
   'kiro',
+  'kimi',
+  'grok',
+  'codewhale',
   'shell',
   'wsl',
 ]
@@ -70,7 +82,7 @@ export function agentCliCommand(agent: AgentType): string | undefined {
   return mapped ?? agent
 }
 
-export type Locale = 'en' | 'pt-BR'
+export type Locale = 'en' | 'pt-BR' | 'zh-CN'
 
 export type LayoutMode = 'auto' | 'spotlight' | 'sidebar' | 'grid'
 
@@ -136,7 +148,15 @@ export type SetupWalkthroughStep = 'project' | 'appearance'
 export const SETUP_WALKTHROUGH_STEPS: SetupWalkthroughStep[] = ['project', 'appearance']
 
 export type FeatureId =
-  'browser' | 'graphify' | 'aiMemory' | 'mcp' | 'playwright' | 'orchestrator' | 'prs' | 'gsdSync'
+  | 'browser'
+  | 'graphify'
+  | 'aiMemory'
+  | 'mcp'
+  | 'playwright'
+  | 'orchestrator'
+  | 'prs'
+  | 'gsdSync'
+  | 'wsl'
 
 export type TodoItem = {
   id: string
@@ -218,7 +238,18 @@ export const UNRESTRICTED_FLAG: Record<BuiltinAgentType, string | null> = {
   mimo: null,
   antigravity: '--dangerously-skip-permissions',
   kiro: '--trust-all-tools',
+  kimi: '--yolo',
+  grok: '--yolo',
+  // Codewhale Full Access is a TUI posture (Shift+Tab / /config), not a launch flag.
+  codewhale: null,
 }
+
+/**
+ * How the experimental Agent Canvas and Agent Sandbox workers handle permissions: `ask` keeps the
+ * agent's own checks, `bypass` lets it run commands and edit files without asking. The arguments
+ * each mode maps to live in `experimentalAgentPolicy.ts`.
+ */
+export type ExperimentalAgentPermissionMode = 'ask' | 'bypass'
 
 export type PaneKind =
   | 'terminal'
@@ -230,6 +261,7 @@ export type PaneKind =
   | 'graphify'
   | 'diff'
   | 'orchestrator'
+  | 'plugin'
 
 export type BrowserResourceMode = 'app-first' | 'balanced' | 'keep-alive'
 
@@ -271,6 +303,13 @@ export type Terminal = {
   laneVisible: boolean | null
   /** Keeps terminal controls in a fixed topbar instead of revealing them on hover. */
   topbarPinned?: boolean
+  /**
+   * Set once the user renames this pane through the sidebar's Rename action. Sidebar rows
+   * otherwise prefer a live auto-derived title (the Claude session title, or the active
+   * sub-tab's agent-type name) over `name` — this flag lets an explicit rename win instead of
+   * being silently shadowed by that.
+   */
+  customName?: boolean
 
   lastUsedAt?: number
 
@@ -281,6 +320,9 @@ export type Terminal = {
   url?: string
   /** Runtime settings for a private native browser pane. */
   browserConfig?: BrowserPaneConfig
+
+  /** The plugin this pane shows the profile of, on a `plugin` pane. */
+  pluginId?: string
 
   worktreeAgentId?: string
 
@@ -321,6 +363,11 @@ export type PaneGroup = {
   paneIds: string[]
   /** Dedicated groups keep related panes together without changing the project's outer layout. */
   kind?: 'orchestration'
+  /**
+   * The terminal an orchestration board was opened for. A terminal that was already grouped brings
+   * its group along, so it is not always the first pane.
+   */
+  plannerId?: string
 }
 
 export type OrphanWorktree = {
@@ -372,6 +419,8 @@ export type Project = {
   collapsed: boolean
   /** Hidden from the sidebar until restored from Preferences. */
   archived?: boolean
+  /** Kept out of the sidebar until hidden projects are revealed for the session. */
+  hidden?: boolean
   createdAt: number
   // --- RFC-009 / RFC-003 — Multi-Agent settings ---
   worktreeMode?: 'gitWorktree' | 'localCopy'
@@ -549,6 +598,40 @@ export const DEFAULT_ROUTER9_PREFERENCES: Router9Preferences = {
   defaultForNewAgents: false,
 }
 
+/** A named preset for delegated workers. A delegate call that names it gets exactly these values. */
+export type OrchestrationRole = {
+  name: string
+  agent: 'codex' | 'claude'
+  /** null runs the CLI's default model. */
+  model: string | null
+  /** Reasoning effort, as the chosen CLI names it; null keeps the CLI's setting. */
+  effort: string | null
+  /** Codex read-only sandbox. Always false for Claude. */
+  readOnly: boolean
+  /** null uses the default budget; 0 lets the worker run without a limit. */
+  timeoutSeconds: number | null
+  /**
+   * Another role to run instead while this one's provider is past 80% of its quota. A read-only
+   * role only falls back to a read-only one.
+   */
+  fallback?: string | null
+  /**
+   * The planner agent this row is for; absent serves any planner. A row for the planner's own agent
+   * wins over the row for any with the same name.
+   */
+  orchestrator?: 'claude' | 'codex'
+}
+
+export type OrchestrationSettings = {
+  roles: OrchestrationRole[]
+  /** Workers running at the same time. */
+  maxConcurrent: number
+  /** Budget per worker when a call names none; 0 means no limit. */
+  defaultTimeoutSeconds: number
+  /** Codex plugin ids (`name@marketplace`) turned off in worker threads. */
+  workerDisabledPlugins: string[]
+}
+
 export type Preferences = {
   /** Idioma da UI. Default 'en'. */
   language: Locale
@@ -584,6 +667,13 @@ export type Preferences = {
   alwaysStartOnHome: boolean
 
   alwaysStartUnrestricted: boolean
+  /**
+   * Permission mode of the experimental Agent Canvas and Agent Sandbox workers. A per-machine
+   * choice: it is deliberately left out of cloud sync.
+   */
+  experimentalAgentPermissionMode: ExperimentalAgentPermissionMode
+  /** Last scope chosen in the handoff dialog. */
+  handoffScope: HandoffScope
   /** Last terminal configuration submitted through the creation modal. */
   lastTerminalCreation: TerminalCreationPreset | null
 
@@ -594,11 +684,21 @@ export type Preferences = {
   /** Sidebar a contributed view sits in, overriding the container its manifest declares. */
   viewPlacements: Record<string, 'left' | 'right'>
 
-  /** Credenciais locais do Spotify Developer Dashboard para Now Playing. */
+  /** Non-secret Spotify Developer Dashboard identifier for Now Playing. */
   spotifyClientId: string
+  /** Runtime-only input. Persistence strips it after the backend migrates legacy values. */
   spotifyClientSecret: string
   /** Exibe a atividade atual do Alethe no perfil do Discord. */
   discordRichPresenceEnabled: boolean
+  /**
+   * Consent to read each provider's usage: doing so uses the credentials of the installed CLI and
+   * contacts the provider. Off for a new profile; nothing reads a provider that is off.
+   */
+  usageAccess: Record<UsageProviderId, boolean>
+  /** Usage cards shown in the AI usage details modal and the home usage strip. */
+  usageShowClaude: boolean
+  usageShowCodex: boolean
+  usageShowAntigravity: boolean
   /** Itens opcionais exibidos no canto direito da topbar. */
   topbarShowClaudeUsage: boolean
   topbarShowCodexUsage: boolean
@@ -622,6 +722,8 @@ export type Preferences = {
   remoteUseTailscale: boolean
 
   enabledFeatures: Record<FeatureId, boolean>
+  /** Roles and limits for delegated workers, sent to the orchestrator. */
+  orchestration: OrchestrationSettings
   /** Playwright MCP: attach to the shared/pane browser, or launch its own. */
   playwrightBrowserMode: 'shared' | 'dedicated'
   /** Only used when playwrightBrowserMode is 'dedicated'. */
@@ -654,6 +756,8 @@ export type Preferences = {
   dictationMicrophoneId: string | null
   /** Cached microphone label when the preferred device is unplugged. */
   dictationMicrophoneLabel: string | null
+  /** Decisions API key for voice commands. Empty disables the command bar. */
+  voiceCommandApiKey: string
   /** How many PTYs may spawn in parallel (global queue). Default 3. */
   spawnConcurrency: number
 
@@ -664,6 +768,13 @@ export type Preferences = {
   workspaceGridLayoutHistory?: GridLayoutHistoryEntry[]
 
   nativeTerminalMacos?: boolean
+  /**
+   * Absolute path to the binary plain shell tabs spawn. Null keeps the per-platform auto-detect
+   * (`pwsh` → `powershell` on Windows, `$SHELL` elsewhere).
+   */
+  shellPath: string | null
+  /** Font stack for the terminal. A Nerd Font is required for prompts such as oh-my-posh. */
+  terminalFontFamily: string
   /**
    * v3 — perfil de heap do Node.js para agentes (Claude, Codex, OpenCode).
    * Injeta --max-old-space-size e UV_THREADPOOL_SIZE no ambiente do PTY.
@@ -736,6 +847,9 @@ export type ProjectsFile = {
   cliPaths: Partial<Record<AgentType, string>>
 }
 
+/** Ships with Windows and macOS; none of these carry Powerline or Nerd Font glyphs. */
+export const DEFAULT_TERMINAL_FONT_FAMILY = 'Cascadia Mono, Consolas, "Courier New", monospace'
+
 export const DEFAULT_PREFERENCES: Preferences = {
   language: 'en',
   uiTheme: 'elite-indigo',
@@ -757,6 +871,9 @@ export const DEFAULT_PREFERENCES: Preferences = {
     freebuff: true,
     mimo: true,
     kiro: true,
+    kimi: true,
+    grok: true,
+    codewhale: true,
   },
   onboardingDone: false,
   workspaceFlat: false,
@@ -768,12 +885,18 @@ export const DEFAULT_PREFERENCES: Preferences = {
   accountCreated: false,
   alwaysStartOnHome: false,
   alwaysStartUnrestricted: false,
+  experimentalAgentPermissionMode: 'ask',
+  handoffScope: 'full',
   lastTerminalCreation: null,
   topbarStyle: 'classic',
   viewPlacements: {},
   spotifyClientId: '',
   spotifyClientSecret: '',
   discordRichPresenceEnabled: false,
+  usageAccess: { claude: false, codex: false, antigravity: false },
+  usageShowClaude: true,
+  usageShowCodex: true,
+  usageShowAntigravity: true,
   topbarShowClaudeUsage: true,
   topbarShowCodexUsage: true,
   topbarShowAntigravityUsage: true,
@@ -796,6 +919,13 @@ export const DEFAULT_PREFERENCES: Preferences = {
     playwright: false,
     orchestrator: false,
     prs: true,
+    wsl: true,
+  },
+  orchestration: {
+    roles: [],
+    maxConcurrent: 4,
+    defaultTimeoutSeconds: 900,
+    workerDisabledPlugins: [],
   },
   playwrightBrowserMode: 'shared',
   playwrightDedicatedHeadless: false,
@@ -814,6 +944,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   dictationModelId: 'parakeet-tdt-0.6b-v3-int8',
   dictationMicrophoneId: null,
   dictationMicrophoneLabel: null,
+  voiceCommandApiKey: '',
   spawnConcurrency: 3,
   resourcePolicy: {
     mode: 'manual',
@@ -828,6 +959,8 @@ export const DEFAULT_PREFERENCES: Preferences = {
   nodeHeapProfile: 'balanced',
   orchestratorShortcuts: null,
   workerRuleSets: null,
+  shellPath: null,
+  terminalFontFamily: DEFAULT_TERMINAL_FONT_FAMILY,
   pomodoroWorkMinutes: 25,
   pomodoroShortBreakMinutes: 5,
   pomodoroLongBreakMinutes: 15,
@@ -907,18 +1040,37 @@ export const PROVIDER_MODELS: Record<BuiltinAgentType, { id: string; label: stri
     { id: 'claude-sonnet-4.5', label: 'Claude Sonnet 4.5 (Padrão)' },
     { id: 'claude-haiku-4.5', label: 'Claude Haiku 4.5' },
   ],
+  // Kimi Code uses the account default model established at login, so nothing is
+  // hardcoded here — the same rationale as `cursor`.
+  kimi: [],
+  // Grok Build and Codewhale expose live model lists via their CLIs; discovery fills the picker.
+  grok: [],
+  codewhale: [],
   shell: [{ id: 'default', label: 'Shell Padrão' }],
   wsl: [{ id: 'default', label: 'WSL' }],
 }
 
 export type McpScope = 'global' | 'project'
 
+/**
+ * How much of a conversation a handoff carries to the other agent: everything, or only the
+ * messages the user wrote. The backend treats any other value as `user-only`.
+ */
+export type HandoffScope = 'full' | 'user-only'
+
 export type McpAgent = Extract<
   BuiltinAgentType,
-  'claude' | 'codex' | 'cursor' | 'opencode' | 'antigravity'
+  'claude' | 'codex' | 'cursor' | 'opencode' | 'antigravity' | 'kimi'
 >
 
-export const MCP_AGENTS: McpAgent[] = ['claude', 'codex', 'cursor', 'opencode', 'antigravity']
+export const MCP_AGENTS: McpAgent[] = [
+  'claude',
+  'codex',
+  'cursor',
+  'opencode',
+  'antigravity',
+  'kimi',
+]
 
 /**
  * Agents whose CLI can report how each configured server is actually doing. The others only have

@@ -38,6 +38,7 @@ type TerminalsSlice = Pick<
   | 'createWebPane'
   | 'createGraphifyPane'
   | 'createOrchestratorPane'
+  | 'createPluginPane'
   | 'renameTerminal'
   | 'setBrowserEngine'
   | 'markGsdSyncViewer'
@@ -53,7 +54,12 @@ type TerminalsSlice = Pick<
   | 'markTerminalUsed'
 >
 
-export function createTerminalsSlice({ get, update, updateTerminal }: SliceCtx): TerminalsSlice {
+export function createTerminalsSlice({
+  get,
+  update,
+  updateTerminal,
+  navigationUpdate,
+}: SliceCtx): TerminalsSlice {
   return {
     createTerminal: (projectId, args) => {
       let terminal = makeDefaultTerminal(args)
@@ -258,6 +264,49 @@ export function createTerminalsSlice({ get, update, updateTerminal }: SliceCtx):
       return pane
     },
 
+    createPluginPane: (projectId, pluginId, name) => {
+      const pane: Terminal = {
+        id: `plugin-${nanoid()}`,
+        name,
+        cwd: '',
+        tabs: [],
+        activeTabId: '',
+        disabled: false,
+        laneVisible: true,
+        lastUsedAt: Date.now(),
+        kind: 'plugin',
+        pluginId,
+      }
+      update((state) => {
+        const projects = state.projects.map((p) =>
+          p.id === projectId ? { ...p, terminals: [...p.terminals, pane] } : p,
+        )
+        const project = projects.find((p) => p.id === projectId)
+        const layout = project?.layoutMode ?? 'auto'
+        const existing = state.workspace.containers.find((c) => c.projectId === projectId)
+        const containers = existing
+          ? state.workspace.containers.map((c) =>
+              c.projectId === projectId
+                ? { ...c, paneIds: [...c.paneIds, pane.id], lastUsedAt: Date.now() }
+                : c,
+            )
+          : [...state.workspace.containers, newContainer(projectId, [pane.id], layout)]
+        return {
+          projects,
+          workspace: {
+            ...state.workspace,
+            containers,
+            recentProjectIds: rememberProjectTab(state.workspace.recentProjectIds, projectId),
+            recentTabs: rememberWorkspaceTab(state.workspace.recentTabs, {
+              kind: 'project',
+              id: projectId,
+            }),
+          },
+        }
+      })
+      return pane
+    },
+
     createOrchestratorPane: (projectId, cwd) => {
       const pane: Terminal = {
         id: `orchestrator-${nanoid()}`,
@@ -341,8 +390,27 @@ export function createTerminalsSlice({ get, update, updateTerminal }: SliceCtx):
       return pane
     },
 
-    renameTerminal: (projectId, terminalId, name) =>
-      updateTerminal(projectId, terminalId, (t) => ({ ...t, name })),
+    renameTerminal: (projectId, terminalId, name) => {
+      // `customName` lets the sidebar rows prefer this over their own live auto-title (Claude's
+      // session title, or the active sub-tab's agent-type name) — see the Terminal type.
+      updateTerminal(projectId, terminalId, (t) => ({ ...t, name, customName: true }))
+      // The topbar's saved/pinned tab strip snapshots its label at creation time and never
+      // rereads the terminal, so a rename has to be pushed into it explicitly here. Uses
+      // `navigationUpdate` so this targeted relabel isn't immediately overwritten by the active-tab
+      // composition resync that a plain `update` touching `workspace` would trigger.
+      navigationUpdate((state) => ({
+        workspace: {
+          ...state.workspace,
+          tabs: state.workspace.tabs.map((tab) =>
+            tab.kind === 'terminal' &&
+            tab.sourceId === terminalId &&
+            tab.sourceProjectId === projectId
+              ? { ...tab, label: name }
+              : tab,
+          ),
+        },
+      }))
+    },
 
     setBrowserEngine: (projectId, terminalId, engine) =>
       updateTerminal(projectId, terminalId, (t) => ({
@@ -680,10 +748,15 @@ export function createContainersSlice({ get, update, updateContainer }: SliceCtx
 
     closePane: (projectId, terminalId) =>
       update((state) => {
-        const terminal = state.projects
-          .find((p) => p.id === projectId)
-          ?.terminals.find((t) => t.id === terminalId)
+        const project = state.projects.find((p) => p.id === projectId)
+        const terminal = project?.terminals.find((t) => t.id === terminalId)
         if (terminal) cleanupPtys(collectTerminalPtyIds([terminal]))
+        // A group is drawn through its first member, the only one the container lists, so a
+        // grouped pane has to leave its group to disappear. One member left is no group at all,
+        // and when the first member closes, the next one takes its place in the container.
+        const group = project?.paneGroups?.find((g) => g.paneIds.includes(terminalId))
+        const remaining = group?.paneIds.filter((id) => id !== terminalId) ?? []
+        const successor = group?.paneIds[0] === terminalId ? remaining[0] : undefined
         const projects = state.projects.map((p) =>
           p.id === projectId
             ? {
@@ -691,15 +764,24 @@ export function createContainersSlice({ get, update, updateContainer }: SliceCtx
                 terminals: p.terminals.map((t) =>
                   t.id === terminalId ? clearTerminalPtyIds(t) : t,
                 ),
+                ...(group && {
+                  paneGroups: (p.paneGroups ?? []).flatMap((g) => {
+                    if (g !== group) return [g]
+                    return remaining.length > 1 ? [{ ...g, paneIds: remaining }] : []
+                  }),
+                }),
               }
             : p,
         )
         const containers = state.workspace.containers
-          .map((c) =>
-            c.projectId === projectId
-              ? { ...c, paneIds: c.paneIds.filter((id) => id !== terminalId) }
-              : c,
-          )
+          .map((c) => {
+            if (c.projectId !== projectId) return c
+            const ids = c.paneIds.flatMap((id) => {
+              if (id !== terminalId) return [id]
+              return successor && !c.paneIds.includes(successor) ? [successor] : []
+            })
+            return { ...c, paneIds: ids }
+          })
           .filter((c) => c.paneIds.length > 0 || c.gridId !== undefined)
         return { projects, workspace: { ...state.workspace, containers } }
       }),
@@ -851,10 +933,12 @@ export function createContainersSlice({ get, update, updateContainer }: SliceCtx
         ]
         const remaining = groups.filter((group) => !absorbed.includes(group))
         const kind = options?.kind ?? absorbed.find((group) => group.kind)?.kind
+        const plannerId = options?.plannerId ?? absorbed.find((group) => group.plannerId)?.plannerId
         remaining.push({
           id: `pane-group-${Date.now()}`,
           paneIds: expandedIds,
           ...(kind ? { kind } : {}),
+          ...(plannerId ? { plannerId } : {}),
         })
         return {
           projects: state.projects.map((p) =>

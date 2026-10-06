@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   aggregateAgentSpend,
   attentionOf,
+  boardPlannerIds,
   countLanes,
   emptyCounts,
   groupPlanners,
@@ -11,6 +12,7 @@ import {
   worstState,
 } from './orchestratorRuns'
 import type { OrchestratorJob, OrchestratorPlanner } from './tauri'
+import type { Project } from './types'
 
 function job(
   partial: Partial<OrchestratorJob> & Pick<OrchestratorJob, 'id' | 'runId'>,
@@ -319,6 +321,28 @@ describe('groupPlanners', () => {
     expect(group.counts).toEqual({ ...emptyCounts(), failed: 1, finished: 1 })
   })
 
+  it('leaves a superseded worker off the board and keeps it for the spend', () => {
+    const [group] = groupPlanners(
+      [
+        job({
+          id: 'job-01',
+          runId: 'run-a',
+          plannerId: 'pty-1',
+          status: 'failed',
+          supersededBy: 'job-02',
+        }),
+        job({ id: 'job-02', runId: 'run-b', plannerId: 'pty-1', status: 'done' }),
+      ],
+      [planner('pty-1', 'refactor pty')],
+    )
+
+    expect(group.jobs.map((entry) => entry.id)).toEqual(['job-02'])
+    expect(group.runs.map((run) => run.id)).toEqual(['run-b'])
+    expect(group.state).toBe('finished')
+    expect(group.counts).toEqual({ ...emptyCounts(), finished: 1 })
+    expect(group.superseded.map((entry) => entry.id)).toEqual(['job-01'])
+  })
+
   it('reads as blocked when any of its runs is waiting on the user', () => {
     const [group] = groupPlanners(
       [
@@ -340,5 +364,43 @@ describe('groupPlanners', () => {
 
   it('has nothing to show without planners or jobs', () => {
     expect(groupPlanners([], [])).toEqual([])
+  })
+})
+
+// A board opened next to a terminal shows that terminal's planner first (#248).
+describe('boardPlannerIds', () => {
+  const tab = (id: string, ptyId: string) => ({ id, type: 'claude' as const, ptyId, cwd: '' })
+  const project = {
+    id: 'proj-1',
+    terminals: [
+      { id: 'alpha', name: 'Alpha', tabs: [tab('a1', 'pty-alpha')], activeTabId: 'a1' },
+      {
+        id: 'zulu',
+        name: 'Zulu',
+        tabs: [tab('z1', 'pty-zulu-1'), tab('z2', 'pty-zulu-2')],
+        activeTabId: 'z2',
+      },
+      { id: 'board', name: 'Orchestration', tabs: [], activeTabId: '', kind: 'orchestrator' },
+    ],
+    paneGroups: [{ id: 'g1', kind: 'orchestration', paneIds: ['zulu', 'board'] }],
+  } as unknown as Project
+
+  it("lists the grouped terminal's ptys, its active tab first", () => {
+    expect(boardPlannerIds(project, 'board')).toEqual(['pty-zulu-2', 'pty-zulu-1'])
+  })
+
+  it('follows the terminal the board was started on, even when it is not the first pane', () => {
+    const grouped = {
+      ...project,
+      paneGroups: [
+        { id: 'g1', kind: 'orchestration', paneIds: ['alpha', 'zulu', 'board'], plannerId: 'zulu' },
+      ],
+    } as Project
+    expect(boardPlannerIds(grouped, 'board')).toEqual(['pty-zulu-2', 'pty-zulu-1'])
+  })
+
+  it('has no preference for a board that is not grouped with a terminal', () => {
+    expect(boardPlannerIds({ ...project, paneGroups: [] } as Project, 'board')).toEqual([])
+    expect(boardPlannerIds(undefined, 'board')).toEqual([])
   })
 })

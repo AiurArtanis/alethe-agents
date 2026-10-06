@@ -498,6 +498,13 @@
   white-space: pre-wrap;
 }
 
+/* Why an ask-mode one-shot worker may have ended without doing its task. */
+.workerPermissionNote {
+  font: 10px var(--font-sans);
+  line-height: 1.4;
+  color: var(--status-waiting);
+}
+
 .codexExpandHint {
   display: inline-flex;
   align-items: center;
@@ -729,7 +736,7 @@
   flex: 1;
   min-width: 0;
   min-height: 0;
-                                                                             
+
   overflow: hidden;
   cursor: grab;
   background: var(--bg);
@@ -796,9 +803,6 @@
   color: var(--fg-faint);
 }
 
-                                                                               
-                                                                             
-                                             
 .stage {
   position: relative;
   display: flex;
@@ -910,7 +914,6 @@
   padding: 0 24px 40px;
 }
 
-                                                                               
 .agentGroup {
   display: flex;
   flex-direction: column;
@@ -1157,7 +1160,6 @@
   color: var(--text-quaternary);
 }
 
-                                                   
 .cardCost {
   display: flex;
   align-items: center;
@@ -1183,7 +1185,6 @@
   font: 700 11px var(--font-mono);
 }
 
-                                                            
 .costPill {
   display: inline-flex;
   align-items: center;
@@ -1196,7 +1197,6 @@
   border: 1px solid var(--border);
 }
 
-                                                         
 .costLow {
   color: var(--accent);
 }
@@ -1210,6 +1210,29 @@
 }
 
 /* Pill de economia por roteamento (verde — bom). */
+.permissionPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: 11px var(--font-mono);
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: var(--fg-muted);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.permissionPill:hover {
+  border-color: var(--border-strong);
+}
+
+.permissionPillBypass {
+  color: var(--status-waiting);
+  background: var(--status-waiting-soft);
+  border-color: var(--status-waiting);
+}
+
 .savingsPill {
   display: inline-flex;
   align-items: center;
@@ -1222,7 +1245,6 @@
   border: 1px solid color-mix(in srgb, var(--status-working) 40%, transparent);
 }
 
-                                                            
 .budgetControl {
   display: inline-flex;
   align-items: center;
@@ -1248,7 +1270,6 @@
   color: var(--fg-faint);
 }
 
-                                                               
 .budgetBannerCrit {
   border-color: var(--status-offline);
   background: color-mix(in srgb, var(--status-offline) 12%, transparent);

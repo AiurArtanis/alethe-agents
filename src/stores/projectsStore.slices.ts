@@ -14,6 +14,13 @@ export type SliceCtx = {
   set: StoreApi<ProjectsState>['setState']
   get: () => ProjectsState
   update: (mutator: (state: ProjectsState) => Partial<ProjectsState> | void) => void
+  /**
+   * Same as `update`, but suppresses the active-tab resync that `update` otherwise runs whenever
+   * the result touches `workspace` — that resync recomputes the active tab as a live
+   * group/composition snapshot and would stomp a deliberate, targeted edit to `workspace.tabs`
+   * (e.g. relabeling a tab after a rename) before it's ever rendered.
+   */
+  navigationUpdate: (mutator: (state: ProjectsState) => Partial<ProjectsState> | void) => void
   updateProject: (projectId: string, fn: (p: Project) => Project) => void
   updateTerminal: (projectId: string, terminalId: string, fn: (t: Terminal) => Terminal) => void
   updateSubTab: (
@@ -77,13 +84,13 @@ export function createSubTabsSlice({ updateTerminal, updateSubTab }: SliceCtx): 
         const remaining = t.tabs.filter((s) => s.id !== tabId)
         if (remaining.length === 0) return t
         const adjacentTab =
-          closingIndex >= 0
-            ? (t.tabs[closingIndex + 1] ?? t.tabs[closingIndex - 1])
-            : undefined
+          closingIndex >= 0 ? (t.tabs[closingIndex + 1] ?? t.tabs[closingIndex - 1]) : undefined
         const activeTabId =
           t.activeTabId === tabId
             ? (adjacentTab?.id ?? remaining[0].id)
-            : (remaining.some((tab) => tab.id === t.activeTabId) ? t.activeTabId : remaining[0].id)
+            : remaining.some((tab) => tab.id === t.activeTabId)
+              ? t.activeTabId
+              : remaining[0].id
         const next = { ...t, tabs: remaining, activeTabId }
         return activeTabId ? touchTerminalUsage(next, activeTabId) : next
       }),

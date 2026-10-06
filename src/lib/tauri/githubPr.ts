@@ -40,6 +40,27 @@ export type MyPullRequestSummary = {
   updatedAt: string
 }
 
-export async function githubPrListMine(): Promise<MyPullRequestSummary[]> {
-  return invoke<MyPullRequestSummary[]>('github_pr_list_mine')
+/** Without a repo path, falls back to every open PR the `gh` user is involved in. */
+export async function githubPrListMine(repo?: string): Promise<MyPullRequestSummary[]> {
+  return invoke<MyPullRequestSummary[]>('github_pr_list_mine', { repo: repo ?? null })
+}
+
+/**
+ * The project's own PRs when its folder can be listed, else the account-wide list.
+ * A project folder is not always a GitHub checkout (e.g. one opened on `C:\`): `gh` then
+ * fails on git's "not a git repository", or on a missing remote. The account-wide list still
+ * answers "what PRs do I have open", so fall back to it instead of surfacing that error.
+ * `scoped` says which list came back, for the header label and the empty state.
+ */
+export async function githubPrListForProject(
+  repo?: string,
+): Promise<{ prs: MyPullRequestSummary[]; scoped: boolean }> {
+  if (repo) {
+    try {
+      return { prs: await githubPrListMine(repo), scoped: true }
+    } catch {
+      // Fall through to the account-wide list; if that fails too, its error is the useful one.
+    }
+  }
+  return { prs: await githubPrListMine(), scoped: false }
 }

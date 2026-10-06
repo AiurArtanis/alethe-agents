@@ -10,11 +10,12 @@ use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{channel, Sender};
+use std::sync::mpsc::{channel, RecvTimeoutError, Sender};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 
 #[path = "orchestrator_shells.rs"]
@@ -104,6 +105,63 @@ pub fn path_without_store_aliases(path: &str) -> String {
 
 const DEFAULT_JOB_TIMEOUT_MS: u64 = 900_000;
 
+const SANDBOX_READ_ONLY: &str = "read-only";
+
+/// A named preset from the Orchestration settings. A delegate call that names it gets exactly
+/// these values: the role is the only source for what it sets.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Role {
+    pub name: String,
+    pub agent: String,
+    #[serde(default)]
+    pub model: Option<String>,
+    #[serde(default)]
+    pub effort: Option<String>,
+    #[serde(default)]
+    pub read_only: bool,
+    /// None uses the default budget; 0 lets the worker run without a limit.
+    #[serde(default)]
+    pub timeout_seconds: Option<u64>,
+    /// The role to run instead while this one's provider is running out of quota (#268).
+    #[serde(default)]
+    pub fallback: Option<String>,
+    /// The planner agent this row is for ("claude" or "codex"); None serves any planner (#276).
+    #[serde(default)]
+    pub orchestrator: Option<String>,
+}
+
+/// The row a role name means for a planner on `orchestrator` (#276): the row for that orchestrator,
+/// else the row for any. No planner, or one Alethe does not know, only reaches the rows for any.
+fn role_for<'a>(roles: &'a [Role], name: &str, orchestrator: Option<&str>) -> Option<&'a Role> {
+    let row = |wanted: Option<&str>| {
+        roles
+            .iter()
+            .find(|role| role.name == name && role.orchestrator.as_deref() == wanted)
+    };
+    row(orchestrator).or_else(|| row(None))
+}
+
+/// What the Orchestration settings in Preferences hand to the orchestrator.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OrchestrationSettings {
+    #[serde(default)]
+    pub roles: Vec<Role>,
+    pub max_concurrent: usize,
+    /// 0 lets a worker run without a limit.
+    pub default_timeout_seconds: u64,
+    /// Codex plugin ids turned off in worker threads (#266).
+    #[serde(default)]
+    pub worker_disabled_plugins: Vec<String>,
+}
+
+/// How long a Codex model list is reused; a Codex update shows up after this.
+const CODEX_MODELS_TTL: Duration = Duration::from_secs(10 * 60);
+
+/// What a role decides. Passing any of these next to a role is refused.
+const ROLE_FIELDS: [&str; 5] = ["agent", "model", "effort", "readOnly", "timeoutSeconds"];
+
 /// Finished workers stay alive so the lead can follow up on what they just did, but each one holds
 /// a process, so only the most recent few are kept and older ones are let go.
 const PARKED_LIMIT: usize = 4;
@@ -164,6 +222,174 @@ fn tail(text: &str, limit: usize) -> String {
         return trimmed.to_string();
     }
     trimmed.chars().skip(count - limit).collect()
+}
+
+/// Appends to a worker's live reply and keeps only its last `REPLY_LIMIT` bytes. The cut moves
+/// forward to a character boundary: splitting inside a multi-byte character panics, and a release
+/// build aborts on panic, which closes the whole app.
+fn push_reply(reply: &mut String, text: &str) {
+    reply.push_str(text);
+    if reply.len() > REPLY_LIMIT {
+        let mut cut = reply.len() - REPLY_LIMIT;
+        while !reply.is_char_boundary(cut) {
+            cut += 1;
+        }
+        *reply = reply.split_off(cut);
+    }
+}
+
+#[cfg(test)]
+mod reply_tests {
+    use super::{push_reply, REPLY_LIMIT};
+
+    // A cut inside a multi-byte character used to panic, and a release build aborts on panic (#256).
+    #[test]
+    fn a_long_reply_with_accents_is_trimmed_at_a_character_boundary() {
+        let mut reply = String::new();
+        // Each 'ã' is two bytes, so one more byte puts the cut in the middle of a character.
+        push_reply(&mut reply, &"ã".repeat(REPLY_LIMIT));
+        push_reply(&mut reply, "a");
+        assert!(reply.len() <= REPLY_LIMIT);
+        assert!(reply.ends_with("ãa"));
+
+        push_reply(&mut reply, "çã");
+        assert!(reply.len() <= REPLY_LIMIT);
+        assert!(reply.ends_with("açã"));
+    }
+
+    #[test]
+    fn a_short_reply_is_kept_whole() {
+        let mut reply = String::from("olá");
+        push_reply(&mut reply, ", revisão concluída");
+        assert_eq!(reply, "olá, revisão concluída");
+    }
+}
+
+/// The start of a long text, cut at a character boundary.
+fn head(text: &str, limit: usize) -> String {
+    if text.chars().count() <= limit {
+        return text.to_string();
+    }
+    let mut cut: String = text.chars().take(limit).collect();
+    cut.push('…');
+    cut
+}
+
+/// How much of a worker a planner gets from `alethe_status`. The UI reads the whole snapshot.
+const STATUS_SPEC_CHARS: usize = 240;
+const STATUS_SUMMARY_CHARS: usize = 400;
+const STATUS_PLAN_STEPS: usize = 3;
+/// Settled workers listed by default, and when the planner asks for all of them.
+const STATUS_SETTLED: usize = 10;
+const STATUS_SETTLED_ALL: usize = 40;
+
+/// The snapshot reduced to what a planner can take in. Returned whole, a dozen workers with long
+/// briefs pass the size a planner's tool result may have, and the call fails instead of answering.
+/// A planner gets its own workers unless it asks for all: the active ones and the most recent
+/// settled ones, each with its long texts trimmed. `omitted` counts the workers left out.
+fn planner_status(mut snapshot: Value, planner: Option<&str>, all: bool) -> Value {
+    let jobs = snapshot
+        .get_mut("jobs")
+        .and_then(Value::as_array_mut)
+        .map(std::mem::take)
+        .unwrap_or_default();
+    let total = jobs.len();
+    let active = |job: &Value| {
+        matches!(
+            job.get("status").and_then(Value::as_str),
+            Some(STATUS_QUEUED | STATUS_RUNNING | STATUS_BLOCKED)
+        )
+    };
+    let listed: Vec<Value> = jobs
+        .into_iter()
+        .filter(|job| {
+            all || planner.is_none() || job.get("plannerId").and_then(Value::as_str) == planner
+        })
+        .collect();
+    let limit = if all {
+        STATUS_SETTLED_ALL
+    } else {
+        STATUS_SETTLED
+    };
+    let settled = listed.iter().filter(|job| !active(job)).count();
+    let mut older = settled.saturating_sub(limit);
+    let kept: Vec<Value> = listed
+        .into_iter()
+        .filter(|job| {
+            if active(job) || older == 0 {
+                return true;
+            }
+            older -= 1;
+            false
+        })
+        .map(trimmed_job)
+        .collect();
+    snapshot["omitted"] = json!(total - kept.len());
+    snapshot["jobs"] = Value::Array(kept);
+    snapshot
+}
+
+fn trimmed_job(mut job: Value) -> Value {
+    if let Some(spec) = job.get("spec").and_then(Value::as_str) {
+        job["spec"] = json!(head(spec, STATUS_SPEC_CHARS));
+    }
+    if let Some(summary) = job.get("summary").and_then(Value::as_str) {
+        job["summary"] = json!(tail(summary, STATUS_SUMMARY_CHARS));
+    }
+    if let Some(plan) = job.get_mut("plan").and_then(Value::as_array_mut) {
+        let earlier = plan.len().saturating_sub(STATUS_PLAN_STEPS);
+        plan.drain(..earlier);
+    }
+    if let Some(total) = job
+        .get("tokens")
+        .and_then(|tokens| tokens.get("total"))
+        .cloned()
+    {
+        job["tokens"] = json!({ "total": total });
+    }
+    job
+}
+
+/// The worker's time budget, stated at the start of its first turn. A warning sent mid-turn does
+/// not help: Codex only reads it once the text it is writing is done, which is often the answer
+/// itself, and then spends another round replying to it.
+fn with_budget(text: String, timeout_ms: Option<u64>) -> String {
+    let Some(seconds) = timeout_ms
+        .map(|ms| ms / 1000)
+        .filter(|seconds| *seconds > 0)
+    else {
+        return text;
+    };
+    format!(
+        "[Alethe] Time budget: {seconds} s from now. Write your answer by {} s; anything not \
+         written when the budget ends is lost.\n\n{text}",
+        seconds * 7 / 10
+    )
+}
+
+#[cfg(test)]
+mod budget_tests {
+    use super::with_budget;
+
+    #[test]
+    fn the_first_turn_states_the_budget_and_when_to_answer() {
+        let text = with_budget("Review the diff.".into(), Some(600_000));
+        assert!(text.starts_with("[Alethe] Time budget: 600 s"), "{text}");
+        assert!(text.contains("by 420 s"), "{text}");
+        assert!(text.ends_with("\n\nReview the diff."), "{text}");
+    }
+
+    #[test]
+    fn a_worker_without_a_budget_gets_its_task_as_is() {
+        assert_eq!(
+            with_budget("Review the diff.".into(), None),
+            "Review the diff."
+        );
+        assert_eq!(
+            with_budget("Review the diff.".into(), Some(500)),
+            "Review the diff."
+        );
+    }
 }
 
 fn now_ms() -> u64 {
@@ -246,6 +472,12 @@ struct Job {
     approval_policy: String,
     sandbox: String,
     web_search: bool,
+    /// The role it was delegated under, if any; what the role set is in the fields below.
+    role: Option<String>,
+    /// The model the planner asked for; None runs the CLI's own default.
+    model: Option<String>,
+    /// Codex reasoning effort (`model_reasoning_effort`); None keeps the CLI's own setting.
+    effort: Option<String>,
     /// The request the worker is stopped on, kept with the rpc id it must be answered with.
     pending: Option<Value>,
     child: Option<Arc<Mutex<Child>>>,
@@ -258,6 +490,9 @@ struct Job {
     /// not reported to the planner as a finished turn.
     awaiting_steer: bool,
     next_request_id: i64,
+    /// The worker that took this one's task over after it ended without finishing. The board
+    /// leaves a superseded worker out, so a task shows only the worker that currently has it.
+    superseded_by: Option<String>,
 }
 
 impl Job {
@@ -280,13 +515,18 @@ impl Job {
             "threadId": self.thread_id,
             "outcome": self.outcome,
             "seconds": elapsed,
+            "role": self.role,
             "plan": self.plan,
             "tokens": self.tokens,
             "costUsd": self.cost_usd,
             "quota": self.quota,
             "routing": self.routing,
             "worktree": self.worktree,
+            "model": self.model,
+            "effort": self.effort,
+            "readOnly": self.sandbox == SANDBOX_READ_ONLY,
             "pendingApproval": self.pending,
+            "supersededBy": self.superseded_by,
             "hasDiff": self.diff.is_some(),
             "summary": tail(if self.report.is_empty() { &self.reply } else { &self.report }, 1200),
         })
@@ -312,6 +552,12 @@ impl Job {
             "approvalPolicy": self.approval_policy,
             "sandbox": self.sandbox,
             "webSearch": self.web_search,
+            "supersededBy": self.superseded_by,
+            // 0 is "no limit", so a record that lacks the field can still mean the old default.
+            "timeoutMs": self.timeout_ms.unwrap_or(0),
+            "role": self.role,
+            "model": self.model,
+            "effort": self.effort,
             "summary": self.report,
             "startedAt": self.started_at,
             "endedAt": self.ended_at,
@@ -368,13 +614,20 @@ impl Job {
             started_at: value.get("startedAt").and_then(Value::as_u64),
             ended_at: value.get("endedAt").and_then(Value::as_u64),
             worktree: text("worktree"),
-            timeout_ms: Some(DEFAULT_JOB_TIMEOUT_MS),
+            timeout_ms: match value.get("timeoutMs").and_then(Value::as_u64) {
+                Some(0) => None,
+                Some(ms) => Some(ms),
+                None => Some(DEFAULT_JOB_TIMEOUT_MS),
+            },
             approval_policy: text("approvalPolicy").unwrap_or_else(|| "never".to_string()),
             sandbox: text("sandbox").unwrap_or_else(|| "workspace-write".to_string()),
             web_search: value
                 .get("webSearch")
                 .and_then(Value::as_bool)
                 .unwrap_or(false),
+            role: text("role"),
+            model: text("model"),
+            effort: text("effort"),
             pending: None,
             child: None,
             stdin: None,
@@ -382,6 +635,7 @@ impl Job {
             routing: None,
             awaiting_steer: false,
             next_request_id: 10,
+            superseded_by: text("supersededBy"),
         })
     }
 
@@ -438,6 +692,11 @@ struct Inner {
     seq: u64,
     running: usize,
     max_concurrent: usize,
+    /// The budget a worker gets when the call names none; None lets it run without a limit.
+    default_timeout_ms: Option<u64>,
+    roles: Vec<Role>,
+    /// Codex plugins turned off in worker threads.
+    worker_disabled_plugins: Vec<String>,
     job_counter: u64,
     run_counter: u64,
     planners: HashMap<String, Planner>,
@@ -466,7 +725,8 @@ impl Inner {
             "shells": self.shells.iter().map(Shell::snapshot).collect::<Vec<_>>(),
             "running": self.running,
             "queued": self.queue.len(),
-            "concurrencyLimit": self.max_concurrent
+            "concurrencyLimit": self.max_concurrent,
+            "roles": self.roles
         })
     }
 
@@ -503,6 +763,8 @@ pub struct Core {
     rule_sets: Arc<Mutex<Vec<RuleSet>>>,
     /// Distinguishes "the app never spoke" from "the person removed them all".
     rules_injected: Arc<AtomicBool>,
+    /// The last model list Codex gave, and when; see `list_codex_models`.
+    codex_models: Arc<Mutex<Option<(Instant, Value)>>>,
 }
 
 impl Default for Core {
@@ -510,6 +772,7 @@ impl Default for Core {
         Self {
             inner: Arc::new(Mutex::new(Inner {
                 max_concurrent: DEFAULT_MAX_CONCURRENT,
+                default_timeout_ms: Some(DEFAULT_JOB_TIMEOUT_MS),
                 ..Inner::default()
             })),
             signal: Arc::new(Condvar::new()),
@@ -521,6 +784,7 @@ impl Default for Core {
             shell_host: Arc::new(Mutex::new(None)),
             rule_sets: Arc::new(Mutex::new(Vec::new())),
             rules_injected: Arc::new(AtomicBool::new(false)),
+            codex_models: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -530,6 +794,284 @@ fn guard<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
         Ok(value) => value,
         Err(poisoned) => poisoned.into_inner(),
     }
+}
+
+/// What a new Codex thread starts with. Model and effort are sent only when the planner chose them,
+/// so a worker delegated without them runs on whatever the person's own Codex config says.
+fn thread_start_params(
+    cwd: &str,
+    approval_policy: &str,
+    sandbox: &str,
+    web_search: bool,
+    model: Option<&str>,
+    effort: Option<&str>,
+) -> Value {
+    let mut config = json!({
+        "tools": { "web_search": { "mode": if web_search { "live" } else { "disabled" } } }
+    });
+    if let Some(effort) = effort {
+        config["model_reasoning_effort"] = json!(effort);
+    }
+    let mut params = json!({
+        "cwd": cwd,
+        "approvalPolicy": serde_json::from_str::<Value>(approval_policy)
+            .unwrap_or(Value::String("never".into())),
+        "approvalsReviewer": "user",
+        "sandbox": sandbox,
+        "config": config
+    });
+    if let Some(model) = model {
+        params["model"] = json!(model);
+    }
+    params
+}
+
+/// Turns the given Codex plugins off for this thread only. Each one otherwise runs its hooks on
+/// every worker start and prompt and sends its context with every call, which a worker that only
+/// reads and reports has no use for. The person's own hooks and MCP servers are not plugins and stay.
+fn disable_plugins(params: &mut Value, plugins: &[String]) {
+    for plugin in plugins {
+        params["config"]["plugins"][plugin] = json!({ "enabled": false });
+    }
+}
+
+/// Picking a thread up again takes the same settings it started with. Without them the resumed
+/// thread would fall back to the person's config, and a read-only worker could start writing.
+fn thread_resume_params(
+    thread_id: &str,
+    cwd: &str,
+    approval_policy: &str,
+    sandbox: &str,
+    web_search: bool,
+    model: Option<&str>,
+    effort: Option<&str>,
+) -> Value {
+    let mut params = thread_start_params(cwd, approval_policy, sandbox, web_search, model, effort);
+    params["threadId"] = json!(thread_id);
+    params
+}
+
+/// Whether the process ended within `limit`. Never waits past it, even when the OS cannot say.
+fn exited_within(child: &mut Child, limit: Duration) -> bool {
+    let deadline = Instant::now() + limit;
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => return true,
+            Ok(None) if Instant::now() < deadline => thread::sleep(Duration::from_millis(50)),
+            _ => return false,
+        }
+    }
+}
+
+/// Kills a process and what it started. On Windows the child is often the `cmd.exe` running
+/// `codex.cmd`, and killing only that would leave Codex running. `taskkill` is started, not waited
+/// on, so a slow one cannot hold the caller.
+fn kill_tree(child: &mut Child) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let _ = Command::new("taskkill")
+            .args(["/T", "/F", "/PID", &child.id().to_string()])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn();
+    }
+    let _ = child.kill();
+}
+
+#[cfg(test)]
+mod process_tests {
+    use super::{exited_within, kill_tree};
+    use std::process::{Command, Stdio};
+    use std::time::{Duration, Instant};
+
+    fn long_running() -> std::process::Child {
+        #[cfg(windows)]
+        let mut command = {
+            let mut command = Command::new("cmd");
+            command.args(["/c", "ping -n 30 127.0.0.1 >NUL"]);
+            command
+        };
+        #[cfg(not(windows))]
+        let mut command = {
+            let mut command = Command::new("sh");
+            command.args(["-c", "sleep 30"]);
+            command
+        };
+        command
+            .stdout(Stdio::null())
+            .spawn()
+            .expect("a long-running process")
+    }
+
+    #[test]
+    fn a_process_that_does_not_end_is_waited_on_only_as_long_as_allowed() {
+        let mut child = long_running();
+        let started = Instant::now();
+        assert!(!exited_within(&mut child, Duration::from_millis(300)));
+        assert!(started.elapsed() < Duration::from_secs(3));
+
+        kill_tree(&mut child);
+        assert!(
+            exited_within(&mut child, Duration::from_secs(10)),
+            "the process survived the kill"
+        );
+    }
+}
+
+/// The models Codex offers, reduced to what the Orchestration settings need: the value to pass
+/// as `model`, a name to show and the efforts that model accepts. Hidden models are left out.
+fn codex_models(result: &Value) -> Value {
+    let models: Vec<Value> = result
+        .get("data")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|entry| {
+            !entry
+                .get("hidden")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+        })
+        .filter_map(|entry| {
+            let model = entry.get("model").and_then(Value::as_str)?;
+            let efforts: Vec<&str> = entry
+                .get("supportedReasoningEfforts")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(|option| option.get("reasoningEffort").and_then(Value::as_str))
+                .collect();
+            Some(json!({
+                "model": model,
+                "name": entry.get("displayName").and_then(Value::as_str).unwrap_or(model),
+                "defaultEffort": entry.get("defaultReasoningEffort"),
+                "efforts": efforts
+            }))
+        })
+        .collect();
+    Value::Array(models)
+}
+
+/// The role to run instead of `role` while its provider is running out (#268): the one it names,
+/// for the same orchestrator, when that one's provider has room and it does not make read-only work
+/// writable. One level only, and the note says why, for the worker card.
+fn fallback_of<'a>(
+    fitness: &HashMap<String, Value>,
+    roles: &'a [Role],
+    role: &Role,
+    orchestrator: Option<&str>,
+) -> Option<(&'a Role, Value)> {
+    let name = role.fallback.as_deref()?;
+    let fallback = role_for(roles, name, orchestrator).filter(|other| other.name != role.name)?;
+    if role.read_only && !fallback.read_only {
+        return None;
+    }
+    let snapshot = fitness
+        .get(&role.agent)
+        .filter(|snapshot| past_threshold(snapshot))?;
+    if fitness.get(&fallback.agent).is_some_and(past_threshold) {
+        return None;
+    }
+    Some((
+        fallback,
+        json!({
+            "verdict": "fallback",
+            "from": role.name,
+            "to": fallback.name,
+            "agent": role.agent,
+            "window": snapshot.get("worst").and_then(Value::as_str).unwrap_or_default(),
+            "used": snapshot.get("used").and_then(Value::as_f64).unwrap_or(0.0).round(),
+        }),
+    ))
+}
+
+/// A delegate call that names a role gets that role's settings and nothing else, so a planner can
+/// neither run a read-only role writable nor switch its model. Unknown roles are refused. A role
+/// whose provider is running out runs as its fallback, with a routing note that says so. The row
+/// used is the one for the calling planner's agent, if there is one (#276).
+fn resolve_role(
+    core: &Core,
+    arguments: &Map<String, Value>,
+    planner: Option<&str>,
+) -> Result<Option<(Map<String, Value>, Option<Value>)>, String> {
+    let name = match arguments.get("role") {
+        None | Some(Value::Null) => return Ok(None),
+        Some(Value::String(name)) => name,
+        Some(other) => return Err(format!("role must be a role name, got {other}")),
+    };
+    if let Some(field) = ROLE_FIELDS
+        .iter()
+        .find(|field| arguments.contains_key(**field))
+    {
+        return Err(format!(
+            "role {name} already sets {field}; pass the role or {field}, not both"
+        ));
+    }
+    let inner = guard(&core.inner);
+    let orchestrator = planner
+        .and_then(|id| inner.planners.get(id))
+        .map(|planner| planner.agent.as_str());
+    let Some(asked) = role_for(&inner.roles, name, orchestrator) else {
+        // The names this planner can ask for, each once.
+        let mut known: Vec<&str> = Vec::new();
+        for role in &inner.roles {
+            let reachable =
+                role.orchestrator.is_none() || role.orchestrator.as_deref() == orchestrator;
+            if reachable && !known.contains(&role.name.as_str()) {
+                known.push(&role.name);
+            }
+        }
+        return Err(format!(
+            "unknown role {name}; configured roles: {}",
+            if known.is_empty() {
+                "none".to_string()
+            } else {
+                known.join(", ")
+            }
+        ));
+    };
+    let (role, note) = match fallback_of(&guard(&core.fitness), &inner.roles, asked, orchestrator) {
+        Some((fallback, note)) => (fallback, Some(note)),
+        None => (asked, None),
+    };
+    // The worker keeps the role the planner asked for, so the next delegation of that role decides
+    // again. A worker picked up with alethe_send stays where it ran: its thread lives on that agent.
+    let mut resolved = arguments.clone();
+    resolved.insert("agent".into(), json!(role.agent));
+    if let Some(model) = &role.model {
+        resolved.insert("model".into(), json!(model));
+    }
+    if let Some(effort) = &role.effort {
+        resolved.insert("effort".into(), json!(effort));
+    }
+    resolved.insert("readOnly".into(), json!(role.read_only));
+    if let Some(seconds) = role.timeout_seconds {
+        resolved.insert("timeoutSeconds".into(), json!(seconds));
+    }
+    Ok(Some((resolved, note)))
+}
+
+/// What a Claude worker's command line adds to its launcher: the session to resume, if any, and the
+/// model and effort the planner chose.
+fn claude_worker_args(
+    resume_thread: Option<&str>,
+    model: Option<&str>,
+    effort: Option<&str>,
+) -> Vec<String> {
+    let mut args = Vec::new();
+    if let Some(thread_id) = resume_thread {
+        args.extend(["--resume".to_string(), thread_id.to_string()]);
+    }
+    if let Some(model) = model {
+        args.extend(["--model".to_string(), model.to_string()]);
+    }
+    if let Some(effort) = effort {
+        args.extend(["--effort".to_string(), effort.to_string()]);
+    }
+    args
 }
 
 fn send_rpc(stdin: &Arc<Mutex<ChildStdin>>, value: &Value) -> Result<(), String> {
@@ -1015,16 +1557,29 @@ impl Core {
             .ok_or_else(|| format!("unknown shell {shell_id}"))
     }
 
+    /// A fallback note, written when the worker was created, says more than a headroom note and
+    /// is kept.
     fn set_job_routing(&self, job_id: &str, routing: Value) {
         let mut inner = guard(&self.inner);
-        if let Some(job) = inner.jobs.get_mut(job_id) {
+        if let Some(job) = inner
+            .jobs
+            .get_mut(job_id)
+            .filter(|job| job.routing.is_none())
+        {
             job.routing = Some(routing);
         }
         self.notify(&inner);
     }
 
+    /// A null snapshot forgets the agent: its usage is no longer being read, and an old reading
+    /// must not keep steering fallbacks or the headroom the planner is told about.
     pub fn set_agent_fitness(&self, agent: &str, snapshot: Value) {
-        guard(&self.fitness).insert(agent.to_string(), snapshot);
+        let mut fitness = guard(&self.fitness);
+        if snapshot.is_null() {
+            fitness.remove(agent);
+        } else {
+            fitness.insert(agent.to_string(), snapshot);
+        }
     }
 
     /// Every vendor's windows already collapsed to the worst one by the caller, so `used` is
@@ -1068,6 +1623,116 @@ impl Core {
         guard(&self.inner).max_concurrent = limit.clamp(1, 16);
     }
 
+    /// Takes the Orchestration settings from Preferences. Workers already delegated keep what they
+    /// were given; the next call and a Restart see the new values.
+    pub fn apply_settings(&self, settings: OrchestrationSettings) {
+        {
+            let mut inner = guard(&self.inner);
+            inner.max_concurrent = settings.max_concurrent.clamp(1, 16);
+            inner.default_timeout_ms = match settings.default_timeout_seconds {
+                0 => None,
+                seconds => Some(seconds.saturating_mul(1000)),
+            };
+            inner.roles = settings.roles;
+            inner.worker_disabled_plugins = settings.worker_disabled_plugins;
+            self.notify(&inner);
+        }
+        // A higher limit lets queued work start now instead of after the next worker finishes.
+        self.drain_queue();
+    }
+
+    /// The models the installed Codex offers. Each ask starts a short-lived `app-server`, and
+    /// short-lived Codex processes are tied to lsass crashes on Windows (#202), so an answer is
+    /// reused for a while instead of asking again every time the settings open. A failed ask is not
+    /// kept.
+    pub fn list_codex_models(&self) -> Result<Value, String> {
+        if let Some((at, models)) = guard(&self.codex_models).as_ref() {
+            if at.elapsed() < CODEX_MODELS_TTL {
+                return Ok(models.clone());
+            }
+        }
+        let models = self.ask_codex_models()?;
+        *guard(&self.codex_models) = Some((Instant::now(), models.clone()));
+        Ok(models)
+    }
+
+    fn ask_codex_models(&self) -> Result<Value, String> {
+        let launcher = guard(&self.launchers)
+            .get("codex")
+            .cloned()
+            .ok_or_else(|| "codex is not installed".to_string())?;
+        let mut command = Command::new(&launcher.program);
+        command
+            .args(&launcher.args)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null());
+        for (key, value) in &launcher.env {
+            command.env(key, value);
+        }
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            command.creation_flags(CREATE_NO_WINDOW);
+        }
+        let mut child = command
+            .spawn()
+            .map_err(|error| format!("codex did not start: {error}"))?;
+        let stdout = child.stdout.take();
+        // Codex shuts down at the end of its input, before a pending model/list is answered, so
+        // stdin stays open until the answer is in.
+        let mut stdin = child.stdin.take();
+        let written = stdin.as_mut().map(|stdin| {
+            [
+                json!({ "id": 1, "method": "initialize", "params": {
+                    "clientInfo": { "name": "alethe-orchestrator", "title": "Alethe", "version": "1" }
+                } }),
+                json!({ "method": "initialized" }),
+                // ponytail: one page of 100; follow nextCursor if Codex ever lists more.
+                json!({ "id": 2, "method": "model/list", "params": { "limit": 100 } }),
+            ]
+            .iter()
+            .try_for_each(|request| writeln!(stdin, "{request}"))
+        });
+        let (sender, receiver) = channel();
+        if let Some(stdout) = stdout {
+            thread::spawn(move || {
+                for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+                    let Ok(message) = serde_json::from_str::<Value>(&line) else {
+                        continue;
+                    };
+                    if message.get("id") == Some(&json!(2)) {
+                        let _ = sender.send(message);
+                        break;
+                    }
+                }
+            });
+        }
+        let reply = receiver.recv_timeout(Duration::from_secs(15));
+        // Closing the input lets Codex exit on its own. Killing it mid-call is tied to lsass
+        // crashes on Windows (#202), so that is only the fallback. Both waits are bounded, so the
+        // settings page never hangs on a Codex that will not go.
+        drop(stdin);
+        if !exited_within(&mut child, Duration::from_secs(5)) {
+            kill_tree(&mut child);
+            let _ = exited_within(&mut child, Duration::from_secs(5));
+        }
+        if !matches!(written, Some(Ok(()))) {
+            return Err("codex did not take the request".into());
+        }
+        let reply = reply.map_err(|error| match error {
+            RecvTimeoutError::Timeout => "codex did not list its models in time".to_string(),
+            RecvTimeoutError::Disconnected => {
+                "codex exited before it listed its models".to_string()
+            }
+        })?;
+        if let Some(error) = reply.get("error") {
+            return Err(format!("codex could not list its models: {error}"));
+        }
+        Ok(codex_models(reply.get("result").unwrap_or(&Value::Null)))
+    }
+
     pub fn snapshot(&self) -> Value {
         guard(&self.inner).snapshot()
     }
@@ -1092,20 +1757,29 @@ impl Core {
         // Read before `inner` is locked: `Core::rule_sets` takes its own lock, and holding both at
         // once is how this file deadlocks.
         let sets = self.rule_sets();
-        let (agent, cwd, spec, resume_thread, approval_policy, sandbox, web_search) = {
+        let (agent, cwd, spec, resume_thread, approval_policy, sandbox, web_search, model, effort) = {
             let mut inner = guard(&self.inner);
             let Some(job) = inner.jobs.get_mut(job_id) else {
                 return;
             };
+            // A worker that ended while it waited in the queue stays ended.
+            if job.settled() {
+                return;
+            }
             job.status = STATUS_RUNNING.to_string();
+            // A worker that runs again is current again, whatever replaced it meanwhile.
+            job.superseded_by = None;
             job.started_at = Some(now_ms());
             job.ended_at = None;
             // Work that arrived while the worker was down leads; otherwise this is its first turn.
             // Rules ride only on that first turn: a follow-up already has them in its conversation.
-            let first_turn = match job.inbox.pop_front() {
-                Some(queued) => queued,
-                None => first_turn_for(&sets, job),
-            };
+            let first_turn = with_budget(
+                match job.inbox.pop_front() {
+                    Some(queued) => queued,
+                    None => first_turn_for(&sets, job),
+                },
+                job.timeout_ms,
+            );
             let started = (
                 job.agent.clone(),
                 job.cwd.clone(),
@@ -1114,6 +1788,8 @@ impl Core {
                 job.approval_policy.clone(),
                 job.sandbox.clone(),
                 job.web_search,
+                job.model.clone(),
+                job.effort.clone(),
             );
             inner.running += 1;
             started
@@ -1140,9 +1816,11 @@ impl Core {
         // Claude keeps its own session on disk under this id — no separate resume RPC like Codex's
         // `thread/resume`, the CLI just needs the id up front.
         if is_claude {
-            if let Some(thread_id) = &resume_thread {
-                command.args(["--resume", thread_id]);
-            }
+            command.args(claude_worker_args(
+                resume_thread.as_deref(),
+                model.as_deref(),
+                effort.as_deref(),
+            ));
         }
         for (key, value) in &launcher.env {
             command.env(key, value);
@@ -1213,25 +1891,35 @@ impl Core {
             let _ = send_rpc(&stdin, &json!({ "method": "initialized" }));
             // Codex keeps threads on disk, so a worker whose process died can pick up its own history
             // instead of reading everything again.
-            let opening = match &resume_thread {
+            let mut opening = match &resume_thread {
                 Some(thread_id) => json!({
                     "id": 2,
                     "method": "thread/resume",
-                    "params": { "threadId": thread_id, "cwd": cwd }
+                    "params": thread_resume_params(
+                        thread_id,
+                        &cwd,
+                        &approval_policy,
+                        &sandbox,
+                        web_search,
+                        model.as_deref(),
+                        effort.as_deref(),
+                    )
                 }),
                 None => json!({
                     "id": 2,
                     "method": "thread/start",
-                    "params": {
-                        "cwd": cwd,
-                        "approvalPolicy": serde_json::from_str::<Value>(&approval_policy)
-                            .unwrap_or(Value::String("never".into())),
-                        "approvalsReviewer": "user",
-                        "sandbox": sandbox,
-                        "config": { "tools": { "web_search": { "mode": if web_search { "live" } else { "disabled" } } } }
-                    }
+                    "params": thread_start_params(
+                        &cwd,
+                        &approval_policy,
+                        &sandbox,
+                        web_search,
+                        model.as_deref(),
+                        effort.as_deref(),
+                    )
                 }),
             };
+            let plugins = guard(&self.inner).worker_disabled_plugins.clone();
+            disable_plugins(&mut opening["params"], &plugins);
             let _ = send_rpc(&stdin, &opening);
         }
 
@@ -1278,22 +1966,40 @@ impl Core {
     fn arm_watchdog(&self, job_id: &str, timeout_ms: u64) {
         let core = self.clone();
         let job_id = job_id.to_string();
+        // A revived worker is armed again when it starts, so this watchdog answers only for the
+        // run that armed it.
+        let run = guard(&self.inner)
+            .jobs
+            .get(&job_id)
+            .and_then(|job| job.started_at);
         thread::spawn(move || {
             thread::sleep(Duration::from_millis(timeout_ms));
-            let payload = {
+            let (payload, written) = {
                 let inner = guard(&core.inner);
                 let Some(job) = inner.jobs.get(&job_id) else {
                     return;
                 };
-                if job.settled() {
+                if job.settled() || job.started_at != run {
                     return;
                 }
-                match (job.thread_id.clone(), job.active_turn_id.clone()) {
+                let payload = match (job.thread_id.clone(), job.active_turn_id.clone()) {
                     (Some(thread_id), Some(turn_id)) => {
                         Some(json!({ "threadId": thread_id, "turnId": turn_id }))
                     }
                     _ => None,
-                }
+                };
+                // The live stream holds what the worker said this turn and the report its last
+                // finished message, which for Codex is part of the stream. Neither is dropped.
+                let reply = job.reply.trim();
+                let report = job.report.trim();
+                let written = if reply.is_empty() {
+                    report.to_string()
+                } else if report.is_empty() || reply.contains(report) {
+                    tail(reply, REPLY_LIMIT)
+                } else {
+                    tail(&format!("{report}\n\n{reply}"), REPLY_LIMIT)
+                };
+                (payload, written)
             };
             if let Some(payload) = payload {
                 let staged = {
@@ -1301,17 +2007,26 @@ impl Core {
                     stage_rpc(&mut inner, &job_id, "turn/interrupt", payload)
                 };
                 if let Ok((stdin, request)) = staged {
-                    let _ = send_rpc(&stdin, &request);
+                    // Detached: a worker that stopped reading its input can hold the write, and
+                    // the stop below still has to happen on time. The teardown closes the pipe.
+                    thread::spawn(move || {
+                        let _ = send_rpc(&stdin, &request);
+                    });
                 }
             }
+            let stopped = format!(
+                "worker passed its {}s budget and was stopped",
+                timeout_ms / 1000
+            );
             core.finish(
                 &job_id,
                 STATUS_FAILED,
                 Some("timeout".into()),
-                format!(
-                    "worker passed its {}s budget and was stopped",
-                    timeout_ms / 1000
-                ),
+                if written.is_empty() {
+                    stopped
+                } else {
+                    format!("{stopped}. What it had written by then:\n\n{written}")
+                },
                 true,
             );
         });
@@ -1510,6 +2225,26 @@ impl Core {
             return;
         }
 
+        // Codex refused to open the thread or start its first turn, e.g. on a model or effort it
+        // does not accept. Nothing else follows, so without this the worker would show running,
+        // holding its slot, until its budget ran out, or for good without one.
+        if let (Some(2 | 3), Some(error)) = (
+            message.get("id").and_then(Value::as_i64),
+            message.get("error"),
+        ) {
+            let reason = error
+                .get("message")
+                .and_then(Value::as_str)
+                .unwrap_or("no reason given");
+            self.settle(
+                job_id,
+                STATUS_FAILED,
+                "start-failed",
+                &format!("codex did not start the worker: {reason}"),
+            );
+            return;
+        }
+
         if message.get("id").and_then(Value::as_i64) == Some(2) {
             let thread_id = result
                 .get("thread")
@@ -1582,11 +2317,7 @@ impl Core {
             }
             "item/agentMessage/delta" => {
                 if let Some(delta) = params.get("delta").and_then(Value::as_str) {
-                    job.reply.push_str(delta);
-                    if job.reply.len() > REPLY_LIMIT {
-                        let cut = job.reply.len() - REPLY_LIMIT;
-                        job.reply = job.reply.split_off(cut);
-                    }
+                    push_reply(&mut job.reply, delta);
                 }
                 return;
             }
@@ -1704,11 +2435,7 @@ impl Core {
                 }
                 let mut inner = guard(&self.inner);
                 if let Some(job) = inner.jobs.get_mut(job_id) {
-                    job.reply.push_str(&text);
-                    if job.reply.len() > REPLY_LIMIT {
-                        let cut = job.reply.len() - REPLY_LIMIT;
-                        job.reply = job.reply.split_off(cut);
-                    }
+                    push_reply(&mut job.reply, &text);
                 }
                 self.notify(&inner);
             }
@@ -1835,6 +2562,9 @@ impl Core {
             if job.settled() {
                 return;
             }
+            // Only a running worker, or one blocked on a question, holds a slot. A queued one never
+            // took a slot and is still in the queue, which would start it despite this ending.
+            let held_slot = matches!(job.status.as_str(), STATUS_RUNNING | STATUS_BLOCKED);
             job.status = status.to_string();
             job.pending = None;
             if !text.trim().is_empty() {
@@ -1846,7 +2576,10 @@ impl Core {
             if terminal {
                 job.teardown();
             }
-            inner.running = inner.running.saturating_sub(1);
+            if held_slot {
+                inner.running = inner.running.saturating_sub(1);
+            }
+            inner.queue.retain(|queued| queued != job_id);
             if announce {
                 inner.push_delivery("worker_done", job_id, outcome, text);
             }
@@ -1861,8 +2594,17 @@ impl Core {
                     job.status = STATUS_RUNNING.to_string();
                     job.outcome = None;
                     job.ended_at = None;
+                    // A turn this side interrupted delivered nothing, so what it had written stays
+                    // as the report until the next turn says more; a budget running out mid-way
+                    // must not lose it.
+                    job.report = if announce {
+                        String::new()
+                    } else if job.reply.trim().is_empty() {
+                        std::mem::take(&mut job.report)
+                    } else {
+                        tail(job.reply.trim(), REPLY_LIMIT)
+                    };
                     job.reply.clear();
-                    job.report.clear();
                 }
                 inner.running += 1;
             } else {
@@ -2214,9 +2956,25 @@ pub fn tools() -> Value {
                         "type": "boolean",
                         "description": "Give each worker a live web search tool, on top of its shell and files. Use it for research: real cases, current facts, sources you can cite - not for work confined to a repository, where it adds nothing."
                     },
+                    "model": {
+                        "type": "string",
+                        "description": "The model each worker runs, as the chosen CLI names it (for example a Codex model for agent codex, a Claude model for agent claude). Omit it to use the CLI's own default. Pick a different model when the unit needs one - such as an independent review by another model than the one that wrote the code."
+                    },
+                    "effort": {
+                        "type": "string",
+                        "description": "Reasoning effort. For Codex, one the model supports (commonly low, medium, high or xhigh); for Claude, low, medium, high, xhigh or max. Omit it to keep the CLI's own setting."
+                    },
+                    "readOnly": {
+                        "type": "boolean",
+                        "description": "Start each Codex worker in a read-only sandbox: it can read files and run commands, but cannot write. Use it for reviews and audits that must not change anything. Cannot be combined with askForApproval, and not available for Claude workers."
+                    },
                     "timeoutSeconds": {
                         "type": "number",
-                        "description": "Budget per worker before Alethe stops it, default 900. Pass 0 to let a worker run without a limit."
+                        "description": "Budget per worker before Alethe stops it, default 900 unless the person changed it in the Orchestration settings. The worker is told its budget when it starts, and a worker that is stopped still delivers what it had written. Pass 0 to let a worker run without a limit."
+                    },
+                    "role": {
+                        "type": "string",
+                        "description": "A role the person configured in Alethe's Orchestration settings, such as a reviewer. alethe_status lists the roles and what each one runs on; a row whose orchestrator is your own agent wins over the row with no orchestrator of the same name. The role sets agent, model, effort, readOnly and the time budget, so do not pass any of those with it. Prefer a role over spelling those out when one fits the work."
                     }
                 },
                 "required": ["tasks"]
@@ -2261,8 +3019,16 @@ pub fn tools() -> Value {
         },
         {
             "name": "alethe_status",
-            "description": "Snapshot of every worker without blocking: status, elapsed time, current plan and token usage.",
-            "inputSchema": { "type": "object", "properties": {} }
+            "description": "Your workers without blocking: status, elapsed time, the last plan steps and token usage, with long texts trimmed. Lists the ones still active plus your most recent settled ones; omitted says how many were left out. Use alethe_check for what a worker reported.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "all": {
+                        "type": "boolean",
+                        "description": "Also list other planners' workers and older settled ones, still trimmed."
+                    }
+                }
+            }
         },
         {
             "name": "alethe_steer",
@@ -2345,6 +3111,24 @@ fn string_list(arguments: &Map<String, Value>, key: &str) -> Vec<String> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+/// An optional model or effort name. A Claude model becomes a command-line argument, so a value that
+/// is empty, contains whitespace or starts with `-` is refused rather than passed on.
+fn option_name(arguments: &Map<String, Value>, key: &str) -> Result<Option<String>, String> {
+    match arguments.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::String(value))
+            if !value.is_empty()
+                && !value.starts_with('-')
+                && !value.chars().any(|c| c.is_whitespace() || c.is_control()) =>
+        {
+            Ok(Some(value.clone()))
+        }
+        Some(other) => Err(format!(
+            "{key} must be a name without spaces that does not start with '-', got {other}"
+        )),
+    }
 }
 
 fn required_str(arguments: &Map<String, Value>, key: &str) -> Result<String, String> {
@@ -2454,6 +3238,78 @@ fn headroom_hint(block: &Value, requested: &str) -> Option<Value> {
     }))
 }
 
+/// The `alethe_delegate` arguments that run `job`'s request again as a new worker. An isolated
+/// worker ran in `<repo>/.alethe/worktrees/<id>` (see `isolate_worktree`), so its rerun asks for a
+/// fresh worktree of that same repository instead of reusing the old one.
+fn restart_arguments(job: &Job) -> Map<String, Value> {
+    let repository = job
+        .worktree
+        .as_deref()
+        .and_then(|path| std::path::Path::new(path).ancestors().nth(3))
+        .map(|root| root.to_string_lossy().into_owned());
+    let mut arguments = Map::new();
+    arguments.insert("tasks".into(), json!([job.spec]));
+    arguments.insert(
+        "cwd".into(),
+        json!(repository.unwrap_or_else(|| job.cwd.clone())),
+    );
+    if let Some(label) = &job.run_label {
+        arguments.insert("label".into(), json!(label));
+    }
+    arguments.insert("isolate".into(), json!(job.worktree.is_some()));
+    // `approval_policy` holds the JSON the delegate built: a `granular` object when the worker was
+    // asked to stop before reaching outside its workspace, the string "never" otherwise.
+    arguments.insert(
+        "askForApproval".into(),
+        json!(job.approval_policy.contains("granular")),
+    );
+    arguments.insert("webSearch".into(), json!(job.web_search));
+    // The rule set the first run was delegated with rides along, so the rerun follows it too.
+    if let Some(rules) = &job.rules_name {
+        arguments.insert("rules".into(), json!(rules));
+    }
+    // A role sets the agent, model, effort, sandbox and budget again, as it does for the planner,
+    // and refuses any of them passed alongside it. Without one, the worker runs again on what it
+    // was given.
+    if let Some(role) = &job.role {
+        arguments.insert("role".into(), json!(role));
+        return arguments;
+    }
+    arguments.insert("agent".into(), json!(job.agent));
+    if let Some(model) = &job.model {
+        arguments.insert("model".into(), json!(model));
+    }
+    if let Some(effort) = &job.effort {
+        arguments.insert("effort".into(), json!(effort));
+    }
+    arguments.insert("readOnly".into(), json!(job.sandbox == SANDBOX_READ_ONLY));
+    arguments.insert(
+        "timeoutSeconds".into(),
+        json!(job.timeout_ms.map_or(0, |ms| ms / 1000)),
+    );
+    arguments
+}
+
+/// The board's Restart: runs a worker's request again as a new worker under the same planner,
+/// stopping the old one first while it is still active.
+pub fn restart_job(core: &Core, job_id: &str) -> Result<Value, String> {
+    let (arguments, planner, active) = {
+        let inner = guard(&core.inner);
+        let job = inner
+            .jobs
+            .get(job_id)
+            .ok_or_else(|| format!("unknown job {job_id}"))?;
+        let active = [STATUS_QUEUED, STATUS_RUNNING, STATUS_BLOCKED].contains(&job.status.as_str());
+        (restart_arguments(job), job.planner_id.clone(), active)
+    };
+    if active {
+        let mut cancel = Map::new();
+        cancel.insert("jobIds".into(), json!([job_id]));
+        call_tool(core, "alethe_cancel", &cancel, None)?;
+    }
+    call_tool(core, "alethe_delegate", &arguments, planner.as_deref())
+}
+
 /// Every tool answers with the current per-agent headroom, because a tool result is the only
 /// channel this transport can push to the planner — see the roadmap's Phase 5 note on why a
 /// `tools/list_changed` notification is not an option here.
@@ -2468,21 +3324,29 @@ pub fn call_tool(
         return Ok(value);
     };
     if name == "alethe_delegate" {
-        let requested = arguments
-            .get("agent")
-            .and_then(Value::as_str)
-            .unwrap_or("codex");
+        let ids: Vec<String> = map
+            .get("jobs")
+            .and_then(Value::as_array)
+            .map(|jobs| {
+                jobs.iter()
+                    .filter_map(|job| job.get("id").and_then(Value::as_str))
+                    .map(ToOwned::to_owned)
+                    .collect()
+            })
+            .unwrap_or_default();
+        // The agent the workers run on: a call made with a role has no `agent` of its own.
+        let requested = ids
+            .first()
+            .and_then(|id| guard(&core.inner).jobs.get(id).map(|job| job.agent.clone()))
+            .or_else(|| {
+                arguments
+                    .get("agent")
+                    .and_then(Value::as_str)
+                    .map(ToOwned::to_owned)
+            })
+            .unwrap_or_else(|| "codex".to_string());
+        let requested = requested.as_str();
         if let Some(note) = routing_note(&block, requested) {
-            let ids: Vec<String> = map
-                .get("jobs")
-                .and_then(Value::as_array)
-                .map(|jobs| {
-                    jobs.iter()
-                        .filter_map(|job| job.get("id").and_then(Value::as_str))
-                        .map(ToOwned::to_owned)
-                        .collect()
-                })
-                .unwrap_or_default();
             for id in ids {
                 core.set_job_routing(&id, note.clone());
             }
@@ -2503,6 +3367,17 @@ fn dispatch_tool(
 ) -> Result<Value, String> {
     match name {
         "alethe_delegate" => {
+            // A role becomes ordinary arguments, so it goes through the same checks as a call
+            // that spells them out.
+            let resolved = resolve_role(core, arguments, planner)?;
+            let fallback_note = resolved.as_ref().and_then(|(_, note)| note.clone());
+            let arguments = resolved
+                .as_ref()
+                .map_or(arguments, |(resolved, _)| resolved);
+            let role = arguments
+                .get("role")
+                .and_then(Value::as_str)
+                .map(ToOwned::to_owned);
             let tasks = string_list(arguments, "tasks");
             if tasks.is_empty() {
                 return Err("tasks must contain at least one instruction".into());
@@ -2534,6 +3409,32 @@ fn dispatch_tool(
                 .get("webSearch")
                 .and_then(Value::as_bool)
                 .unwrap_or(false);
+            // Anything but a boolean is refused: read as false it would start a writable worker the
+            // caller meant to only read.
+            let read_only = match arguments.get("readOnly") {
+                None | Some(Value::Null) => false,
+                Some(Value::Bool(value)) => *value,
+                Some(other) => return Err(format!("readOnly must be true or false, got {other}")),
+            };
+            let model = option_name(arguments, "model")?;
+            let effort = option_name(arguments, "effort")?;
+            // Not validated here on purpose — an unconfigured agent fails cleanly later, in
+            // `spawn_worker`, through the normal delivery path.
+            let agent = arguments
+                .get("agent")
+                .and_then(Value::as_str)
+                .filter(|value| !value.is_empty())
+                .unwrap_or("codex")
+                .to_string();
+            // The headless Claude launch bypasses permissions. Dropping readOnly silently would
+            // hand a worker meant to only read the right to write.
+            if agent == "claude" && read_only {
+                return Err("readOnly applies to Codex workers only".into());
+            }
+            // A read-only worker gives up on a write instead of asking, so it would never ask.
+            if read_only && ask {
+                return Err("readOnly and askForApproval cannot be combined".into());
+            }
             // The named policies decide for themselves what is worth asking about. The granular
             // form is the one that says plainly which callbacks this client will answer, which is
             // what makes a worker route the question here instead of giving up on it.
@@ -2553,6 +3454,8 @@ fn dispatch_tool(
                     // outside its own workspace - which is the moment worth a question.
                     "workspace-write".to_string(),
                 )
+            } else if read_only {
+                (Value::String("never".into()), SANDBOX_READ_ONLY.to_string())
             } else {
                 (Value::String("never".into()), "workspace-write".to_string())
             };
@@ -2560,7 +3463,7 @@ fn dispatch_tool(
             let timeout_ms = match arguments.get("timeoutSeconds").and_then(Value::as_u64) {
                 Some(0) => None,
                 Some(seconds) => Some(seconds.saturating_mul(1000)),
-                None => Some(DEFAULT_JOB_TIMEOUT_MS),
+                None => guard(&core.inner).default_timeout_ms,
             };
 
             // Ids are reserved under the lock, but the worktrees are not built under it: each one
@@ -2575,14 +3478,6 @@ fn dispatch_tool(
             // One delegate call is one run: the batch the lead asked for at one moment. Grouping by
             // it is what lets several rounds of delegation stay apart instead of piling into one list.
             let planner_id = planner.map(ToOwned::to_owned);
-            // Not validated here on purpose — an unconfigured agent fails cleanly later, in
-            // `spawn_worker`, through the normal delivery path.
-            let agent = arguments
-                .get("agent")
-                .and_then(Value::as_str)
-                .filter(|value| !value.is_empty())
-                .unwrap_or("codex")
-                .to_string();
 
             // Resolved here so the refusal happens before anything is created, and so the job
             // records the set's real name rather than whatever spelling the planner used.
@@ -2646,6 +3541,20 @@ fn dispatch_tool(
                 for ((spec, id), (job_cwd, worktree)) in
                     tasks.into_iter().zip(ids).zip(prepared.into_iter())
                 {
+                    // The same planner sending the same task again replaces the worker that ended
+                    // without finishing it. A finished worker stays: its result is still the answer.
+                    for earlier in inner.jobs.values_mut() {
+                        if earlier.superseded_by.is_none()
+                            && earlier.planner_id == planner_id
+                            && earlier.spec == spec
+                            && matches!(
+                                earlier.status.as_str(),
+                                STATUS_INTERRUPTED | STATUS_CANCELLED | STATUS_FAILED
+                            )
+                        {
+                            earlier.superseded_by = Some(id.clone());
+                        }
+                    }
                     inner.jobs.insert(
                         id.clone(),
                         Job {
@@ -2675,13 +3584,17 @@ fn dispatch_tool(
                             approval_policy: approval_policy.clone(),
                             sandbox: sandbox.clone(),
                             web_search,
+                            role: role.clone(),
+                            model: model.clone(),
+                            effort: effort.clone(),
                             pending: None,
                             child: None,
                             stdin: None,
                             inbox: VecDeque::new(),
-                            routing: None,
+                            routing: fallback_note.clone(),
                             awaiting_steer: false,
                             next_request_id: 10,
+                            superseded_by: None,
                         },
                     );
                     inner.order.push(id.clone());
@@ -2812,7 +3725,14 @@ fn dispatch_tool(
                 })),
             }
         }
-        "alethe_status" => Ok(core.snapshot()),
+        "alethe_status" => Ok(planner_status(
+            core.snapshot(),
+            planner,
+            arguments
+                .get("all")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
+        )),
 
         "alethe_steer" => {
             let job_id = required_str(arguments, "jobId")?;
@@ -2908,10 +3828,12 @@ fn dispatch_tool(
                         .ok_or_else(|| format!("unknown job {job_id}"))?;
                     job.inbox.push_back(message);
                     job.status = STATUS_QUEUED.to_string();
+                    job.superseded_by = None;
                     inner.queue.push_back(job_id.clone());
                     core.notify(&inner);
                     true
                 };
+                core.persist();
                 core.drain_queue();
                 return Ok(
                     json!({ "revived": job_id, "resumedThread": thread_id, "queued": queued }),
@@ -2964,6 +3886,7 @@ fn dispatch_tool(
             };
             if let Some(job) = inner.jobs.get_mut(&job_id) {
                 job.status = STATUS_RUNNING.to_string();
+                job.superseded_by = None;
                 job.outcome = None;
                 job.ended_at = None;
                 job.reply.clear();
@@ -2978,6 +3901,7 @@ fn dispatch_tool(
                 core.settle(&job_id, STATUS_FAILED, "send-failed", &error);
                 return Err(error);
             }
+            core.persist();
             Ok(json!({ "sent": job_id }))
         }
 
@@ -3087,4 +4011,338 @@ pub fn handle_mcp_body(core: &Core, body: &str, planner: Option<&str>) -> Option
     };
 
     Some(response.to_string())
+}
+
+#[cfg(test)]
+mod restart_tests {
+    use super::*;
+
+    fn finished_job(worktree: Option<&str>, approval_policy: &str, timeout_ms: Option<u64>) -> Job {
+        Job {
+            id: "job-07".into(),
+            planner_id: Some("planner-a".into()),
+            agent: "claude".into(),
+            run_id: "run-03".into(),
+            run_label: Some("fix the parser".into()),
+            spec: "Make the parser accept trailing commas.".into(),
+            cwd: worktree.unwrap_or("C:/repo/app").into(),
+            status: STATUS_FAILED.into(),
+            thread_id: Some("thread-1".into()),
+            active_turn_id: None,
+            reply: String::new(),
+            report: String::new(),
+            plan: Vec::new(),
+            diff: None,
+            tokens: None,
+            cost_usd: None,
+            quota: None,
+            outcome: Some("failed".into()),
+            started_at: Some(1),
+            ended_at: Some(2),
+            worktree: worktree.map(Into::into),
+            timeout_ms,
+            approval_policy: approval_policy.into(),
+            sandbox: "workspace-write".into(),
+            web_search: true,
+            pending: None,
+            child: None,
+            stdin: None,
+            inbox: VecDeque::new(),
+            routing: None,
+            awaiting_steer: false,
+            next_request_id: 10,
+            superseded_by: None,
+            role: None,
+            model: None,
+            effort: None,
+            rules_name: None,
+        }
+    }
+
+    // The board's Restart runs the same request again as a new worker (#242).
+    #[test]
+    fn restart_repeats_the_original_request() {
+        let arguments = restart_arguments(&finished_job(None, "\"never\"", Some(900_000)));
+
+        assert_eq!(
+            arguments["tasks"],
+            json!(["Make the parser accept trailing commas."])
+        );
+        assert_eq!(arguments["agent"], json!("claude"));
+        assert_eq!(arguments["cwd"], json!("C:/repo/app"));
+        assert_eq!(arguments["label"], json!("fix the parser"));
+        assert_eq!(arguments["isolate"], json!(false));
+        assert_eq!(arguments["askForApproval"], json!(false));
+        assert_eq!(arguments["webSearch"], json!(true));
+        assert_eq!(arguments["timeoutSeconds"], json!(900));
+    }
+
+    #[test]
+    fn restart_of_an_isolated_worker_gets_a_fresh_worktree_of_the_same_repository() {
+        let worktree = PathBuf::from("C:/repo")
+            .join(".alethe")
+            .join("worktrees")
+            .join("job-07");
+        let arguments = restart_arguments(&finished_job(
+            Some(&worktree.to_string_lossy()),
+            "{\"granular\":{\"sandbox_approval\":true}}",
+            None,
+        ));
+
+        assert_eq!(
+            arguments["cwd"],
+            json!(PathBuf::from("C:/repo").to_string_lossy())
+        );
+        assert_eq!(arguments["isolate"], json!(true));
+        assert_eq!(arguments["askForApproval"], json!(true));
+        assert_eq!(arguments["timeoutSeconds"], json!(0));
+    }
+
+    // A worker restarts on the model, effort and sandbox it was delegated with, or on its role.
+    #[test]
+    fn restart_keeps_the_model_effort_read_only_or_role_of_the_worker() {
+        let delegated = Job {
+            agent: "codex".into(),
+            model: Some("gpt-6-astra".into()),
+            effort: Some("high".into()),
+            sandbox: SANDBOX_READ_ONLY.into(),
+            ..finished_job(None, "\"never\"", Some(900_000))
+        };
+        let arguments = restart_arguments(&delegated);
+        assert_eq!(arguments["agent"], json!("codex"));
+        assert_eq!(arguments["model"], json!("gpt-6-astra"));
+        assert_eq!(arguments["effort"], json!("high"));
+        assert_eq!(arguments["readOnly"], json!(true));
+
+        let reviewer = Job {
+            role: Some("reviewer".into()),
+            ..delegated
+        };
+        let arguments = restart_arguments(&reviewer);
+        assert_eq!(arguments["role"], json!("reviewer"));
+        for field in ROLE_FIELDS {
+            assert!(
+                !arguments.contains_key(field),
+                "{field} is the role's to set"
+            );
+        }
+    }
+
+    // A restored worker restarts with the budget it was given, not the default one (#242).
+    #[test]
+    fn a_saved_worker_keeps_its_timeout() {
+        for timeout_ms in [None, Some(1_800_000)] {
+            let saved = finished_job(None, "\"never\"", timeout_ms).record();
+            let restored = Job::from_record(&saved).expect("restore");
+            assert_eq!(restored.timeout_ms, timeout_ms);
+        }
+
+        let mut legacy = finished_job(None, "\"never\"", None).record();
+        legacy.as_object_mut().unwrap().remove("timeoutMs");
+        let restored = Job::from_record(&legacy).expect("restore");
+        assert_eq!(restored.timeout_ms, Some(DEFAULT_JOB_TIMEOUT_MS));
+    }
+
+    /// One slot, taken by a running worker, and a second worker waiting for it. The directory does
+    /// not exist and no launcher is registered, so nothing can really start if the queue drains.
+    fn core_with_a_queued_worker() -> Core {
+        let core = Core::default();
+        {
+            let mut inner = guard(&core.inner);
+            inner.max_concurrent = 1;
+            for (id, status) in [("job-01", STATUS_RUNNING), ("job-02", STATUS_QUEUED)] {
+                let job = Job {
+                    id: id.into(),
+                    status: status.into(),
+                    cwd: "Z:/alethe-test/missing".into(),
+                    worktree: None,
+                    ended_at: None,
+                    ..finished_job(None, "\"never\"", Some(900_000))
+                };
+                inner.jobs.insert(id.into(), job);
+                inner.order.push(id.into());
+            }
+            inner.queue.push_back("job-02".into());
+            inner.running = 1;
+        }
+        core
+    }
+
+    // Stopping a worker that never got a slot must not free one, nor leave it in the queue (#242).
+    #[test]
+    fn stopping_a_queued_worker_does_not_start_it() {
+        let core = core_with_a_queued_worker();
+        let mut arguments = Map::new();
+        arguments.insert("jobIds".into(), json!(["job-02"]));
+
+        call_tool(&core, "alethe_cancel", &arguments, None).expect("cancel");
+
+        let inner = guard(&core.inner);
+        assert_eq!(inner.jobs["job-02"].status, STATUS_CANCELLED);
+        assert_eq!(inner.running, 1);
+        assert!(inner.queue.is_empty());
+    }
+
+    #[test]
+    fn restarting_a_queued_worker_leaves_one_worker_waiting() {
+        let core = core_with_a_queued_worker();
+
+        restart_job(&core, "job-02").expect("restart");
+
+        let inner = guard(&core.inner);
+        assert_eq!(inner.jobs["job-02"].status, STATUS_CANCELLED);
+        assert_eq!(inner.running, 1);
+        let waiting: Vec<&String> = inner.queue.iter().collect();
+        assert_eq!(waiting.len(), 1);
+        assert_ne!(waiting[0], "job-02");
+        assert_eq!(inner.jobs[waiting[0].as_str()].status, STATUS_QUEUED);
+    }
+
+    use super::{
+        claude_worker_args, codex_models, disable_plugins, guard, thread_resume_params,
+        thread_start_params, Core, OrchestrationSettings,
+    };
+    use serde_json::json;
+
+    // The model, effort and sandbox a worker was delegated with reach its Codex thread (#252).
+    #[test]
+    fn a_codex_thread_starts_on_the_delegated_model_effort_and_sandbox() {
+        let params = thread_start_params(
+            "/repo",
+            "\"never\"",
+            "read-only",
+            false,
+            Some("gpt-6-astra"),
+            Some("high"),
+        );
+        assert_eq!(params["model"], "gpt-6-astra");
+        assert_eq!(params["config"]["model_reasoning_effort"], "high");
+        assert_eq!(params["sandbox"], "read-only");
+        assert_eq!(params["approvalPolicy"], "never");
+        assert_eq!(params["config"]["tools"]["web_search"]["mode"], "disabled");
+    }
+
+    #[test]
+    fn a_codex_thread_without_options_keeps_the_cli_defaults() {
+        let params = thread_start_params("/repo", "\"never\"", "workspace-write", true, None, None);
+        assert!(params.get("model").is_none(), "{params}");
+        assert!(
+            params["config"].get("model_reasoning_effort").is_none(),
+            "{params}"
+        );
+        assert_eq!(params["sandbox"], "workspace-write");
+        assert_eq!(params["config"]["tools"]["web_search"]["mode"], "live");
+    }
+
+    // Plugins listed in the Orchestration settings are off in a worker's thread (#266).
+    #[test]
+    fn a_codex_worker_thread_starts_without_the_listed_plugins() {
+        let mut params = thread_start_params("/repo", "\"never\"", "read-only", false, None, None);
+        disable_plugins(&mut params, &["ecc@ecc".into(), "ponytail@ponytail".into()]);
+        assert_eq!(params["config"]["plugins"]["ecc@ecc"]["enabled"], false);
+        assert_eq!(
+            params["config"]["plugins"]["ponytail@ponytail"]["enabled"],
+            false
+        );
+        assert_eq!(params["config"]["tools"]["web_search"]["mode"], "disabled");
+
+        let mut untouched =
+            thread_start_params("/repo", "\"never\"", "read-only", false, None, None);
+        disable_plugins(&mut untouched, &[]);
+        assert!(untouched["config"].get("plugins").is_none(), "{untouched}");
+    }
+
+    #[test]
+    fn the_settings_carry_the_plugins_workers_start_without() {
+        let core = Core::default();
+        let settings: OrchestrationSettings = serde_json::from_value(json!({
+            "maxConcurrent": 4,
+            "defaultTimeoutSeconds": 900,
+            "workerDisabledPlugins": ["ecc@ecc"]
+        }))
+        .expect("settings");
+        core.apply_settings(settings);
+        assert_eq!(
+            guard(&core.inner).worker_disabled_plugins,
+            vec!["ecc@ecc".to_string()]
+        );
+
+        // Settings saved before the list existed still parse.
+        let older: OrchestrationSettings =
+            serde_json::from_value(json!({ "maxConcurrent": 4, "defaultTimeoutSeconds": 900 }))
+                .expect("older settings");
+        assert!(older.worker_disabled_plugins.is_empty());
+    }
+
+    // A worker picked up again after its process died must not lose its read-only sandbox.
+    #[test]
+    fn a_resumed_codex_thread_keeps_its_model_effort_and_sandbox() {
+        let params = thread_resume_params(
+            "thread-1",
+            "/repo",
+            "\"never\"",
+            "read-only",
+            false,
+            Some("gpt-6-astra"),
+            Some("high"),
+        );
+        assert_eq!(params["threadId"], "thread-1");
+        assert_eq!(params["model"], "gpt-6-astra");
+        assert_eq!(params["config"]["model_reasoning_effort"], "high");
+        assert_eq!(params["sandbox"], "read-only");
+    }
+
+    // Preferences list the models Codex reports, with the efforts each one accepts (#254).
+    #[test]
+    fn the_codex_model_list_keeps_visible_models_and_their_efforts() {
+        let result = json!({
+            "data": [
+                {
+                    "id": "gpt-6.1-sol",
+                    "model": "gpt-6.1-sol",
+                    "displayName": "GPT-6.1 Sol",
+                    "defaultReasoningEffort": "low",
+                    "supportedReasoningEfforts": [
+                        { "reasoningEffort": "low", "description": "fast" },
+                        { "reasoningEffort": "high", "description": "deep" }
+                    ],
+                    "hidden": false
+                },
+                {
+                    "id": "internal",
+                    "model": "internal",
+                    "displayName": "Internal",
+                    "defaultReasoningEffort": "medium",
+                    "supportedReasoningEfforts": [],
+                    "hidden": true
+                }
+            ],
+            "nextCursor": null
+        });
+        assert_eq!(
+            codex_models(&result),
+            json!([{
+                "model": "gpt-6.1-sol",
+                "name": "GPT-6.1 Sol",
+                "defaultEffort": "low",
+                "efforts": ["low", "high"]
+            }])
+        );
+    }
+
+    #[test]
+    fn a_claude_worker_is_launched_on_the_delegated_model() {
+        assert_eq!(
+            claude_worker_args(Some("session-1"), Some("claude-sonnet-5-5"), Some("high")),
+            [
+                "--resume",
+                "session-1",
+                "--model",
+                "claude-sonnet-5-5",
+                "--effort",
+                "high"
+            ]
+        );
+        assert!(claude_worker_args(None, None, None).is_empty());
+    }
 }

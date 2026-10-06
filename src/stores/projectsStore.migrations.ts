@@ -6,6 +6,8 @@ import {
   legacyTodosFeatureFlag,
   normalizeEnabledFeatures,
 } from '../lib/features'
+import { normalizeExperimentalAgentPermissionMode } from '../lib/experimentalAgentPolicy'
+import { normalizeOrchestrationSettings } from '../lib/orchestrationSettings'
 import { recordLegacyGitFlag, recordLegacyTodosFlag } from '../lib/plugins/legacyMigration'
 import { normalizePort } from '../lib/router9'
 import { normalizeAppIconTheme } from '../lib/themeIcons'
@@ -13,6 +15,7 @@ import { normalizeTodoTags, normalizeTodoTitle } from '../lib/todos'
 import {
   DEFAULT_PREFERENCES,
   DEFAULT_ROUTER9_PREFERENCES,
+  DEFAULT_TERMINAL_FONT_FAMILY,
   EMPTY_PROJECTS_FILE,
   type Group,
   GROUP_COLORS,
@@ -20,6 +23,7 @@ import {
   type Project,
   type ProjectsFile,
   type TodoItem,
+  type UsageProviderId,
   type WorkspaceContainer,
   type WorkspaceRecentTab,
   type WorkspaceTab,
@@ -85,6 +89,32 @@ function normalizeViewPlacements(
   return placements
 }
 
+const USAGE_PROVIDER_IDS = Object.keys(DEFAULT_PREFERENCES.usageAccess) as UsageProviderId[]
+
+function isUsageAccessRecord(value: unknown): value is Partial<Record<UsageProviderId, unknown>> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** A provider the saved choice does not name stays off: reading it was never agreed to. */
+function normalizeUsageAccess(raw: unknown): Preferences['usageAccess'] {
+  const saved = isUsageAccessRecord(raw) ? raw : {}
+  return Object.fromEntries(
+    USAGE_PROVIDER_IDS.map((id) => [id, saved[id] === true]),
+  ) as Preferences['usageAccess']
+}
+
+/**
+ * A file saved before the usage consent existed belongs to someone who already had the meters
+ * running, so every provider stays on for them. Only a profile with no saved file starts off.
+ */
+function usageAccessOfSavedFile(rawPreferences: unknown): Preferences['usageAccess'] {
+  const raw = (rawPreferences as LegacyPreferences | undefined)?.usageAccess
+  if (isUsageAccessRecord(raw)) return normalizeUsageAccess(raw)
+  return Object.fromEntries(
+    USAGE_PROVIDER_IDS.map((id) => [id, true]),
+  ) as Preferences['usageAccess']
+}
+
 export function normalizePreferences(raw: LegacyPreferences | undefined): Preferences {
   // Git Control became a plugin; its old toggle is handed to the plugin host.
   recordLegacyGitFlag(legacyGitFeatureFlag(raw))
@@ -123,17 +153,26 @@ export function normalizePreferences(raw: LegacyPreferences | undefined): Prefer
     enabledAgents: { ...DEFAULT_PREFERENCES.enabledAgents, ...preferences.enabledAgents },
 
     enabledFeatures: normalizeEnabledFeatures(raw),
+    usageAccess: normalizeUsageAccess(raw?.usageAccess),
+    orchestration: normalizeOrchestrationSettings(preferences.orchestration),
     leftSidebarVisible: raw?.leftSidebarVisible ?? true,
     rightSidebarVisible: raw?.rightSidebarVisible ?? true,
     leftSidebarWidth: Math.min(380, Math.max(220, Math.round(raw?.leftSidebarWidth ?? 286))),
     rightSidebarWidth: Math.min(420, Math.max(260, Math.round(raw?.rightSidebarWidth ?? 300))),
-    language: preferences.language === 'pt-BR' ? 'pt-BR' : 'en',
+    language:
+      preferences.language === 'pt-BR' || preferences.language === 'zh-CN'
+        ? preferences.language
+        : 'en',
     visualStyle: raw?.visualStyle === 'clean' ? 'clean' : 'normal',
     motionPreference: raw?.motionPreference === 'reduced' ? 'reduced' : 'animated',
     accountCreated: legacyAccountCreated,
     topbarStyle: preferences.topbarStyle === 'three-areas' ? 'three-areas' : 'classic',
     viewPlacements: normalizeViewPlacements(preferences),
     mcpDefaultScope: preferences.mcpDefaultScope === 'project' ? 'project' : 'global',
+    handoffScope: normalizeHandoffScope(raw?.handoffScope),
+    experimentalAgentPermissionMode: normalizeExperimentalAgentPermissionMode(
+      raw?.experimentalAgentPermissionMode,
+    ),
     mcpOnboardingSeen: Boolean(preferences.mcpOnboardingSeen),
     setupWalkthrough: {
       ...DEFAULT_PREFERENCES.setupWalkthrough,
@@ -145,7 +184,8 @@ export function normalizePreferences(raw: LegacyPreferences | undefined): Prefer
     profileImageUrl: preferences.profileImageUrl.trim(),
     todoStoragePath: preferences.todoStoragePath.trim(),
     spotifyClientId: preferences.spotifyClientId.trim(),
-    spotifyClientSecret: preferences.spotifyClientSecret.trim(),
+    // The backend migrates a legacy value before hydration. Keep this field runtime-only.
+    spotifyClientSecret: '',
     uiZoom: clampUiZoom(preferences.uiZoom),
     appIconTheme: normalizeAppIconTheme(preferences.appIconTheme),
     spawnConcurrency: clampSpawnConcurrency(preferences.spawnConcurrency),
@@ -205,7 +245,26 @@ export function normalizePreferences(raw: LegacyPreferences | undefined): Prefer
       DEFAULT_PREFERENCES.pomodoroLongBreakMinutes,
     ),
     pomodoroSession: normalizePomodoroSession(raw?.pomodoroSession),
+    shellPath: normalizeNonEmptyString(raw?.shellPath),
+    terminalFontFamily:
+      normalizeNonEmptyString(raw?.terminalFontFamily) ?? DEFAULT_TERMINAL_FONT_FAMILY,
   }
+}
+
+/**
+ * A file saved before the choice existed keeps the full conversation. A value this build does
+ * not recognize is narrowed instead, matching what the backend does with one.
+ */
+function normalizeHandoffScope(value: unknown): Preferences['handoffScope'] {
+  if (value === undefined || value === null) return DEFAULT_PREFERENCES.handoffScope
+  return value === 'full' ? 'full' : 'user-only'
+}
+
+/** A cleared input persists as `''`; it must fall back instead of spawning an empty binary. */
+function normalizeNonEmptyString(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
 }
 
 function clampPomodoroMinutes(value: unknown, fallback: number): number {
@@ -472,6 +531,7 @@ export function migrate(parsed: any): ProjectsFile {
     ...base,
     version: 9,
     projects,
+    preferences: { ...base.preferences, usageAccess: usageAccessOfSavedFile(parsed.preferences) },
     workspace: {
       ...base.workspace,
       containers: migrateSnapshot(

@@ -8,13 +8,18 @@ import {
   materializeAgentHandoff,
   prepareAgentHandoff,
 } from '../../lib/tauri'
-import { AGENT_TYPE_LABELS, UNRESTRICTED_FLAG } from '../../lib/types'
+import { AGENT_TYPE_LABELS, type HandoffScope, UNRESTRICTED_FLAG } from '../../lib/types'
 import { useProjectsStore } from '../../stores/projectsStore'
 import { useUiStore } from '../../stores/uiStore'
 import styles from './HandoffModal.module.css'
 import { Modal } from './Modal'
 
 const MAX_HANDOFF_BYTES = 64 * 1024
+
+const SCOPES = [
+  { value: 'full', label: 'handoff.scopeFull', hint: 'handoff.scopeFullHint' },
+  { value: 'user-only', label: 'handoff.scopeUserOnly', hint: 'handoff.scopeUserOnlyHint' },
+] as const satisfies readonly { value: HandoffScope; label: string; hint: string }[]
 
 function targetFor(source: HandoffProvider): HandoffProvider {
   return source === 'claude' ? 'codex' : 'claude'
@@ -29,9 +34,9 @@ export function HandoffModal() {
   const requestPaneFocus = useUiStore((state) => state.requestPaneFocus)
   const projects = useProjectsStore((state) => state.projects)
   const createTerminal = useProjectsStore((state) => state.createTerminal)
-  const unrestrictedDefault = useProjectsStore(
-    (state) => state.preferences.alwaysStartUnrestricted,
-  )
+  const unrestrictedDefault = useProjectsStore((state) => state.preferences.alwaysStartUnrestricted)
+  const scope = useProjectsStore((state) => state.preferences.handoffScope)
+  const setPreferences = useProjectsStore((state) => state.setPreferences)
 
   const [draft, setDraft] = useState<HandoffDraft | null>(null)
   const [content, setContent] = useState('')
@@ -47,7 +52,8 @@ export function HandoffModal() {
     typeof context?.sourceSessionId === 'string' ? context.sourceSessionId : undefined
   const project = projects.find((entry) => entry.id === projectId) ?? null
   const terminal = project?.terminals.find((entry) => entry.id === terminalId) ?? null
-  const activeTab = terminal?.tabs.find((entry) => entry.id === terminal.activeTabId) ?? terminal?.tabs[0]
+  const activeTab =
+    terminal?.tabs.find((entry) => entry.id === terminal.activeTabId) ?? terminal?.tabs[0]
   const cwd = activeTab?.cwd || terminal?.cwd || project?.defaultCwd || ''
   const sourceSessionId = requestedSessionId || activeTab?.sessionId
   const byteCount = useMemo(() => new TextEncoder().encode(content).length, [content])
@@ -56,7 +62,11 @@ export function HandoffModal() {
         t('handoff.lossPrivate'),
         ...(draft.usedFallback ? [t('handoff.fallbackNewest')] : []),
         ...(draft.omittedEventCount > 0
-          ? [t('handoff.lossOmitted', { count: draft.omittedEventCount })]
+          ? [
+              t(scope === 'full' ? 'handoff.lossOmitted' : 'handoff.lossOmittedUserOnly', {
+                count: draft.omittedEventCount,
+              }),
+            ]
           : []),
         ...(draft.redactionCount > 0
           ? [t('handoff.lossRedacted', { count: draft.redactionCount })]
@@ -76,6 +86,7 @@ export function HandoffModal() {
       targetProvider: target,
       sourceSessionId,
       cwd,
+      scope,
     })
       .then((result) => {
         if (cancelled) return
@@ -88,7 +99,7 @@ export function HandoffModal() {
     return () => {
       cancelled = true
     }
-  }, [open, cwd, source, target, sourceSessionId, unrestrictedDefault])
+  }, [open, cwd, source, target, sourceSessionId, scope, unrestrictedDefault])
 
   const continueInTarget = async () => {
     if (!draft || !project || !content.trim() || byteCount > MAX_HANDOFF_BYTES) return
@@ -131,7 +142,10 @@ export function HandoffModal() {
     <Modal
       open={open}
       onClose={closeModal}
-      title={t('handoff.title', { source: AGENT_TYPE_LABELS[source], target: AGENT_TYPE_LABELS[target] })}
+      title={t('handoff.title', {
+        source: AGENT_TYPE_LABELS[source],
+        target: AGENT_TYPE_LABELS[target],
+      })}
       width={720}
       footer={
         <>
@@ -144,12 +158,34 @@ export function HandoffModal() {
             onClick={() => void continueInTarget()}
             disabled={!draft || busy || !content.trim() || byteCount > MAX_HANDOFF_BYTES}
           >
-            {busy ? t('handoff.starting') : t('handoff.continue', { agent: AGENT_TYPE_LABELS[target] })}
+            {busy
+              ? t('handoff.starting')
+              : t('handoff.continue', { agent: AGENT_TYPE_LABELS[target] })}
           </button>
         </>
       }
     >
       {!cwd ? <div className={styles.error}>{t('handoff.noCwd')}</div> : null}
+      {cwd ? (
+        <fieldset className={styles.scope} disabled={busy}>
+          <legend className={styles.label}>{t('handoff.scopeLabel')}</legend>
+          {SCOPES.map((option) => (
+            <label key={option.value} className={styles.scopeOption}>
+              <input
+                type="radio"
+                name="handoff-scope"
+                value={option.value}
+                checked={scope === option.value}
+                onChange={() => setPreferences({ handoffScope: option.value })}
+              />
+              <span>
+                {t(option.label)}
+                <span className={styles.scopeHint}>{t(option.hint)}</span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+      ) : null}
       {error ? <div className={styles.error}>{error}</div> : null}
       {!draft && !error ? <div className={styles.loading}>{t('handoff.preparing')}</div> : null}
       {draft ? (
@@ -162,7 +198,9 @@ export function HandoffModal() {
           </div>
           {warnings.length ? (
             <ul className={styles.warnings}>
-              {warnings.map((warning) => <li key={warning}>{warning}</li>)}
+              {warnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
             </ul>
           ) : null}
           <label className={styles.label} htmlFor="handoff-content">
@@ -175,7 +213,9 @@ export function HandoffModal() {
             onChange={(event) => setContent(event.target.value)}
             spellCheck={false}
           />
-          <div className={`${styles.counter} ${byteCount > MAX_HANDOFF_BYTES ? styles.counterError : ''}`}>
+          <div
+            className={`${styles.counter} ${byteCount > MAX_HANDOFF_BYTES ? styles.counterError : ''}`}
+          >
             {t('handoff.size', { current: byteCount, max: MAX_HANDOFF_BYTES })}
           </div>
           <label className={styles.unrestricted}>

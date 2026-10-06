@@ -17,6 +17,7 @@ import { extractMediaItems, splitPromotedMedia, type MediaItem } from '../../lib
 import { type ShellControl, shellControls } from '../../lib/orchestratorShells'
 import { shortcutsForJob } from '../../lib/orchestratorShortcuts'
 import { basename } from '../../lib/paths'
+import { openInBrowser } from '../../lib/tauri'
 import type { OrchestratorJob, OrchestratorShell } from '../../lib/tauri/orchestrator'
 import type { OrchestratorShortcut, Theme } from '../../lib/types'
 import { useProjectsStore } from '../../stores/projectsStore'
@@ -45,6 +46,8 @@ export type OrchestratorInspectorProps = {
   projectId: string
   theme: Theme
   terminalTheme: Theme
+  /** A board in its own window has no workspace to open a pane in. */
+  detached?: boolean
   diffText: string | undefined
   diffLoading: boolean
   shortcuts: readonly OrchestratorShortcut[]
@@ -84,6 +87,7 @@ type WorkerBodyProps = {
   onSelectTab: (tab: Tab) => void
   projectId: string
   theme: Theme
+  detached: boolean
   diffText: string | undefined
   diffLoading: boolean
   shortcuts: readonly OrchestratorShortcut[]
@@ -103,6 +107,7 @@ function WorkerBody({
   onSelectTab,
   projectId,
   theme,
+  detached,
   diffText,
   diffLoading,
   shortcuts,
@@ -259,7 +264,9 @@ function WorkerBody({
                       className={styles.mediaLink}
                       title={item.value}
                       onClick={() =>
-                        useProjectsStore.getState().createWebPane(projectId, { url: item.value })
+                        detached
+                          ? void openInBrowser(item.value).catch(() => undefined)
+                          : useProjectsStore.getState().createWebPane(projectId, { url: item.value })
                       }
                     >
                       <Globe2 size={13} />
@@ -463,6 +470,7 @@ export function OrchestratorInspector(props: OrchestratorInspectorProps) {
             onSelectTab={selectTab}
             projectId={props.projectId}
             theme={props.theme}
+            detached={props.detached ?? false}
             diffText={props.diffText}
             diffLoading={props.diffLoading}
             shortcuts={props.shortcuts}

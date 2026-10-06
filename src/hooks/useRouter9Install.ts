@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { installCommandLine } from '../lib/agentInstall'
+import { INSTALL_SHELL_ENV, installCommandLine } from '../lib/agentInstall'
 import {
   attachPty,
   killPty,
@@ -38,6 +38,8 @@ export function useRouter9Install(onSettled?: () => void) {
   const cleanupRef = useRef<Array<() => void>>([])
   const disposedRef = useRef(false)
   const timerRef = useRef<number | null>(null)
+  // Bumped by every run and by reset(), so an in-flight run can tell it was cancelled.
+  const runRef = useRef(0)
   const settledRef = useRef(onSettled)
   settledRef.current = onSettled
 
@@ -67,6 +69,8 @@ export function useRouter9Install(onSettled?: () => void) {
   const run = useCallback(
     async (next: Router9InstallAction) => {
       if (status === 'running') return
+      const token = ++runRef.current
+      const stale = () => disposedRef.current || runRef.current !== token
       teardown()
       if (!acquireAgentOperation(LOCK_KEY)) return
       setLog('')
@@ -75,11 +79,13 @@ export function useRouter9Install(onSettled?: () => void) {
 
       // Removing the package under a live process would leave an orphan holding the port.
       if (next === 'uninstall') await router9Stop().catch(() => undefined)
+      if (stale()) return
 
       const ptyId = `router9-${next}:${Date.now()}`
       try {
         const command =
           next === 'install' ? await router9InstallCommand() : await router9UninstallCommand()
+        if (stale()) return
         // The shell runs the line and ends with it, so `pty://exit` is the honest signal that the
         // run is over — see `installCommandLine`.
         const spawned = await spawnPty({
@@ -87,36 +93,48 @@ export function useRouter9Install(onSettled?: () => void) {
           rows: 24,
           id: ptyId,
           commandLine: installCommandLine(command),
+          env: INSTALL_SHELL_ENV,
         })
-        if (disposedRef.current) {
+        if (stale()) {
           void killPty(spawned.id).catch(() => undefined)
           return
         }
         ptyIdRef.current = spawned.id
         timerRef.current = window.setTimeout(() => {
-          if (disposedRef.current || ptyIdRef.current !== spawned.id) return
+          if (stale() || ptyIdRef.current !== spawned.id) return
           setLog((current) => trimInstallLog(`${current}\n[alethe] timed out; stopping.`))
           setStatus('failed')
           teardown()
         }, INSTALL_TIMEOUT_MS)
 
-        cleanupRef.current.push(
-          await listenPtyData(spawned.id, (chunk) => {
-            setLog((current) => trimInstallLog(current + chunk))
-          }),
-        )
+        // Checked after each await: a cancel meanwhile already ran teardown(), which never sees a
+        // listener that registers later.
+        const keep = (stop: () => void): boolean => {
+          if (stale()) {
+            stop()
+            return false
+          }
+          cleanupRef.current.push(stop)
+          return true
+        }
+
+        const stopData = await listenPtyData(spawned.id, (chunk) => {
+          if (stale()) return
+          setLog((current) => trimInstallLog(current + chunk))
+        })
+        if (!keep(stopData)) return
         // The command starts with the shell, so the first lines can land before the listener above
         // exists. Ask for what it already printed rather than showing a pane that looks stalled.
         void attachPty(spawned.id)
           .then((replay) => {
-            if (!disposedRef.current && replay) setLog((current) => trimInstallLog(replay + current))
+            if (!stale() && replay) setLog((current) => trimInstallLog(replay + current))
           })
           .catch(() => undefined)
         // `code` is null when the run ended before the exit listener existed: the outcome is read
         // off disk either way, so a missing code costs nothing.
         let settled = false
         const settle = (code: number | null) => {
-          if (settled) return
+          if (settled || stale()) return
           settled = true
           ptyIdRef.current = null
           clearTimer()
@@ -128,28 +146,27 @@ export function useRouter9Install(onSettled?: () => void) {
           // npm exiting clean is not proof the package landed: ask the backend what is on disk.
           void router9Status()
             .then((result) => {
-              if (disposedRef.current) return
+              if (stale()) return
               const worked =
                 next === 'install' ? result.managed.installed : !result.managed.installed
               setStatus(worked ? 'success' : 'failed')
               settledRef.current?.()
             })
             .catch(() => {
-              if (!disposedRef.current) setStatus('failed')
+              if (!stale()) setStatus('failed')
             })
         }
 
-        cleanupRef.current.push(
-          await listenPtyExit(spawned.id, (payload) => settle(payload.code)),
-        )
+        const stopExit = await listenPtyExit(spawned.id, (payload) => settle(payload.code))
+        if (!keep(stopExit)) return
 
         // The command starts with the shell, so a fast one (`npm uninstall` takes a second) can be
         // over before the listener above exists — and its exit event is emitted to nobody, leaving
         // the run stuck on "running" forever. Ask whether the PTY is still there; if it is already
         // gone, the run is done and the outcome is on disk.
         if (!(await ptyExists(spawned.id).catch(() => true))) settle(null)
-
       } catch (error) {
+        if (stale()) return
         setLog((current) => trimInstallLog(`${current}\n${String(error)}`))
         setStatus('failed')
         teardown()
@@ -159,6 +176,7 @@ export function useRouter9Install(onSettled?: () => void) {
   )
 
   const reset = useCallback(() => {
+    runRef.current += 1
     teardown()
     setLog('')
     setAction(null)

@@ -2,10 +2,12 @@ import { AppWindow, ChevronDown, Search, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import { type FeatureDefinition,FEATURES } from '../../../lib/features'
-import { type TFunction,useT } from '../../../lib/i18n'
+import { type TFunction, useT } from '../../../lib/i18n'
+import { enableOrchestratorFeature } from '../../../lib/orchestratorUsageAccess'
 import type { FeatureId } from '../../../lib/types'
 import { useProjectsStore } from '../../../stores/projectsStore'
 import { FEATURE_ICONS } from '../../icons/featureIcons'
+import { AiMemoryPanel } from '../preferences/AiMemoryPanel'
 import styles from './FeaturesStep.module.css'
 
 type GroupId = 'workspace' | 'agents' | 'others'
@@ -19,6 +21,7 @@ const GROUP_OF: Record<FeatureId, GroupId> = {
   aiMemory: 'others',
   gsdSync: 'agents',
   prs: 'workspace',
+  wsl: 'workspace',
 }
 
 const GROUPS: GroupId[] = ['workspace', 'agents', 'others']
@@ -49,14 +52,28 @@ function matches(feature: FeatureDefinition, needle: string, t: TFunction): bool
   return haystack.includes(needle)
 }
 
-export function FeaturesStep() {
+type FeaturesStepProps = {
+  expandSecondaryByDefault?: boolean
+  showPlaywrightAdvanced?: boolean
+  /** Install and run state for ai-memory under its switch; Preferences only, not onboarding. */
+  showAiMemoryPanel?: boolean
+}
+
+export function FeaturesStep({
+  expandSecondaryByDefault = false,
+  showPlaywrightAdvanced = false,
+  showAiMemoryPanel = false,
+}: FeaturesStepProps = {}) {
   const t = useT()
   const enabledFeatures = useProjectsStore((s) => s.preferences.enabledFeatures)
   const playwrightBrowserMode = useProjectsStore((s) => s.preferences.playwrightBrowserMode)
+  const playwrightDedicatedHeadless = useProjectsStore(
+    (s) => s.preferences.playwrightDedicatedHeadless,
+  )
   const setPreferences = useProjectsStore((s) => s.setPreferences)
 
   const [term, setTerm] = useState('')
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(expandSecondaryByDefault)
 
   const needle = normalize(term.trim())
   const searching = needle.length > 0
@@ -69,6 +86,10 @@ export function FeaturesStep() {
 
   const toggle = (feature: FeatureDefinition) => {
     const active = enabledFeatures[feature.id]
+    if (feature.id === 'orchestrator' && !active) {
+      enableOrchestratorFeature()
+      return
+    }
     setPreferences({
       enabledFeatures: { ...enabledFeatures, [feature.id]: !active },
     })
@@ -141,30 +162,49 @@ export function FeaturesStep() {
                   </button>
 
                   {feature.id === 'playwright' && active ? (
-                    <div className={styles.subRow}>
-                      <span className={styles.subIcon}>
-                        <AppWindow size={13} />
-                      </span>
-                      <span className={styles.rowCopy}>
-                        <span className={styles.subTitle}>
-                          {t('features.playwright.browserMode.label')}
+                    <>
+                      <div className={styles.subRow}>
+                        <span className={styles.subIcon}>
+                          <AppWindow size={13} />
                         </span>
-                        <span className={styles.subDesc}>
-                          {t(`features.playwright.browserMode.${playwrightBrowserMode}Hint`)}
+                        <span className={styles.rowCopy}>
+                          <span className={styles.subTitle}>
+                            {t('features.playwright.browserMode.label')}
+                          </span>
+                          <span className={styles.subDesc}>
+                            {t(`features.playwright.browserMode.${playwrightBrowserMode}Hint`)}
+                          </span>
                         </span>
-                      </span>
-                      <span className={styles.segmented}>
-                        {(['shared', 'dedicated'] as const).map((mode) => (
-                          <button
-                            key={mode}
-                            type="button"
-                            data-on={playwrightBrowserMode === mode ? '' : undefined}
-                            onClick={() => setPreferences({ playwrightBrowserMode: mode })}
-                          >
-                            {t(`features.playwright.browserMode.${mode}`)}
-                          </button>
-                        ))}
-                      </span>
+                        <span className={styles.segmented}>
+                          {(['shared', 'dedicated'] as const).map((mode) => (
+                            <button
+                              key={mode}
+                              type="button"
+                              data-on={playwrightBrowserMode === mode ? '' : undefined}
+                              onClick={() => setPreferences({ playwrightBrowserMode: mode })}
+                            >
+                              {t(`features.playwright.browserMode.${mode}`)}
+                            </button>
+                          ))}
+                        </span>
+                      </div>
+                      {showPlaywrightAdvanced && playwrightBrowserMode === 'dedicated' ? (
+                        <label className={styles.subCheckbox}>
+                          <input
+                            type="checkbox"
+                            checked={playwrightDedicatedHeadless}
+                            onChange={(event) =>
+                              setPreferences({ playwrightDedicatedHeadless: event.target.checked })
+                            }
+                          />
+                          <span>{t('features.playwright.headless.label')}</span>
+                        </label>
+                      ) : null}
+                    </>
+                  ) : null}
+                  {showAiMemoryPanel && feature.id === 'aiMemory' && active ? (
+                    <div className={styles.subPanel}>
+                      <AiMemoryPanel />
                     </div>
                   ) : null}
                 </div>

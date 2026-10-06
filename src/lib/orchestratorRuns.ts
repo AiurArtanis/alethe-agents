@@ -1,4 +1,5 @@
 import type { OrchestratorJob, OrchestratorPlanner } from './tauri'
+import type { Project } from './types'
 
 export type RunLane = 'blocked' | 'running' | 'queued' | 'interrupted' | 'failed' | 'finished'
 
@@ -146,6 +147,8 @@ export type PlannerGroup = {
   agent: string | null
   runs: OrchestratorRun[]
   jobs: OrchestratorJob[]
+  /** Workers whose task was sent again. Off the board, but what they spent still counts. */
+  superseded: OrchestratorJob[]
   counts: RunCounts
   state: RunLane
 }
@@ -157,10 +160,21 @@ function toGroup(
   id: string | null,
   label: string | null,
   agent: string | null,
-  jobs: OrchestratorJob[],
+  all: OrchestratorJob[],
 ): PlannerGroup {
+  const jobs = all.filter((job) => !job.supersededBy)
+  const superseded = all.filter((job) => job.supersededBy)
   const counts = countLanes(jobs)
-  return { id, label, agent, runs: groupRuns(jobs), jobs, counts, state: worstState(counts) }
+  return {
+    id,
+    label,
+    agent,
+    runs: groupRuns(jobs),
+    jobs,
+    superseded,
+    counts,
+    state: worstState(counts),
+  }
 }
 
 function clean(value: string | null | undefined): string | null {
@@ -207,4 +221,25 @@ export function groupPlanners(
   if (orphans) groups.push(toGroup(null, null, null, orphans))
 
   return groups
+}
+
+/**
+ * The planners a board should show first: the ptys of the terminal it is grouped with, its active
+ * tab first. Without it, a board opened next to one terminal would show whichever planner sorts
+ * first by name (#248).
+ */
+export function boardPlannerIds(project: Project | undefined, boardTerminalId: string): string[] {
+  const group = project?.paneGroups?.find(
+    (entry) => entry.kind === 'orchestration' && entry.paneIds.includes(boardTerminalId),
+  )
+  // A board started on an open terminal names it; one made with its planner is grouped after it.
+  const plannerId = group?.plannerId ?? group?.paneIds[0]
+  const planner = project?.terminals.find(
+    (terminal) => terminal.id === plannerId && terminal.id !== boardTerminalId,
+  )
+  if (!planner) return []
+  const tabs = [...planner.tabs].sort(
+    (a, b) => Number(b.id === planner.activeTabId) - Number(a.id === planner.activeTabId),
+  )
+  return tabs.flatMap((tab) => (tab.ptyId ? [tab.ptyId] : []))
 }

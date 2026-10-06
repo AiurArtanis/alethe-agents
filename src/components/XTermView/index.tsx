@@ -19,14 +19,26 @@ import { normalizeBrowserUrl } from '../../lib/browserUrl'
 import { pickFile } from '../../lib/dialog'
 import { getLocale, translate, useT } from '../../lib/i18n'
 import { writeScopedStorage } from '../../lib/storageNamespace'
-import { openInBrowser, openInFileExplorer, writeClipboardText, writePty } from '../../lib/tauri'
+import {
+  findRelativePath,
+  homeDirectory,
+  openInBrowser,
+  openInFileExplorer,
+  writeClipboardText,
+  writePty,
+} from '../../lib/tauri'
 import { agentLabel, resolveAgentCliCommand } from '../../lib/agentProviders'
 import type { AgentRuntimeProfile, AgentType, Theme } from '../../lib/types'
+import { wslTargetFor } from '../../lib/wsl'
 import { useProjectsStore } from '../../stores/projectsStore'
 import { useUiStore } from '../../stores/uiStore'
 import { AgentInstallButton } from '../AgentInstall/AgentInstallButton'
 import { DotmCircular2 } from '../ui/dotm-circular-2'
-import { resolveTerminalFilePath, type DetectedTerminalLink } from './terminalLinks'
+import {
+  type DetectedTerminalLink,
+  relativeTerminalPath,
+  resolveTerminalFilePath,
+} from './terminalLinks'
 import { applyPromptHistoryInput, loadPromptHistory, PROMPT_HISTORY_KEY } from './terminalWrite'
 import { useXtermSession } from './useXtermSession'
 import { getXtermTheme, type LinkActionState } from './xtermThemes'
@@ -109,6 +121,8 @@ export function XTermView({
     command && command !== 'shell' ? (s.cliPaths[command] ?? null) : null,
   )
   const setCliPath = useProjectsStore((s) => s.setCliPath)
+  const wslEnabled = useProjectsStore((s) => s.preferences.enabledFeatures.wsl)
+  const wslTarget = wslTargetFor(cwd, wslEnabled)
 
   const onSpawnedRef = useRef(onSpawned)
   const onSessionIdRef = useRef(onSessionId)
@@ -140,39 +154,79 @@ export function XTermView({
   const [bootPhase, setBootPhase] = useState<
     'preparing' | 'queued' | 'spawning' | 'attaching' | 'ready'
   >('preparing')
+  const [memoryWait, setMemoryWait] = useState<{
+    availableMb: number
+    waitedMs: number
+    thresholdMb: number
+  } | null>(null)
   const [linkActions, setLinkActions] = useState<LinkActionState | null>(null)
   const [dropActive, setDropActive] = useState(false)
   const sessionPersistenceKey = sessionKey ?? ptyId
 
+  // Bumped on every open and close, so a slow path lookup cannot reopen or retarget the menu.
+  const linkMenuRequestRef = useRef(0)
+
   const hideLinkActions = useCallback(() => {
+    linkMenuRequestRef.current += 1
     setLinkActions(null)
   }, [])
 
+  // Read when a link is clicked, not captured: the link provider keeps the menu callback it was
+  // registered with, and the home folder only arrives after mount.
+  const homeRef = useRef<string | null>(null)
+  useEffect(() => {
+    void homeDirectory()
+      .then((home) => {
+        homeRef.current = home
+      })
+      .catch(() => undefined)
+  }, [])
+
   // estimativa conservadora do tamanho para nunca cortar o menu na viewport.
-  const showLinkActionsMenu = useCallback((event: MouseEvent, link: DetectedTerminalLink) => {
-    event.preventDefault()
-    event.stopPropagation()
+  const showLinkActionsMenu = useCallback(
+    (event: MouseEvent, link: DetectedTerminalLink) => {
+      event.preventDefault()
+      event.stopPropagation()
 
-    terminalRef.current?.clearSelection()
-    window.getSelection()?.removeAllRanges()
+      terminalRef.current?.clearSelection()
+      window.getSelection()?.removeAllRanges()
 
-    const maxLeft = window.innerWidth - LINK_MENU_WIDTH - LINK_MENU_MARGIN
-    const x = Math.max(LINK_MENU_MARGIN, Math.min(event.clientX + LINK_MENU_OFFSET, maxLeft))
-    const below = event.clientY + LINK_MENU_OFFSET
-    const y =
-      below + LINK_MENU_MAX_HEIGHT <= window.innerHeight - LINK_MENU_MARGIN
-        ? below
-        : Math.max(LINK_MENU_MARGIN, event.clientY - LINK_MENU_MAX_HEIGHT - LINK_MENU_OFFSET)
+      const maxLeft = window.innerWidth - LINK_MENU_WIDTH - LINK_MENU_MARGIN
+      const x = Math.max(LINK_MENU_MARGIN, Math.min(event.clientX + LINK_MENU_OFFSET, maxLeft))
+      const below = event.clientY + LINK_MENU_OFFSET
+      const y =
+        below + LINK_MENU_MAX_HEIGHT <= window.innerHeight - LINK_MENU_MARGIN
+          ? below
+          : Math.max(LINK_MENU_MARGIN, event.clientY - LINK_MENU_MAX_HEIGHT - LINK_MENU_OFFSET)
 
-    setLinkActions({
-      text: link.text,
-      target: link.kind === 'path' ? resolveTerminalFilePath(link.target, cwd) : link.target,
-      kind: link.kind,
-      fileKind: link.fileKind,
-      x,
-      y,
-    })
-  }, [cwd])
+      const target =
+        link.kind === 'path'
+          ? resolveTerminalFilePath(link.target, cwd, homeRef.current)
+          : link.target
+      const request = ++linkMenuRequestRef.current
+      const show = (resolved: string) =>
+        request === linkMenuRequestRef.current &&
+        setLinkActions({
+          text: link.text,
+          target: resolved,
+          kind: link.kind,
+          fileKind: link.fileKind,
+          x,
+          y,
+        })
+      const relative = link.kind === 'path' && cwd ? relativeTerminalPath(link.target) : null
+      if (!cwd || relative === null) {
+        show(target)
+        return
+      }
+      // Agents often write in another worktree of the project while the pane stays in the main one.
+      void findRelativePath(cwd, relative).then(
+        (found) => show(found ?? target),
+        () => show(target),
+      )
+    },
+    [cwd],
+  )
 
   useEffect(() => {
     linkActionsRef.current = linkActions
@@ -342,6 +396,7 @@ export function XTermView({
     onLaunchErrorRef,
     onAgentCompleteRef,
     setBootPhase,
+    setMemoryWait,
     setCommandNotFound,
     setLinkActions,
     setRetryKey,
@@ -386,8 +441,13 @@ export function XTermView({
     [setCliPath],
   )
 
-  const bootLabel =
-    bootPhase === 'preparing'
+  const bootLabel = memoryWait
+    ? t('term.bootMemoryWait', {
+        available: Math.round(memoryWait.availableMb),
+        threshold: Math.round(memoryWait.thresholdMb),
+        seconds: Math.floor(memoryWait.waitedMs / 1000),
+      })
+    : bootPhase === 'preparing'
       ? t('term.bootPreparing')
       : bootPhase === 'queued'
         ? t('term.bootQueued')
@@ -427,14 +487,17 @@ export function XTermView({
             agent={commandNotFound as AgentType}
             label={agentLabel(commandNotFound)}
             onInstalled={() => setRetryKey((value) => value + 1)}
+            cwd={cwd}
           />
-          <button
-            type="button"
-            className={styles.overlayBtn}
-            onClick={() => void configurePath(commandNotFound as AgentType)}
-          >
-            {t('xterm.configurePath')}
-          </button>
+          {wslTarget ? null : (
+            <button
+              type="button"
+              className={styles.overlayBtn}
+              onClick={() => void configurePath(commandNotFound as AgentType)}
+            >
+              {t('xterm.configurePath')}
+            </button>
+          )}
         </div>
       ) : null}
       {linkActions

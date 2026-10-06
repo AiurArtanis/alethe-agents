@@ -1,81 +1,50 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const agentHooksSettingsPath = vi.fn(async () => 'hooks.json')
-const orchestratorMcpConfigPath = vi.fn(async () => 'orchestrator-mcp.json')
-const restartPty = vi.fn(async (args: unknown) => ({ id: (args as { id: string }).id }))
+import { useProjectsStore } from '../stores/projectsStore'
+import { resumeSessionInPane } from './paneResume'
+import { restartPty } from './tauri'
 
-vi.mock('./tauri', () => ({
-  agentHooksSettingsPath: (...args: unknown[]) => agentHooksSettingsPath(...args),
-  orchestratorMcpConfigPath: (...args: unknown[]) => orchestratorMcpConfigPath(...args),
-  restartPty: (...args: unknown[]) => restartPty(...args),
+vi.mock('./tauri', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./tauri')>()),
+  agentHooksSettingsPath: vi.fn(async () => 'C:\\Temp\\hooks.json'),
+  restartPty: vi.fn(async ({ id }: { id: string }) => ({ id })),
+  orchestratorMcpConfigPath: vi.fn(async () => 'C:\\Temp\\orchestrator-mcp.json'),
+  playwrightMcpConfigPath: vi.fn(async () => 'C:\\Temp\\playwright-mcp.json'),
+  graphifyMcpConfigPath: vi.fn(async () => 'C:\\Temp\\graphify-mcp.json'),
+  graphifyEnsureGraph: vi.fn(async () => undefined),
+  aiMemoryDetect: vi.fn(async () => ({ installed: false })),
+  aiMemoryMcpConfigPath: vi.fn(async () => 'C:\\Temp\\ai-memory-mcp.json'),
 }))
-
-let orchestratorEnabled = true
-const setSubTabSessionId = vi.fn()
-
-vi.mock('../stores/projectsStore', () => ({
-  useProjectsStore: {
-    getState: () => ({
-      preferences: { enabledFeatures: { orchestrator: orchestratorEnabled } },
-      projects: [],
-      setSubTabSessionId,
-    }),
-  },
-}))
-
-// Mocks must be registered before the module under test is loaded, since it reads the mocked
-// stores/tauri bindings at call time rather than through injected parameters.
-const { resumeSessionInPane } = await import('./paneResume')
-
-const baseParams = {
-  projectId: 'proj-1',
-  terminalId: 'term-1',
-  tabId: 'tab-1',
-  ptyId: 'pty-1',
-  sessionId: 'session-1',
-  cwd: 'C:\\proj',
-} as const
 
 beforeEach(() => {
-  agentHooksSettingsPath.mockClear()
-  orchestratorMcpConfigPath.mockClear()
-  restartPty.mockClear()
-  setSubTabSessionId.mockClear()
-  orchestratorEnabled = true
+  vi.mocked(restartPty).mockClear()
+  const { preferences } = useProjectsStore.getState()
+  useProjectsStore.setState({
+    preferences: {
+      ...preferences,
+      enabledFeatures: { ...preferences.enabledFeatures, orchestrator: true, playwright: true },
+    },
+  })
 })
 
+// Claude takes its MCP servers per launch; a resumed pane that drops them can no longer delegate
+// or reach its other tools (#248).
 describe('resumeSessionInPane', () => {
-  it('fetches the orchestrator mcp config for a resumed claude session and passes it to the launch', async () => {
-    await resumeSessionInPane({ ...baseParams, agent: 'claude' })
+  it('relaunches Claude with its MCP servers', async () => {
+    await resumeSessionInPane({
+      agent: 'claude',
+      projectId: 'proj-1',
+      terminalId: 'term-1',
+      tabId: 'tab-1',
+      ptyId: 'pty-1',
+      sessionId: '6a1f0c9e-2b4d-4c1e-9f3a-7d2e8b5c1a90',
+      cwd: 'C:\\repo',
+    })
 
-    expect(orchestratorMcpConfigPath).toHaveBeenCalledWith('pty-1', expect.any(String), 'claude')
-    expect(restartPty).toHaveBeenCalledWith(
-      expect.objectContaining({
-        extraArgs: expect.arrayContaining(['--mcp-config', 'orchestrator-mcp.json']),
-      }),
-    )
-  })
-
-  it('skips the orchestrator mcp config when the feature is disabled', async () => {
-    orchestratorEnabled = false
-
-    await resumeSessionInPane({ ...baseParams, agent: 'claude' })
-
-    expect(orchestratorMcpConfigPath).not.toHaveBeenCalled()
-    const call = restartPty.mock.calls[0]?.[0] as { extraArgs?: string[] }
-    expect(call.extraArgs ?? []).not.toContain('--mcp-config')
-  })
-
-  it('never fetches an orchestrator mcp config for a non-claude agent', async () => {
-    await resumeSessionInPane({ ...baseParams, agent: 'codex' })
-
-    expect(orchestratorMcpConfigPath).not.toHaveBeenCalled()
-  })
-
-  it('stays non-fatal when fetching the orchestrator mcp config fails, like the normal spawn path', async () => {
-    orchestratorMcpConfigPath.mockRejectedValueOnce(new Error('no mcp config for you'))
-
-    await expect(resumeSessionInPane({ ...baseParams, agent: 'claude' })).resolves.toBeUndefined()
-    expect(restartPty).toHaveBeenCalled()
+    const args = vi.mocked(restartPty).mock.calls[0][0].extraArgs ?? []
+    expect(args).toContain('--resume')
+    const configs = args.flatMap((arg, index) => (args[index - 1] === '--mcp-config' ? [arg] : []))
+    expect(configs.join(' ')).toContain('C:\\Temp\\orchestrator-mcp.json')
+    expect(configs.join(' ')).toContain('C:\\Temp\\playwright-mcp.json')
   })
 })

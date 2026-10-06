@@ -1,11 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  AGENT_INSTALL_CATALOG,
+  installArgv,
   installCommandLine,
   installMethodsFor,
+  installShellLine,
   type InstallToolchain,
   needsNodeToolchain,
+  nodeInstallMethods,
   uninstallMethodsFor,
+  wslInstallMethodsFor,
 } from './agentInstall'
 
 const BARE: InstallToolchain = {
@@ -43,7 +48,7 @@ describe('installMethodsFor', () => {
     expect(methods.map((method) => method.id)).toEqual(['npm', 'winget'])
     expect(methods.map((method) => method.command)).toEqual([
       'npm install -g @github/copilot',
-      'winget install GitHub.Copilot',
+      'winget install --accept-source-agreements --accept-package-agreements GitHub.Copilot',
     ])
   })
 
@@ -71,6 +76,22 @@ describe('installMethodsFor', () => {
       'npm install -g freebuff',
     )
     expect(installMethodsFor('mimo', BARE).map((method) => method.id)).toEqual(['native'])
+  })
+
+  it('installs Grok Build via native or npm, and Codewhale via npm', () => {
+    expect(installMethodsFor('grok', BARE).map((method) => method.id)).toEqual(['native'])
+    expect(installMethodsFor('grok', { ...BARE, npm: true }).map((method) => method.id)).toEqual([
+      'native',
+      'npm',
+    ])
+    expect(installMethodsFor('grok', { ...BARE, npm: true })[1].command).toBe(
+      'npm install -g @xai-official/grok',
+    )
+    expect(installMethodsFor('codewhale', { ...BARE, npm: true })[0].command).toBe(
+      'npm install -g codewhale',
+    )
+    expect(needsNodeToolchain('codewhale', BARE)).toBe(true)
+    expect(needsNodeToolchain('grok', BARE)).toBe(false)
   })
 })
 
@@ -118,7 +139,46 @@ describe('uninstallMethodsFor', () => {
       'choco uninstall opencode -y',
     )
     expect(uninstallMethodsFor('claude', { ...BARE, winget: true })[0].command).toBe(
-      'winget uninstall Anthropic.ClaudeCode',
+      'winget uninstall --accept-source-agreements Anthropic.ClaudeCode',
+    )
+  })
+})
+
+describe('non-interactive installers', () => {
+  const FULL: InstallToolchain = {
+    ...BARE,
+    node: 'v22.3.0',
+    npm: true,
+    winget: true,
+    scoop: true,
+    choco: true,
+  }
+  const agents = Object.keys(AGENT_INSTALL_CATALOG) as Array<keyof typeof AGENT_INSTALL_CATALOG>
+  const installs = [
+    ...agents.flatMap((agent) => installMethodsFor(agent, FULL)),
+    ...nodeInstallMethods(FULL),
+  ]
+  const uninstalls = agents.flatMap((agent) => uninstallMethodsFor(agent, FULL))
+
+  // The install log is read-only: a prompt there can never be answered (#235).
+  it('never leaves winget or choco waiting on a confirmation prompt', () => {
+    const winget = installs.filter((method) => method.id === 'winget')
+    const choco = installs.filter((method) => method.id === 'choco')
+    expect(winget.length).toBeGreaterThan(0)
+    expect(choco.length).toBeGreaterThan(0)
+    for (const method of winget) {
+      expect(method.command).toContain('--accept-source-agreements')
+      expect(method.command).toContain('--accept-package-agreements')
+    }
+    for (const method of choco) expect(method.command).toMatch(/ -y( |$)/)
+  })
+
+  it('keeps the derived uninstall commands non-interactive and aimed at the package', () => {
+    expect(uninstalls.find((method) => method.id === 'winget')?.command).toBe(
+      'winget uninstall --accept-source-agreements Anthropic.ClaudeCode',
+    )
+    expect(uninstalls.find((method) => method.id === 'choco')?.command).toBe(
+      'choco uninstall opencode -y',
     )
   })
 })
@@ -140,5 +200,54 @@ describe('installCommandLine', () => {
   it('hands a POSIX shell the bare command, whose status is already the shell’s', () => {
     vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' })
     expect(installCommandLine('npm install -g opencode-ai')).toBe('npm install -g opencode-ai')
+  })
+})
+
+describe('installShellLine', () => {
+  it('closes the shell so the runner can detect completion', () => {
+    expect(installShellLine('npm install -g opencode-ai')).toBe(
+      'npm install -g opencode-ai; exit\r',
+    )
+  })
+})
+
+describe('wslInstallMethodsFor', () => {
+  it('keeps only the methods that also work inside a distro', () => {
+    expect(wslInstallMethodsFor('claude')).toEqual([
+      { id: 'npm', command: 'npm install -g @anthropic-ai/claude-code', requires: 'npm' },
+    ])
+    expect(wslInstallMethodsFor('opencode')).toEqual([
+      { id: 'npm', command: 'npm install -g opencode-ai', requires: 'npm' },
+    ])
+  })
+
+  it('yields nothing when every method is Windows-only', () => {
+    expect(wslInstallMethodsFor('antigravity')).toEqual([])
+  })
+})
+
+describe('installArgv', () => {
+  it('splits a plain npm command into program and argv', () => {
+    expect(installArgv('npm install -g @openai/codex')).toEqual({
+      program: 'npm',
+      args: ['install', '-g', '@openai/codex'],
+    })
+  })
+
+  it('refuses commands that only a shell can run', () => {
+    expect(installArgv('curl -fsSL https://example.com/i.sh | bash')).toBeNull()
+    expect(installArgv('a; b')).toBeNull()
+    expect(installArgv('irm https://example.com/install.ps1 | iex')).toBeNull()
+    expect(installArgv('echo $HOME')).toBeNull()
+    expect(installArgv('npm install -g "my pkg"')).toBeNull()
+  })
+
+  it('ignores padding and rejects an empty command', () => {
+    expect(installArgv('  npm   install  -g   opencode-ai ')).toEqual({
+      program: 'npm',
+      args: ['install', '-g', 'opencode-ai'],
+    })
+    expect(installArgv('')).toBeNull()
+    expect(installArgv('   ')).toBeNull()
   })
 })

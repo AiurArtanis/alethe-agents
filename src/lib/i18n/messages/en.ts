@@ -58,6 +58,10 @@ export const en = {
   'onboarding.agentsEnabledOf': '{active} of {total} enabled',
   'onboarding.agentChecking': 'Checking',
   'onboarding.agentReady': 'ready',
+  'onboarding.usageTitle': 'Show your usage limits?',
+  'onboarding.usageSubtitle':
+    'Alethe can show how much of each plan you have used. To read it, Alethe uses the credentials of the CLI already installed on this computer and contacts the provider. Everything is off until you turn it on.',
+  'onboarding.usageFooter': 'Nothing is read while a provider is off · change later in Preferences',
   'onboarding.featuresTitle': 'Choose your features',
   'onboarding.featuresSubtitle':
     'Start lean. Each module you enable shows up in the interface, and you can change them any time in Preferences.',
@@ -97,6 +101,9 @@ export const en = {
   'agent.mimo.desc': 'Xiaomi CLI',
   'agent.antigravity.desc': 'Google Antigravity CLI',
   'agent.kiro.desc': 'AWS agentic CLI',
+  'agent.kimi.desc': 'Moonshot AI coding CLI',
+  'agent.grok.desc': 'xAI Grok Build coding agent',
+  'agent.codewhale.desc': 'Open-source coding agent (any model)',
 
   /* ---- image input ---- */
   'image.placeholder': 'https://example.com/icon.png',
@@ -220,6 +227,23 @@ export const en = {
   'remote.statusOff': 'Off',
   'remote.enable': 'Enable remote control',
   'remote.disable': 'Turn off remote control',
+  'remote.confirmEnable':
+    'Enable Remote Control?\n\nAlethe will open HTTP and WebSocket listeners on your local network. Paired devices can view shared terminal output. Paired sessions expire after {expiry}.\n\n{access}',
+  'remote.confirmEnableTailscale':
+    'Enable Remote Control?\n\nAlethe will open HTTP and WebSocket listeners on your Tailscale network. Paired devices can view shared terminal output. Paired sessions expire after {expiry}.\n\n{access}',
+  'remote.confirmAccessReadOnly':
+    'Current access is read-only: agent messages and shell input are blocked.',
+  'remote.confirmAccessAgentInput': 'Current access allows agent messages; shell input is blocked.',
+  'remote.confirmAccessShellInput': 'Current access allows agent messages and shell input.',
+  'remote.sessionSeconds': '{seconds} seconds',
+  'remote.enableFailedTitle': 'Remote control could not start',
+  'remote.enableFailedBody': 'Alethe kept remote control off. {error}',
+  'remote.disableFailedTitle': 'Remote control could not stop',
+  'remote.disableFailedBody':
+    'Alethe could not confirm that remote access stopped. Restart Alethe before continuing. {error}',
+  'remote.rollbackFailedTitle': 'Remote control rollback needs attention',
+  'remote.rollbackFailedBody':
+    'Alethe could not fully save or enforce the disabled state. Restart Alethe and verify Remote Control is off. Startup error: {error}. Rollback error: {rollbackError}',
   'remote.modalReachEyebrow': 'Step 1 · Network',
   'remote.modalPairEyebrow': 'Step 2 · Pair a device',
   'remote.connectedDevices': 'Connected devices',
@@ -340,8 +364,11 @@ export const en = {
   'agentInstall.docs': 'Docs',
   'agentInstall.installTitle': 'Install {agent}',
   'agentInstall.chooseMethod': 'Choose how to install {agent} on this machine.',
+  'agentInstall.chooseMethodWsl': 'Choose how to install {agent} inside {distro}.',
   'agentInstall.probing': 'Checking what is available on this machine…',
   'agentInstall.noMethod': 'No automatic installer for this agent on this machine.',
+  'agentInstall.noMethodWsl':
+    'No installer for this agent works inside {distro}. Install it manually in the distro.',
   'agentInstall.uninstall': 'Uninstall',
   'agentInstall.uninstalling': 'Uninstalling…',
   'agentInstall.uninstallFailed': 'Uninstall did not complete',
@@ -388,6 +415,13 @@ export const en = {
   'handoff.included': '{count} events included',
   'handoff.omitted': '{count} omitted',
   'handoff.redacted': '{count} redacted',
+  'handoff.scopeLabel': 'What the other agent receives',
+  'handoff.scopeFull': 'Full conversation',
+  'handoff.scopeFullHint':
+    'Your messages, the assistant replies, tool activity and the names of changed files. File contents or secrets that appeared in the conversation may reach another vendor.',
+  'handoff.scopeUserOnly': 'Only my messages',
+  'handoff.scopeUserOnlyHint':
+    'Only what you typed, plus the branch and how many files changed. No assistant replies, no tool activity, no file names from Git.',
   'handoff.reviewLabel': 'Review and edit the context the destination agent will receive',
   'handoff.size': '{current} / {max} bytes',
   'handoff.unrestricted': 'Start {agent} in unrestricted mode',
@@ -398,6 +432,8 @@ export const en = {
   'handoff.fallbackNewest':
     'The pane had no session ID, so the newest conversation for this folder was selected.',
   'handoff.lossOmitted': '{count} older or duplicate events were omitted.',
+  'handoff.lossOmittedUserOnly':
+    '{count} events were left out: assistant replies, tool activity and anything over the size limit.',
   'handoff.lossRedacted': '{count} possible secret(s) were redacted.',
   'handoff.paneName': '{agent} handoff',
   'handoff.bootstrapPrompt':
@@ -625,6 +661,10 @@ export const en = {
   'features.prs.description':
     'Shows GitHub pull requests you are involved in as author or reviewer, across every repo, with a one-click way to send one to your TODO list.',
   'features.prs.keywords': 'pull request pr github review todo',
+  'features.wsl.title': 'WSL integration',
+  'features.wsl.description':
+    'On Windows, a folder inside a WSL distro opens the distro\u2019s own shell, runs the CLI installed there and resumes the sessions stored there. Turn it off to treat every folder as a Windows one.',
+  'features.wsl.keywords': 'wsl linux distro ubuntu windows subsystem unc',
   'features.mcp.title': 'MCP & Skills',
   'features.mcp.description':
     'Inspect and manage the MCP servers and skills of every coding agent from one panel.',
@@ -712,6 +752,15 @@ export const en = {
     'Notify when a Claude or Codex usage window resets, showing which one.',
   'prefs.limitResetNotifyOn': 'On',
   'prefs.limitResetNotifyOff': 'Off',
+  'prefs.experimentalPermissions': 'Agent Canvas permissions',
+  'prefs.experimentalPermissionsDesc':
+    'How the worker agents started by the experimental Agent Canvas handle permissions. Applies to agents started from now on, and stays on this computer.',
+  'prefs.experimentalPermissionsAsk': 'Ask',
+  'prefs.experimentalPermissionsBypass': 'Bypass',
+  'prefs.experimentalPermissionsAskHint':
+    'Agents keep their own permission checks. A terminal you can type in asks you; a worker running in the background has nobody to ask, so an action that needs approval is refused and the worker says so.',
+  'prefs.experimentalPermissionsBypassHint':
+    'Agents run commands and edit files without asking: Claude starts with --dangerously-skip-permissions, Codex with approvals and its sandbox turned off. Use it only where you accept whatever the agent does.',
   'prefs.dictation': 'Voice dictation',
   'prefs.dictationDesc':
     'Local speech-to-text with on-device models. Press {shortcut} to dictate text into any focused pane.',
@@ -786,6 +835,59 @@ export const en = {
   /* ---- PreferencesModal — Multi-Agent & Telemetry tab ---- */
   'prefs.categoryMultiagent': 'Multi-Agent & Telemetry',
   'prefs.categoryMultiagentDesc': 'Real-time metrics, event traces, and structured logs.',
+  'prefs.categoryOrchestration': 'Orchestration',
+  'prefs.categoryOrchestrationDesc': 'Roles and limits for delegated workers.',
+  'prefs.orchestrationLimits': 'Worker limits',
+  'prefs.orchestrationLimitsDesc': 'Apply to every delegation, from any planner.',
+  'prefs.orchestrationConcurrency': 'Workers at the same time',
+  'prefs.orchestrationConcurrencyDecrease': 'Fewer workers at the same time',
+  'prefs.orchestrationConcurrencyIncrease': 'More workers at the same time',
+  'prefs.orchestrationDefaultTimeout': 'Default budget per worker (seconds)',
+  'prefs.orchestrationTimeoutHint':
+    'Used when a planner names no budget. 0 lets a worker run without a limit.',
+  'prefs.orchestrationWorkerPlugins': 'Codex plugins off in workers',
+  'prefs.orchestrationWorkerPluginsHint':
+    'One plugin id per line or comma, such as ecc@ecc. Codex workers start without their hooks and context; your own hooks and MCP servers stay.',
+  'prefs.orchestrationRoles': 'Roles',
+  'prefs.orchestrationRolesDesc':
+    'A planner that delegates with a role gets exactly what the role sets: agent, model, effort, read-only and budget. It cannot change them in the call.',
+  'prefs.orchestrationRolesEmpty':
+    'No roles yet. Until you add one, planners pick the model and effort themselves.',
+  'prefs.orchestrationAddRole': 'Add role',
+  'prefs.orchestrationRemoveRole': 'Remove {name}',
+  'prefs.orchestrationRoleName': 'Name',
+  'prefs.orchestrationRoleNameFor': 'Name of role {name}',
+  'prefs.orchestrationRoleNameInvalid':
+    'Use a unique name without spaces that does not start with "-". Until then the role keeps its saved name, which is the one planners use.',
+  'prefs.orchestrationAgent': 'Agent',
+  'prefs.orchestrationModel': 'Model',
+  'prefs.orchestrationEffort': 'Effort',
+  'prefs.orchestrationReadOnly': 'Read-only',
+  'prefs.orchestrationBudget': 'Budget (s)',
+  'prefs.orchestrationAgentFor': 'Agent for {name}',
+  'prefs.orchestrationModelFor': 'Model for {name}',
+  'prefs.orchestrationEffortFor': 'Effort for {name}',
+  'prefs.orchestrationReadOnlyFor': 'Read-only for {name}',
+  'prefs.orchestrationTimeoutFor': 'Budget for {name} in seconds',
+  'prefs.orchestrationCliDefault': 'CLI default',
+  'prefs.orchestrationModelDefault': "Model's default",
+  'prefs.orchestrationBudgetDefault': 'Default',
+  'prefs.orchestrationFallback': 'Fallback',
+  'prefs.orchestrationFallbackFor': 'Fallback for {name}',
+  'prefs.orchestrationFallbackNone': 'None',
+  'prefs.orchestrationFallbackHint':
+    "When a role's provider passes 80% of its quota and the fallback's provider has room, the work runs as the fallback role. A read-only role only falls back to a read-only one.",
+  'prefs.orchestrationOrchestrator': 'Orchestrator',
+  'prefs.orchestrationOrchestratorFor': 'Orchestrator for {name}',
+  'prefs.orchestrationOrchestratorAny': 'Any',
+  'prefs.orchestrationRoleOnOrchestrator': '{name} ({agent})',
+  'prefs.orchestrationOrchestratorHint':
+    'A row for a specific orchestrator wins over the Any row of the same name, so the same role can send Claude and Codex sessions to different workers.',
+  'prefs.orchestrationModelsLoading': 'Reading the models Codex offers…',
+  'prefs.orchestrationModelsFailed':
+    'Could not list the Codex models ({error}). You can still type a model name.',
+  'prefs.orchestrationCustomModel': 'Use "{value}"',
+  'prefs.orchestrationCodexOnly': 'Codex workers only',
   'prefs.multiagentSchedulerTitle': 'Scheduler & task queue',
   'prefs.multiagentSchedulerDesc':
     'Manages execution waves from the real `.planning/task.md` backlog per project.',
@@ -989,9 +1091,17 @@ export const en = {
 
   'prefs.agentsTitle': 'Enabled agents',
   'prefs.agentsDesc': 'Choose which agents are available when creating terminals and sub-tabs.',
+  'prefs.shell': 'Shell',
+  'prefs.shellDesc':
+    'Alethe picks the shell on its own (PowerShell 7 when available, then Windows PowerShell; $SHELL elsewhere). Point it at another binary to override that — it applies to Shell tabs, not to agent tabs.',
+  'prefs.shellPathPick': 'Select the shell executable',
+  'prefs.terminalFont': 'Terminal font',
+  'prefs.terminalFontDesc':
+    'Font stack used by the terminal panes. Prompts such as oh-my-posh and Starship need a Nerd Font installed on the system — for example "CaskaydiaCove Nerd Font".',
+  'prefs.terminalFontFamily': 'Font family',
   'prefs.cliPaths': 'Agent CLI paths',
   'prefs.cliPathsDesc':
-    'Alethe finds each agent CLI on its own. Override it only when the CLI lives somewhere unusual — and point it at the command-line tool, not at a desktop app.',
+    'Alethe finds each agent CLI on its own. Override it only when the CLI lives somewhere unusual — and point it at the command-line tool, not at a desktop app. These are Windows paths: terminals whose folder is inside WSL ignore them and resolve the CLI inside the distro.',
   'prefs.cliPathAuto': 'Detected automatically',
   'prefs.cliPathSet': 'Set path',
   'prefs.cliPathReset': 'Reset',
@@ -1120,11 +1230,30 @@ export const en = {
   'pomodoro.settingsShortBreakMinutes': 'Short break (minutes)',
   'pomodoro.settingsLongBreakMinutes': 'Long break (minutes)',
   'pomodoro.titlebarOpen': 'Open Pomodoro',
+  'pluginsTab.title': 'Plugins',
+  'pluginsTab.searchPlaceholder': 'Search plugins',
+  'pluginsTab.refresh': 'Refresh the plugin list',
+  'pluginsTab.loading': 'Loading plugins…',
+  'pluginsTab.empty': 'No plugin matches that search.',
+  'pluginsTab.installed': 'Installed',
+  'pluginsTab.available': 'In the catalogue',
+  'pluginsTab.updateBadge': 'Update',
+  'pluginsTab.offBadge': 'Off',
+  'pluginsTab.noProject': 'Open a project first to see a plugin profile.',
+  'pluginPane.missing': 'This plugin is neither installed nor listed in the catalogue.',
+  'pluginPane.notInstalled': 'Not installed',
+  'pluginPane.enable': 'Enable',
+  'pluginPane.disable': 'Disable',
+  'pluginPane.permissions': 'Permissions',
+  'pluginPane.repository': 'Repository',
   'prs.title': 'Open PRs',
   'prs.refresh': 'Refresh',
   'prs.loading': 'Loading pull requests…',
   'prs.emptyTitle': 'No open PRs',
   'prs.emptyDescription': 'Pull requests where you are the author or a reviewer will show up here.',
+  'prs.emptyDescriptionProject': 'This repository has no open pull requests.',
+  'prs.scopeProject': 'in {project}',
+  'prs.scopeAll': 'everywhere',
   'prs.draftBadge': 'Draft',
   'prs.updatedLabel': 'Updated {date}',
   'prs.openInBrowser': 'Open on GitHub',
@@ -1148,6 +1277,34 @@ export const en = {
   'whatsNew.close': 'Got it',
   'whatsNew.update': 'View update',
   'whatsNew.releaseHeading': 'v{version} — {date}',
+  'whatsNew.v170.note1':
+    'Features now load as plugins: Git Control, Todo List and the Theme Pack ship as official plugins, and a plugin can be imported from its folder.',
+  'whatsNew.v170.note2':
+    'A plugin catalogue in Preferences installs and updates plugins in one click, each package pinned to a SHA-256 checksum.',
+  'whatsNew.v170.note3':
+    'Orchestration v2: a lead agent delegates to Claude and Codex workers on a board, asks before leaving its sandbox and checks each vendor’s remaining quota first.',
+  'whatsNew.v170.note4':
+    'Remote control grew into a mobile client with a live terminal, an agent chat view and interactive questions.',
+  'whatsNew.v170.note5':
+    'Projects can be split into optional named grids, each with its own terminals and layout.',
+  'whatsNew.v170.note6': 'New agents and terminals: Cursor CLI, Kiro CLI and plain WSL terminals.',
+  'whatsNew.v170.note7': '9router routing integration, and cloud sync for preferences (free tier).',
+  'whatsNew.v170.note8': 'Ctrl+P now finds commands, not just terminals.',
+  'whatsNew.v160.note1':
+    'Normal and Clean interface styles for the whole app, chosen during onboarding with a live preview.',
+  'whatsNew.v160.note2':
+    'Claude Code and Codex conversations can be continued in the other agent from the terminal.',
+  'whatsNew.v160.note3':
+    'Agents can be installed, updated and uninstalled from inside Alethe, and GitHub Copilot CLI joins as a new agent.',
+  'whatsNew.v160.note4':
+    'New MCP tab in the right sidebar with every configured MCP server and the skills installed for each agent.',
+  'whatsNew.v160.note5':
+    'Grid layouts are edited directly on the grid, with adaptive presets and the eight most recently saved layouts.',
+  'whatsNew.v160.note6':
+    'Browser panes are back in the workspace grid, and a URL printed in a terminal can open as one.',
+  'whatsNew.v160.note7':
+    'Remote control pairs through a short-lived pairing window, starts read-only and can hide individual terminals.',
+  'whatsNew.v160.note8': 'New Golden Premium and Ember themes.',
   'whatsNew.v150.note1':
     'Full-profile backup export now archives the entire profile (todos, history, preferences, tokens, scrollback) instead of a fixed short list.',
   'whatsNew.v150.note2':
@@ -1321,6 +1478,7 @@ export const en = {
   'widget.tryAgain': 'try again',
   'widget.noTokenConfigured': 'no token configured',
   'widget.connectToSeeUsage': 'connect to see usage',
+  'widget.usageUnavailableHint': 'the usage service refused the request; try again shortly',
   'widget.usage5h': 'usage 5h',
   'widget.resetIn': 'reset in {time}',
   'widget.resetsIn': 'resets in {time}',
@@ -1366,6 +1524,9 @@ export const en = {
   'widget.antigravityNotSignedIn': 'not signed in to agy',
   'widget.antigravityUsageHint': 'run agy and sign in to see live quotas',
   'widget.usageUnavailable': 'usage unavailable',
+  'widget.usageOff': 'usage is off',
+  'widget.usageOffHint': 'turning it on uses your {provider} sign-in and contacts {vendor}',
+  'widget.turnOnUsage': 'turn on',
   'widget.mostUsed': 'most used',
   'widget.mostUsedBucket': 'most used · {name}',
   'widget.remainingLabel': 'remaining',
@@ -1405,6 +1566,7 @@ export const en = {
   'crud.projectPathLabel': 'Project folder',
   'crud.projectPathPlaceholder': 'Choose the project folder',
   'crud.projectPathHint': 'New terminals will start in this folder.',
+  'crud.wslHint': 'Running inside WSL · {distro}',
   'crud.groupLabel': 'Group',
   'crud.noGroup': 'Loose (no group)',
   'crud.colorLabel': 'Color',
@@ -1483,6 +1645,11 @@ export const en = {
   'term.goalPlaceholder': 'What should the planner get done?',
   'term.createMore': 'Create more',
   'term.createOrchestration': 'Create orchestration',
+  'term.wslBadgeLabel': 'Running inside WSL · {distro}',
+  'term.wslPick': 'WSL',
+  'term.wslPickTitle': 'Open a folder inside a WSL distro',
+  'term.wslPickFailed': 'Could not reach WSL',
+  'term.wslPickFailedBody': 'Alethe could not read the home directory of {distro}.',
   'term.openAgent': 'Open {agent}',
   'term.cancel': 'Cancel',
   'term.create': 'Create',
@@ -1511,6 +1678,8 @@ export const en = {
   'term.bootQueued': 'Waiting for a spawn slot…',
   'term.bootSpawning': 'Starting process…',
   'term.bootAttaching': 'Connecting to terminal…',
+  'term.bootMemoryWait':
+    'Waiting for memory ({available} MB free; {threshold} MB needed) · {seconds}s',
   'term.chooseFolder': 'Choose folder',
   'term.nameOptional': 'Name (optional)',
   'term.folderCwd': 'Folder (cwd)',
@@ -1682,6 +1851,18 @@ export const en = {
   'usageModal.title': 'AI usage details',
   'usageModal.description':
     'Current limits, reset windows and account status for your connected coding agents.',
+  'usageModal.customize': 'Customize items',
+  'usageModal.showInUsagePanel': 'Usage panel',
+  'usageModal.showInTopbar': 'Topbar',
+  'usageModal.allHidden':
+    'All usage items are hidden. Re-enable them in the AI usage details panel.',
+  'prefs.usageAccess': 'AI usage reading',
+  'prefs.usageAccessDesc':
+    'Choose which providers Alethe reads your usage from. Turning one on uses the credentials of the CLI already installed on this computer and contacts that provider. While it is off, Alethe never reads those credentials or contacts the provider.',
+  'usageAccess.providerHint': 'Uses the {provider} sign-in on this computer and contacts {vendor}.',
+  'usageAccess.orchestratorToastTitle': 'Usage reading turned on',
+  'usageAccess.orchestratorToastBody':
+    'The orchestrator uses quota to warn you and to pick roles, so Alethe now reads usage for {providers} with the installed CLI credentials. You can turn it off in Preferences > Integrations.',
   'ui.titlebar.itemClaude': 'Claude Code usage',
   'ui.titlebar.itemCodex': 'Codex usage',
   'ui.titlebar.itemAntigravity': 'Antigravity status',
@@ -1783,6 +1964,10 @@ export const en = {
   'ui.sidebar.navigation': 'Sidebar navigation',
   'ui.sidebar.archiveGroup': 'Archive group',
   'ui.sidebar.archiveProject': 'Archive project',
+  'ui.sidebar.hideProject': 'Hide project',
+  'ui.sidebar.unhideProject': 'Unhide project',
+  'ui.sidebar.revealHiddenProjects': 'Reveal hidden projects ({count})',
+  'ui.sidebar.hideHiddenProjects': 'Hide hidden projects again',
   'ui.sidebar.ungroupedDropArea': 'Ungrouped — drop here to remove from group',
   'ui.sidebar.dropHere': 'Drop here',
   'ui.sidebar.moveIntoGroup': 'Move into this group',
@@ -2048,10 +2233,12 @@ export const en = {
   'ws.now': 'now',
   'ws.claude5h': 'claude 5h {pct}%',
   'ws.codex5h': 'codex 5h {pct}%',
+  'ws.codexWeek': 'codex week {pct}%',
   'ws.usagePanelOpen': 'Usage stats (Claude / Codex)',
   'ws.usage5hLabel': '5h',
   'ws.usageWeekLabel': '7 days',
   'ws.usageOpusLabel': 'opus 7d',
+  'ws.usageModelLabel': '{model} 7d',
   'ws.usageStatus': 'status',
   'ws.usageOk': 'ok',
   'ws.usageLimited': 'rate limited',
@@ -2101,6 +2288,15 @@ export const en = {
   'ws.copied': 'copied!',
   'ws.copy': 'copy',
   'ws.agentsChangedRestart': 'agents changed — restart claude ↻',
+  'ws.permissionsChangedRestart': 'permission mode changed — restart claude ↻',
+  'ws.permissionsAsk': 'permissions: ask',
+  'ws.permissionsBypass': 'permissions: bypass',
+  'ws.permissionsAskTitle':
+    'Agents ask before running commands or editing files. A background worker has nobody to ask, so what needs approval is refused. Click to change.',
+  'ws.permissionsBypassTitle':
+    'Agents run commands and edit files without asking. Click to change.',
+  'ws.workerAskRefused':
+    'Ask mode: nobody could approve this worker, so any action that needed approval was refused. Change the mode in Preferences → Terminal and agents.',
   'ws.exitedCode': 'exited (code {code})',
   'ws.economyModeTitle':
     "Economy mode: writes/removes Haiku and codex-executor agents in the folder's .claude/agents/",
@@ -2132,6 +2328,17 @@ export const en = {
   'orchestrator.agentSpendTitle': '{agent}: {cost} · {tokens} tokens in this planner session',
   'orchestrator.isolated': 'worktree',
   'orchestrator.hasDiff': 'diff',
+  'orchestrator.roleTitle': 'Delegated with the {role} role',
+  'orchestrator.settingsNotApplied': 'Orchestration settings were not applied',
+  'orchestrator.settingsNotAppliedBody':
+    'Planners keep the previous roles and limits until this is fixed: {error}',
+  'orchestrator.modelTitle': 'Runs on {model}, as the planner asked',
+  'orchestrator.effortTitle': 'Runs with {effort} reasoning effort, as the planner asked',
+  'orchestrator.modelEffortTitle':
+    'Runs on {model} with {effort} reasoning effort, as the planner asked',
+  'orchestrator.readOnly': 'read-only',
+  'orchestrator.readOnlyTitle':
+    'Started in a read-only sandbox: it reads files and runs commands but cannot write',
   'orchestrator.status.queued': 'waiting for a slot',
   'orchestrator.status.running': 'running',
   'orchestrator.status.done': 'done',
@@ -2176,6 +2383,10 @@ export const en = {
   'orchestrator.plannerEyebrow': 'planner',
   'orchestrator.plannerNodeTitle': 'Open the terminal this planner runs in',
   'orchestrator.plannerGone': 'The terminal this planner ran in is no longer open',
+  'orchestrator.plannerInMainWindow': "Open this planner's terminal from the main window",
+  'orchestrator.openInWindow': 'Open in new window',
+  'orchestrator.openInWindowFailed': 'Could not open the board in a new window',
+  'orchestrator.windowPaneGone': 'This orchestration pane no longer exists.',
   'orchestrator.noPlanner': 'no planner',
   'orchestrator.noPlannerTitle': 'Work delegated from outside an agent terminal',
   'orchestrator.plannerTitle': '{label} · {agent}',
@@ -2227,6 +2438,7 @@ export const en = {
   'orchestrator.askFileChange': 'It wants to change files.',
   'orchestrator.routingChosen': 'chosen · {agent} {window} {used}%',
   'orchestrator.routingIgnored': 'ignored hint · {agent} {window} {used}%',
+  'orchestrator.routingFallback': 'fallback · {from} → {to} · {agent} {window} {used}%',
   'orchestrator.askIn': 'in {path}',
   'orchestrator.askHint':
     'Declining lets it carry on down another path. Aborting ends its turn here.',
@@ -2243,6 +2455,10 @@ export const en = {
   'orchestrator.diffTab': 'Diff',
   'orchestrator.stopWorker': 'Stop this worker',
   'orchestrator.stopFailed': 'The worker did not stop',
+  'orchestrator.menuOpen': 'Open',
+  'orchestrator.menuStop': 'Stop',
+  'orchestrator.menuRestart': 'Restart',
+  'orchestrator.restartFailed': 'Could not restart the worker',
   'orchestrator.inspectorClose': 'Close',
   'orchestrator.shellCwd': 'in {path}',
   'orchestrator.noPlannerForShortcuts':
@@ -2287,6 +2503,13 @@ export const en = {
   'mod.jobGuardInactive':
     'Orphan process protection: unavailable on this platform/session. A crash may leave processes running; the next boot still tries to clean up automatically.',
   'ui.terminal.restartFailed': 'Failed to restart terminal',
+  'ui.terminal.orchestrationStartFailed': 'Could not start orchestration',
+  'ui.terminal.orchestrationStartFailedBody':
+    'Claude did not come back with the orchestrator tools.',
+  'ui.terminal.openOrchestration': 'Open orchestration',
+  'ui.terminal.orchestrationRestartTitle': 'Restart Claude for orchestration?',
+  'ui.terminal.orchestrationRestartBody':
+    'This conversation was started without the orchestrator tools. Claude restarts on the same conversation to get them, and Agent orchestration stays on for the Claude and Codex terminals you open next.',
   'git.initOffer.title': 'Not a Git repository yet',
   'git.initOffer.body':
     'Agent isolation, worktrees and merges all need this folder to be a Git repository. Initialize one now?',
@@ -2483,6 +2706,8 @@ export const en = {
   'sync.error.access_denied': 'Authorization was denied on GitHub.',
   'sync.error.code_expired': 'The code expired — try signing in again.',
   'sync.error.malformed_payload': 'The cloud data is malformed.',
+  'sync.error.secure_store_unavailable':
+    'The system credential store is not available, so nothing was saved. On Linux, install and unlock a keyring such as GNOME Keyring or KWallet, then try again.',
   'sync.error.generic': 'Sync failed: {error}',
 
   /* ---- resource supervisor ---- */
@@ -2530,6 +2755,11 @@ export const en = {
   'sandbox.statusWorking': 'Working',
   'sandbox.statusDone': 'Done',
   'sandbox.statusError': 'Error',
+  'sandbox.statusBlocked': 'Blocked',
+  'sandbox.approvalDeclinedCommand':
+    'Stopped by a permission request: a command needed approval and nobody could answer, so it was declined. Change the mode in Preferences → Terminal and agents.',
+  'sandbox.approvalDeclinedFileChange':
+    'Stopped by a permission request: a file change needed approval and nobody could answer, so it was declined. Change the mode in Preferences → Terminal and agents.',
   'sandbox.terminalPreview': 'Terminal preview',
   'sandbox.selectTerminal': 'Select an agent terminal to inspect it here.',
   'sandbox.resizeTerminal': 'Resize terminal',
@@ -2904,6 +3134,13 @@ export const en = {
   'mcp.registryOffline':
     'The registry could not be reached and nothing was cached for this search.',
   'mcp.registryStale': 'Registry unreachable — showing the copy saved on {date}.',
+  'mcp.registryReviewTitle': 'Registry selection',
+  'mcp.registryReviewOrigin': 'Registry origin',
+  'mcp.registryReviewName': 'Published title',
+  'mcp.registryReviewVersion': 'Published version',
+  'mcp.registryReviewRepository': 'Repository',
+  'mcp.registryAcknowledgement':
+    'I understand this is third-party software that may execute local code or contact remote services when an agent launches, and that a registry listing is not an endorsement by Alethe.',
   'mcp.addWritten': '{count} server(s) added to {agents}',
   'mcp.fieldName': 'Name',
   'mcp.fieldTransport': 'Transport',
@@ -3047,6 +3284,72 @@ export const en = {
     '9router is an optional local proxy. Install it now or add it later in Preferences → Integrations.',
   'router9.onboardingSkipHint': 'Optional — you can skip this step.',
   'router9.onboardingEnable': 'Enable routing for new agents',
+
+  /* ---- voice command ---- */
+  'voice.bar.title': 'Voice command',
+  'voice.bar.inputLabel': 'Voice command',
+  'voice.bar.keyInputLabel': 'Decisions API key',
+  'voice.bar.speakPlaceholder': 'Say what you want the workspace to do',
+  'voice.bar.listeningPlaceholder': 'Listening...',
+  'voice.bar.keyPlaceholder': 'Paste your decisions API key',
+  'voice.bar.startRecording': 'Start recording',
+  'voice.bar.startRecordingTitle': 'Start recording, or hold F9',
+  'voice.bar.stopRecording': 'Stop recording',
+  'voice.bar.stopHint': 'Release F9, or click the square, to stop',
+  'voice.bar.transcribingHint': 'Transcribing your audio',
+  'voice.bar.decidingHint': 'Asking Jev what to do',
+  'voice.bar.runnableHint': 'Enter runs this plan | Esc cancels',
+  'voice.bar.idleHint': 'Click the mic or hold F9 to speak | Enter decides | Esc cancels',
+  'voice.bar.noKeyHint': 'The key is stored in preferences and this bar stops asking',
+  'voice.bar.micSilent': 'No signal from this microphone.',
+  'voice.bar.micLabel': 'Microphone',
+  'voice.bar.micDefault': 'System default',
+  'voice.bar.nothingToDecide': 'Nothing to decide yet. Speak, or type what you want.',
+  'voice.bar.busy': 'Still waiting on the previous request.',
+  'voice.error.timeout': 'Jev did not answer in 20 seconds. Check the key and the network.',
+  'voice.failedToast': 'Voice command failed',
+  'voice.summary.splitTasks': 'Split {count} tasks in {project}',
+  'voice.summary.launchAgents': 'Launch {agents} in {project}',
+  'voice.summary.launchN': 'Launch {count}x {agent} in {project}',
+  'voice.summary.reuse': 'Hand this to {terminal}, already running',
+  'voice.summary.focus': 'Bring up {terminal}',
+  'voice.summary.kill': 'Stop {terminal}',
+  'voice.action.focused': 'Focused {terminal}',
+  'voice.action.stopped': 'Stopped {terminal}',
+  'voice.action.sent': 'Sent the task to {terminal}',
+  'voice.action.openedWith': 'Opened {agent} in {project} with: {prompt}',
+  'voice.action.opened': 'Opened {agent} in {project}',
+  'voice.block.notACommand': 'That was not a command for the app.',
+  'voice.block.unclearAction': 'Not sure what to do with that. Say it another way.',
+  'voice.block.needsFolder': 'Adding a project needs a folder, so pick one by hand.',
+  'voice.block.noProject': 'No project to work in. Open one first.',
+  'voice.block.noTerminal': 'No terminal matched. Focus one first.',
+  'voice.block.noLiveTerminal': 'That terminal has no running process.',
+  'voice.block.noPrompt': 'No task to hand over was found in that sentence.',
+  'voice.warn.destructive': 'This stops or discards work.',
+  'voice.warn.busyTerminal': 'That agent is busy, the prompt queues behind it.',
+  'voice.warn.noPromptSpawn': 'The agent opens with no prompt.',
+  'voice.warn.lowPrompt': 'The task span was uncertain and was dropped.',
+  'voice.warn.sharedPrompt': 'Every agent gets this same prompt, not one task each.',
+  'voice.lifecycle.askingJev': 'Asking Jev',
+  'voice.lifecycle.transcribing': 'Transcribing',
+  'voice.lifecycle.heardNothing': 'Heard nothing',
+  'voice.lifecycle.failed': 'Failed',
+  'voice.history.tabTitle': 'Jev history',
+  'voice.history.clear': 'Clear history',
+  'voice.history.emptyTitle': 'No commands yet',
+  'voice.history.emptyBody': 'Press Ctrl+Shift+Space, say what you want, and it shows up here.',
+  'voice.history.silence': '(silence)',
+  'voice.history.status.deciding': 'deciding',
+  'voice.history.status.ran': 'ran',
+  'voice.history.status.waiting': 'waiting',
+  'voice.history.status.blocked': 'blocked',
+  'voice.history.status.failed': 'failed',
+  'voice.history.agentConf': 'agent {value}',
+  'voice.history.projectConf': 'project {value}',
+  'voice.history.voiceMs': 'voice {ms} ms',
+  'voice.confirm.run': 'Run',
+  'voice.confirm.cancel': 'Cancel',
 } as const
 
 export type MessageKey = keyof typeof en

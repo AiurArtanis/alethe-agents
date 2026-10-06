@@ -81,8 +81,10 @@ Alethe does not currently move all integration secrets into an operating-system 
 - Claude usage polling reads a token from `CLAUDE_OAUTH_TOKEN`, Claude Code's credentials file, or the
   OS keyring. Antigravity usage polling reads the `agy` credential from the OS keyring. Alethe uses
   these values for the request and does not intentionally copy them into Alethe profile persistence.
-- Codex usage is requested through a short-lived `codex app-server` subprocess, so Codex remains
-  responsible for its own authentication storage.
+- Codex usage polling reads the ChatGPT access token and account ID that the Codex CLI stores in
+  `$CODEX_HOME/auth.json` (default `~/.codex/auth.json`). Alethe only reads that file and never
+  refreshes or rewrites it; when the token is missing or rejected it falls back to a short-lived
+  `codex app-server` subprocess, which keeps Codex responsible for its own authentication storage.
 
 File protection therefore depends on OS account permissions and the security of any destination to
 which a backup is copied. Do not place profile data, exports, logs, or agent configs in a public or
@@ -109,7 +111,7 @@ does not necessarily mean it sends a request before the stated trigger.
 | Surface | Exact current default | What happens and where data goes |
 |---|---|---|
 | Automatic update check | **On** | Once app state hydrates, Alethe checks `https://github.com/Kc1t/alethe-agents/releases/latest/download/latest.json`. Download and installation happen only after the user accepts an available update; updater artifacts are signature-checked by the configured Tauri updater key. This is separate from platform publisher signing: current Windows installers are not code-signed and macOS builds are not notarized. There is currently no preference that disables the startup check. |
-| Provider usage polling | **On** | While the title bar is mounted, Alethe schedules Claude, Codex, and Antigravity usage reads shortly after startup and every five minutes; ticks are skipped while the window is unfocused/hidden. The three topbar indicators default visible. Claude sends its bearer credential to `https://api.anthropic.com/api/oauth/usage`; Antigravity sends its bearer credential to `https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels`; Codex is queried through a short-lived `codex app-server` subprocess. The current visibility preferences hide indicators but do not gate the polling effects. |
+| Provider usage polling | **On** | While the title bar is mounted, Alethe schedules Claude, Codex, and Antigravity usage reads shortly after startup and every five minutes; ticks are skipped while the window is unfocused/hidden. The three topbar indicators default visible. Claude sends its bearer credential to `https://api.anthropic.com/api/oauth/usage`; Antigravity sends its bearer credential to `https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels`; Codex sends its bearer credential to `https://chatgpt.com/backend-api/wham/usage` and, when reset credits are available, to `https://chatgpt.com/backend-api/wham/rate-limit-reset-credits` for their titles and expiry, falling back to a short-lived `codex app-server` subprocess when that read fails. While the orchestrator or agent canvas is open, they also read Codex usage every minute through the same 60-second cache as the title bar, so all three share at most one Codex read per minute. The current visibility preferences hide indicators but do not gate the polling effects. |
 | Discord Rich Presence | **On** | Every 30 seconds, Alethe sends generic activity text (Alethe and the current app view, not project names) to the local Discord desktop IPC client. Discord controls any onward network publication under the Discord account's settings and terms. It can be disabled in Preferences. |
 | Spotify Now Playing | **Off / unconfigured** | No Spotify request succeeds on a clean profile because credentials and OAuth tokens are absent. Connecting opens Spotify authorization, temporarily listens only on `127.0.0.1:8888`, exchanges/refreshes tokens at `accounts.spotify.com`, and polls current or recent playback at `api.spotify.com` when a Now Playing widget is enabled. Returned cover-image URLs may cause requests to Spotify's image host. |
 | GitHub Sync | **Off / disconnected; manual** | Entering a token validates it against `https://api.github.com/user`. Explicit Push uploads `projects.json` and, if present, `activity-stats.json` to a secret GitHub Gist; explicit Pull downloads them. A secret Gist is access-controlled by GitHub, not end-to-end encrypted by Alethe. Alethe does not periodically push or pull. |
@@ -135,15 +137,19 @@ configuration, and unrestricted/approval mode before launching it.
 ## Handoff artifacts and redaction limits
 
 A Claude-to-Codex or Codex-to-Claude handoff reads the selected provider's local session history and
-builds an editable Markdown context packet. It can include user and assistant messages, clipped tool
-calls/output, working-directory and Git metadata, and the source session identifier. Before showing
-the draft, Alethe applies regular-expression redaction for several common token, credential, header,
-and private-key patterns.
+builds an editable Markdown context packet. The dialog offers two scopes and remembers the last one
+chosen. **Full conversation**, the default, can include user and assistant messages, clipped tool
+calls/output, working-directory and Git metadata including the names of changed files, and the source
+session identifier. **Only my messages** includes the user-authored messages, the working directory,
+branch, commit, a count of changed entries and a numeric diff summary, and the source session
+identifier; assistant messages, tool calls and tool output are left out. Before showing the draft,
+Alethe applies regular-expression redaction for several common token, credential, header, and
+private-key patterns, and applies it again to the edited packet when it is saved.
 
 That redaction is best effort, not a guarantee. Unusual secrets, confidential prose, source code,
 paths, identifiers, or credentials split across text can remain. Review and edit the draft before
 starting the target agent. Materializing a handoff writes
-`handoffs/<handoffId>/context.md`; Alethe requests cleanup after the first target turn or when the pane
+`handoffs/<handoffId>/context.md`, owner-only on Unix and never over an existing file; Alethe requests cleanup after the first target turn or when the pane
 closes, but a crash or interrupted flow can leave the file behind until manual/profile deletion. The
 target agent then reads the packet and may send its contents to that agent's provider under the
 provider's terms.

@@ -1,12 +1,10 @@
-import { ProjectGridModal } from './components/modals/ProjectGridModal'
-import { ResetCreditModal } from './components/modals/ResetCreditModal'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { Bell, X } from 'lucide-react'
-import { type CSSProperties, lazy, Suspense, useEffect, useRef } from 'react'
+import { lazy, Suspense, useEffect, useRef } from 'react'
 import { Group as PanelGroup, Panel, Separator, usePanelRef } from 'react-resizable-panels'
 
 import styles from './App.module.css'
+import { InAppNotifications } from './components/InAppNotifications'
 import homeBackground from './assets/home-bg-right.png'
 import { AgentSandbox } from './components/AgentSandbox'
 import { ContributedModals } from './components/ContributedModals'
@@ -14,7 +12,6 @@ import { DictationButton } from './components/DictationButton'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { FocusOverlay } from './components/FocusOverlay'
 import { GsdSyncActivityView } from './components/GsdSyncActivityView'
-import { AgentIcon } from './components/icons/AgentIcons'
 import { LinkViewerOverlay } from './components/LinkViewerOverlay'
 import { MainMenu } from './components/MainMenu'
 import { AddBrowserModal } from './components/modals/AddBrowserModal'
@@ -36,8 +33,10 @@ import { OnboardingModal } from './components/modals/OnboardingModal'
 import { PluginMarketplaceModal } from './components/modals/PluginMarketplaceModal'
 import { PreferencesModal } from './components/modals/PreferencesModal'
 import { ProfilesModal } from './components/modals/ProfilesModal'
+import { ProjectGridModal } from './components/modals/ProjectGridModal'
 import { RecentChatsModal } from './components/modals/RecentChatsModal'
 import { RemoteControlModal } from './components/modals/RemoteControlModal'
+import { ResetCreditModal } from './components/modals/ResetCreditModal'
 import { SuspendGroupModal } from './components/modals/SuspendGroupModal'
 import { SyncModal } from './components/modals/SyncModal'
 import { ThemePickerModal } from './components/modals/ThemePickerModal'
@@ -50,6 +49,7 @@ import { RightSidebar } from './components/RightSidebar'
 import { TitleBar } from './components/TitleBar'
 import { TokenHud } from './components/TokenHud'
 import { AsciiEffect } from './components/ui/ascii-effect'
+import { VoiceCommand } from './components/VoiceCommand'
 import { WorkspaceView } from './components/WorkspaceView'
 import { useAgentBrowserOffers } from './hooks/useAgentBrowserOffers'
 import { useAgentHookBridge } from './hooks/useAgentHookBridge'
@@ -58,26 +58,27 @@ import { useCliOpenRequests } from './hooks/useCliOpenRequests'
 import { useCloseConfirmation } from './hooks/useCloseConfirmation'
 import { useDiscordPresence } from './hooks/useDiscordPresence'
 import { useKeybindings } from './hooks/useKeybindings'
-import { useMcpIntroPrompt } from './hooks/useMcpIntroPrompt'
+import { useOrchestrationSettingsSync } from './hooks/useOrchestrationSettingsSync'
 import { useRemoteControlService } from './hooks/useRemoteControlService'
 import { useResourceSupervisor } from './hooks/useResourceSupervisor'
 import { useRouter9AutoStart } from './hooks/useRouter9AutoStart'
 import { startActivityTracker } from './lib/activityTracker'
-import { agentAccentVar } from './lib/agentProviders'
+import { resumeAgentCanvasMirror } from './lib/agentCanvasMirror'
 import { APP_SHELL_ID } from './lib/appShell'
 import { AGENT_SANDBOX_ENABLED } from './lib/featureFlags'
 import { intlLocale, translate, useT } from './lib/i18n'
+import { applyLegacyPluginMigrations } from './lib/plugins'
 import { visibilityFromPanelResize, widthFromPanelResize } from './lib/sidebarPanelState'
 import { setMaxConcurrentSpawns } from './lib/spawnQueue'
-import { ghosttyKillAll, setWindowOpacity } from './lib/tauri'
+import { ghosttyKillAll, setWindowOpacity, setWslIntegrationEnabled } from './lib/tauri'
 import { getLastCrashReport, orchestratorDefaultRuleSets, orchestratorSetRuleSets } from './lib/tauri'
-import { applyLegacyPluginMigrations } from './lib/plugins'
-import { useSidebarViews } from './lib/viewPlacement'
-import { useAppliedTheme } from './lib/themes'
+import { rememberBootAppearance } from './lib/bootAppearance'
 import { loadThemeIconBytes } from './lib/themeIcons'
+import { useAppliedTheme } from './lib/themes'
 import { checkForUpdate } from './lib/updater'
+import { useSidebarViews } from './lib/viewPlacement'
 import { useProjectsStore } from './stores/projectsStore'
-import { type InAppToast, useUiStore } from './stores/uiStore'
+import { useUiStore } from './stores/uiStore'
 
 const AgentCanvasPOC = lazy(() =>
   import('./components/AgentCanvasPOC').then((module) => ({ default: module.AgentCanvasPOC })),
@@ -145,85 +146,6 @@ function LoadingScreen({ reducedMotion = false }: { reducedMotion?: boolean }) {
   )
 }
 
-function ToastItem({ toast }: { toast: InAppToast }) {
-  const dismissToast = useUiStore((s) => s.dismissToast)
-  const uiTheme = useProjectsStore((s) => s.preferences.uiTheme)
-
-  useEffect(() => {
-    // A toast that asks something has to outlive a glance, or the offer is gone before it is read.
-    const timer = window.setTimeout(
-      () => dismissToast(toast.id),
-      toast.actions?.length ? 20000 : 6500,
-    )
-    return () => window.clearTimeout(timer)
-  }, [dismissToast, toast.id, toast.actions])
-
-  const accentStyle = {
-    '--toast-accent': toast.agent ? agentAccentVar(toast.agent) : 'var(--accent)',
-  } as CSSProperties
-
-  return (
-    <div className={styles.toast} role="status" style={accentStyle}>
-      <div className={styles.toastIcon} aria-hidden>
-        {toast.agent ? (
-          <AgentIcon type={toast.agent} size={16} theme={uiTheme} />
-        ) : (
-          <Bell size={14} />
-        )}
-      </div>
-      <div className={styles.toastText}>
-        <strong>{toast.title}</strong>
-        <span title={toast.body}>{toast.body}</span>
-        {toast.actions?.length ? (
-          <div className={styles.toastActions}>
-            {toast.actions.map((action, index) => (
-              <button
-                key={action.label}
-                type="button"
-                className={
-                  action.quiet
-                    ? styles.toastActionQuiet
-                    : index === 0
-                      ? styles.toastAction
-                      : styles.toastActionSecondary
-                }
-                onClick={() => {
-                  action.run()
-                  dismissToast(toast.id)
-                }}
-              >
-                {action.label}
-              </button>
-            ))}
-          </div>
-        ) : null}
-      </div>
-      <button
-        type="button"
-        className={styles.toastClose}
-        onClick={() => dismissToast(toast.id)}
-        aria-label="Close notification"
-        title="Close"
-      >
-        <X size={14} />
-      </button>
-    </div>
-  )
-}
-
-function InAppNotifications() {
-  const toasts = useUiStore((s) => s.toasts)
-  if (toasts.length === 0) return null
-
-  return (
-    <div className={styles.toastStack} aria-live="polite" aria-relevant="additions">
-      {toasts.map((toast) => (
-        <ToastItem key={toast.id} toast={toast} />
-      ))}
-    </div>
-  )
-}
-
 export default function App() {
   const hydrate = useProjectsStore((s) => s.hydrate)
   const hydrated = useProjectsStore((s) => s.hydrated)
@@ -249,6 +171,7 @@ export default function App() {
   const mcpEnabled = useProjectsStore((s) => s.preferences.enabledFeatures.mcp)
   const rightSidebarTabs = useSidebarViews('right')
   const rightPanelEnabled = mcpEnabled || rightSidebarTabs.length > 0
+  const wslEnabled = useProjectsStore((s) => s.preferences.enabledFeatures.wsl)
   const setPreferences = useProjectsStore((s) => s.setPreferences)
   // Keep panel defaults stable while dragging. Updating defaultSize on every
   // resize event can make react-resizable-panels rebuild the layout mid-drag.
@@ -277,7 +200,7 @@ export default function App() {
 
   useKeybindings()
   useDiscordPresence()
-  useMcpIntroPrompt()
+  useOrchestrationSettingsSync()
   useRemoteControlService()
   useCloseConfirmation()
   useResourceSupervisor(hydrated)
@@ -303,17 +226,21 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    resumeAgentCanvasMirror()
+  }, [])
+
+  useEffect(() => {
+    // Before hydration the preferences are defaults; keep the boot theme applied.
+    if (!hydrated) return
     document.documentElement.dataset.theme = appliedTheme
-  }, [appliedTheme])
+    document.documentElement.dataset.visualStyle = visualStyle
+    rememberBootAppearance({ theme: appliedTheme, visualStyle })
+  }, [appliedTheme, hydrated, visualStyle])
 
   useEffect(() => {
     if (!hydrated) return
     void applyLegacyPluginMigrations()
   }, [hydrated])
-
-  useEffect(() => {
-    document.documentElement.dataset.visualStyle = visualStyle
-  }, [visualStyle])
 
   useEffect(() => {
     if (!hydrated) return
@@ -325,12 +252,16 @@ export default function App() {
   }, [appIconTheme, hydrated])
 
   useEffect(() => {
-    document.documentElement.lang = language === 'pt-BR' ? 'pt-BR' : 'en'
+    document.documentElement.lang = intlLocale(language)
   }, [language])
 
   useEffect(() => {
     setMaxConcurrentSpawns(spawnConcurrency)
   }, [spawnConcurrency])
+  useEffect(() => {
+    if (!hydrated) return
+    void setWslIntegrationEnabled(wslEnabled).catch(() => {})
+  }, [hydrated, wslEnabled])
 
   useEffect(() => {
     if (!hydrated) return
@@ -732,6 +663,7 @@ export default function App() {
       <GsdSyncActivityView />
       <LinkViewerOverlay />
       <DictationButton />
+      <VoiceCommand />
       <MainMenu />
       <ErrorBoundary label="modals">
         <NewProjectModal />

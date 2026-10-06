@@ -20,12 +20,7 @@ export function formatTokens(total: number | undefined): string | null {
   return `${(total / 1000).toFixed(total < 10_000 ? 1 : 0)}k`
 }
 
-export function contextShare(job: OrchestratorJob): number | null {
-  const used = job.tokens?.total?.totalTokens
-  const window = job.tokens?.modelContextWindow
-  if (!used || !window) return null
-  return Math.min(100, Math.round((used / window) * 100))
-}
+export { contextShare } from './contextShare'
 
 export function statusTitle(status: OrchestratorJob['status'], t: TFunction): string | undefined {
   if (status === 'interrupted') return t('orchestrator.interruptedTitle')

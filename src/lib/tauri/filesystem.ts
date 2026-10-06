@@ -31,8 +31,18 @@ export async function browseDirectory(path: string): Promise<DirectoryListing> {
   return invoke<DirectoryListing>('browse_directory', { path })
 }
 
+/** The home folder, or `null` when the platform reports none. */
+export async function homeDirectory(): Promise<string | null> {
+  return invoke<string | null>('home_directory')
+}
+
 export async function readTextFile(path: string): Promise<string> {
   return invoke<string>('read_text_file', { path })
+}
+
+/** Where a relative terminal path really is, also searching the repository's other worktrees. */
+export async function findRelativePath(cwd: string, path: string): Promise<string | null> {
+  return invoke<string | null>('find_relative_path', { cwd, path })
 }
 
 export async function writeTextFile(path: string, content: string): Promise<void> {
@@ -67,7 +77,6 @@ export async function unwatchFile(path: string): Promise<void> {
   await invoke('unwatch_file', { path })
 }
 
-                                                                        
 export function listenFileChanged(handler: (path: string) => void): Promise<UnlistenFn> {
   return listen<{ path: string }>('md://changed', (event) => handler(event.payload.path))
 }

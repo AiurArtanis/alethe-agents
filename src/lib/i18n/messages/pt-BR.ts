@@ -61,6 +61,11 @@ export const ptBR: Record<MessageKey, string> = {
   'onboarding.agentsEnabledOf': '{active} de {total} ligadas',
   'onboarding.agentChecking': 'Verificando',
   'onboarding.agentReady': 'pronto',
+  'onboarding.usageTitle': 'Mostrar seus limites de uso?',
+  'onboarding.usageSubtitle':
+    'O Alethe pode mostrar quanto de cada plano você já usou. Para ler isso, o Alethe usa as credenciais da CLI já instalada neste computador e contata o provedor. Tudo fica desligado até você ligar.',
+  'onboarding.usageFooter':
+    'Nada é lido enquanto um provedor está desligado · altere depois em Preferências',
   'onboarding.featuresTitle': 'Escolha seus recursos',
   'onboarding.featuresSubtitle':
     'Comece enxuto. Cada módulo que você ligar aparece na interface, e dá pra mudar quando quiser nas Preferências.',
@@ -100,6 +105,9 @@ export const ptBR: Record<MessageKey, string> = {
   'agent.mimo.desc': 'CLI da Xiaomi',
   'agent.antigravity.desc': 'Google Antigravity CLI',
   'agent.kiro.desc': 'CLI agentic da AWS',
+  'agent.kimi.desc': 'CLI de coding da Moonshot AI',
+  'agent.grok.desc': 'xAI Grok Build coding agent',
+  'agent.codewhale.desc': 'Open-source coding agent (any model)',
 
   /* ---- image input ---- */
   'image.placeholder': 'https://exemplo.com/icone.png',
@@ -224,6 +232,25 @@ export const ptBR: Record<MessageKey, string> = {
   'remote.statusOff': 'Desligado',
   'remote.enable': 'Ligar controle remoto',
   'remote.disable': 'Desligar controle remoto',
+  'remote.confirmEnable':
+    'Ligar o Controle Remoto?\n\nO Alethe abrirá listeners HTTP e WebSocket na sua rede local. Dispositivos pareados poderão ver a saída dos terminais compartilhados. As sessões pareadas expiram após {expiry}.\n\n{access}',
+  'remote.confirmEnableTailscale':
+    'Ligar o Controle Remoto?\n\nO Alethe abrirá listeners HTTP e WebSocket na sua rede Tailscale. Dispositivos pareados poderão ver a saída dos terminais compartilhados. As sessões pareadas expiram após {expiry}.\n\n{access}',
+  'remote.confirmAccessReadOnly':
+    'O acesso atual é somente leitura: mensagens para agentes e entrada de shell estão bloqueadas.',
+  'remote.confirmAccessAgentInput':
+    'O acesso atual permite mensagens para agentes; a entrada de shell está bloqueada.',
+  'remote.confirmAccessShellInput':
+    'O acesso atual permite mensagens para agentes e entrada de shell.',
+  'remote.sessionSeconds': '{seconds} segundos',
+  'remote.enableFailedTitle': 'Não foi possível iniciar o controle remoto',
+  'remote.enableFailedBody': 'O Alethe manteve o controle remoto desligado. {error}',
+  'remote.disableFailedTitle': 'Não foi possível desligar o controle remoto',
+  'remote.disableFailedBody':
+    'O Alethe não conseguiu confirmar que o acesso remoto foi encerrado. Reinicie o Alethe antes de continuar. {error}',
+  'remote.rollbackFailedTitle': 'A reversão do controle remoto requer atenção',
+  'remote.rollbackFailedBody':
+    'O Alethe não conseguiu salvar ou aplicar completamente o estado desligado. Reinicie o Alethe e confirme que o Controle Remoto está desligado. Erro de inicialização: {error}. Erro de reversão: {rollbackError}',
   'remote.modalReachEyebrow': 'Passo 1 · Rede',
   'remote.modalPairEyebrow': 'Passo 2 · Parear dispositivo',
   'remote.connectedDevices': 'Dispositivos conectados',
@@ -348,8 +375,11 @@ export const ptBR: Record<MessageKey, string> = {
   'agentInstall.docs': 'Documentação',
   'agentInstall.installTitle': 'Instalar o {agent}',
   'agentInstall.chooseMethod': 'Escolha como instalar o {agent} nesta máquina.',
+  'agentInstall.chooseMethodWsl': 'Escolha como instalar o {agent} dentro do {distro}.',
   'agentInstall.probing': 'Verificando o que está disponível nesta máquina…',
   'agentInstall.noMethod': 'Não há instalador automático para este agente nesta máquina.',
+  'agentInstall.noMethodWsl':
+    'Nenhum instalador deste agente funciona dentro do {distro}. Instale-o manualmente na distro.',
   'agentInstall.uninstall': 'Desinstalar',
   'agentInstall.uninstalling': 'Desinstalando…',
   'agentInstall.uninstallFailed': 'A desinstalação não foi concluída',
@@ -396,6 +426,13 @@ export const ptBR: Record<MessageKey, string> = {
   'handoff.included': '{count} eventos incluídos',
   'handoff.omitted': '{count} omitidos',
   'handoff.redacted': '{count} ocultados',
+  'handoff.scopeLabel': 'O que o outro agente recebe',
+  'handoff.scopeFull': 'Conversa completa',
+  'handoff.scopeFullHint':
+    'Suas mensagens, as respostas do assistente, a atividade de ferramentas e os nomes dos arquivos alterados. Conteúdo de arquivos ou segredos que apareceram na conversa podem chegar a outro fornecedor.',
+  'handoff.scopeUserOnly': 'Só as minhas mensagens',
+  'handoff.scopeUserOnlyHint':
+    'Só o que você digitou, mais a branch e quantos arquivos mudaram. Sem respostas do assistente, sem atividade de ferramentas, sem nomes de arquivos do Git.',
   'handoff.reviewLabel': 'Revise e edite o contexto que o agente de destino vai receber',
   'handoff.size': '{current} / {max} bytes',
   'handoff.unrestricted': 'Iniciar o {agent} em modo irrestrito',
@@ -406,6 +443,8 @@ export const ptBR: Record<MessageKey, string> = {
   'handoff.fallbackNewest':
     'O pane não tinha ID de sessão; a conversa mais recente desta pasta foi selecionada.',
   'handoff.lossOmitted': '{count} eventos antigos ou duplicados foram omitidos.',
+  'handoff.lossOmittedUserOnly':
+    '{count} eventos ficaram de fora: respostas do assistente, atividade de ferramentas e o que passou do limite de tamanho.',
   'handoff.lossRedacted': '{count} possível(is) segredo(s) foram ocultados.',
   'handoff.paneName': 'Handoff para {agent}',
   'handoff.bootstrapPrompt':
@@ -636,6 +675,10 @@ export const ptBR: Record<MessageKey, string> = {
   'features.prs.description':
     'Mostra os Pull Requests do GitHub em que você está envolvido como autor ou revisor, em todos os repositórios, com um jeito rápido de enviar um pra sua lista de TODO.',
   'features.prs.keywords': 'pull request pr github revisao todo',
+  'features.wsl.title': 'Integração com o WSL',
+  'features.wsl.description':
+    'No Windows, uma pasta dentro de uma distro WSL abre o shell da própria distro, roda a CLI instalada lá e retoma as sessões guardadas lá. Desligue para tratar toda pasta como pasta do Windows.',
+  'features.wsl.keywords': 'wsl linux distro ubuntu subsistema windows unc',
   'features.mcp.title': 'MCP e Skills',
   'features.mcp.description':
     'Inspecione e gerencie os servidores MCP e as skills de cada agente em um só painel.',
@@ -723,6 +766,15 @@ export const ptBR: Record<MessageKey, string> = {
     'Notifica quando uma janela de uso do Claude ou Codex reseta, mostrando qual.',
   'prefs.limitResetNotifyOn': 'Ligado',
   'prefs.limitResetNotifyOff': 'Desligado',
+  'prefs.experimentalPermissions': 'Permissões do Agent Canvas',
+  'prefs.experimentalPermissionsDesc':
+    'Como os agentes workers iniciados pelo Agent Canvas experimental lidam com permissões. Vale para os agentes iniciados a partir de agora e fica só neste computador.',
+  'prefs.experimentalPermissionsAsk': 'Perguntar',
+  'prefs.experimentalPermissionsBypass': 'Ignorar',
+  'prefs.experimentalPermissionsAskHint':
+    'Os agentes mantêm as próprias verificações de permissão. Um terminal em que você pode digitar pergunta a você; um worker rodando em segundo plano não tem a quem perguntar, então a ação que precisa de aprovação é recusada e o worker avisa.',
+  'prefs.experimentalPermissionsBypassHint':
+    'Os agentes executam comandos e editam arquivos sem perguntar: o Claude inicia com --dangerously-skip-permissions e o Codex com as aprovações e o sandbox desligados. Use só onde você aceita o que o agente fizer.',
   'prefs.dictation': 'Ditado por voz',
   'prefs.dictationDesc':
     'Speech-to-text local com modelos no dispositivo. Pressione {shortcut} para ditar texto em qualquer painel focado.',
@@ -798,6 +850,59 @@ export const ptBR: Record<MessageKey, string> = {
   /* ---- PreferencesModal — aba Multi-Agent & Telemetry ---- */
   'prefs.categoryMultiagent': 'Multiagente e Telemetria',
   'prefs.categoryMultiagentDesc': 'Métricas em tempo real, rastros de eventos e logs estruturados.',
+  'prefs.categoryOrchestration': 'Orquestração',
+  'prefs.categoryOrchestrationDesc': 'Papéis e limites dos workers delegados.',
+  'prefs.orchestrationLimits': 'Limites dos workers',
+  'prefs.orchestrationLimitsDesc': 'Valem para toda delegação, de qualquer planner.',
+  'prefs.orchestrationConcurrency': 'Workers ao mesmo tempo',
+  'prefs.orchestrationConcurrencyDecrease': 'Menos workers ao mesmo tempo',
+  'prefs.orchestrationConcurrencyIncrease': 'Mais workers ao mesmo tempo',
+  'prefs.orchestrationDefaultTimeout': 'Orçamento padrão por worker (segundos)',
+  'prefs.orchestrationTimeoutHint':
+    'Vale quando o planner não informa um orçamento. 0 deixa o worker rodar sem limite.',
+  'prefs.orchestrationWorkerPlugins': 'Plugins do Codex desligados nos workers',
+  'prefs.orchestrationWorkerPluginsHint':
+    'Um id de plugin por linha ou vírgula, como ecc@ecc. Os workers Codex começam sem os hooks e o contexto deles; seus próprios hooks e servidores MCP continuam.',
+  'prefs.orchestrationRoles': 'Papéis',
+  'prefs.orchestrationRolesDesc':
+    'Um planner que delega com um papel recebe exatamente o que o papel define: agente, modelo, esforço, somente leitura e orçamento. Ele não pode mudar isso na chamada.',
+  'prefs.orchestrationRolesEmpty':
+    'Nenhum papel ainda. Até você criar um, o planner escolhe o modelo e o esforço por conta própria.',
+  'prefs.orchestrationAddRole': 'Adicionar papel',
+  'prefs.orchestrationRemoveRole': 'Remover {name}',
+  'prefs.orchestrationRoleName': 'Nome',
+  'prefs.orchestrationRoleNameFor': 'Nome do papel {name}',
+  'prefs.orchestrationRoleNameInvalid':
+    'Use um nome único, sem espaços e que não comece com "-". Até lá o papel mantém o nome salvo, que é o que o planner usa.',
+  'prefs.orchestrationAgent': 'Agente',
+  'prefs.orchestrationModel': 'Modelo',
+  'prefs.orchestrationEffort': 'Esforço',
+  'prefs.orchestrationReadOnly': 'Somente leitura',
+  'prefs.orchestrationBudget': 'Orçamento (s)',
+  'prefs.orchestrationAgentFor': 'Agente de {name}',
+  'prefs.orchestrationModelFor': 'Modelo de {name}',
+  'prefs.orchestrationEffortFor': 'Esforço de {name}',
+  'prefs.orchestrationReadOnlyFor': 'Somente leitura para {name}',
+  'prefs.orchestrationTimeoutFor': 'Orçamento de {name} em segundos',
+  'prefs.orchestrationCliDefault': 'Padrão da CLI',
+  'prefs.orchestrationModelDefault': 'Padrão do modelo',
+  'prefs.orchestrationBudgetDefault': 'Padrão',
+  'prefs.orchestrationFallback': 'Fallback',
+  'prefs.orchestrationFallbackFor': 'Fallback de {name}',
+  'prefs.orchestrationFallbackNone': 'Nenhum',
+  'prefs.orchestrationFallbackHint':
+    'Quando o provedor de um papel passa de 80% da quota e o do fallback tem folga, o trabalho roda como o papel de fallback. Um papel somente leitura só cai para outro somente leitura.',
+  'prefs.orchestrationOrchestrator': 'Orquestrador',
+  'prefs.orchestrationOrchestratorFor': 'Orquestrador de {name}',
+  'prefs.orchestrationOrchestratorAny': 'Qualquer',
+  'prefs.orchestrationRoleOnOrchestrator': '{name} ({agent})',
+  'prefs.orchestrationOrchestratorHint':
+    'Uma linha para um orquestrador específico vence a linha Qualquer de mesmo nome, então o mesmo papel pode mandar sessões do Claude e do Codex para workers diferentes.',
+  'prefs.orchestrationModelsLoading': 'Lendo os modelos que o Codex oferece…',
+  'prefs.orchestrationModelsFailed':
+    'Não foi possível listar os modelos do Codex ({error}). Você ainda pode digitar o nome de um modelo.',
+  'prefs.orchestrationCustomModel': 'Usar "{value}"',
+  'prefs.orchestrationCodexOnly': 'Só para workers Codex',
   'prefs.multiagentSchedulerTitle': 'Agendador e fila de tarefas',
   'prefs.multiagentSchedulerDesc':
     'Gerencia ondas de execução a partir do backlog real de `.planning/task.md` por projeto.',
@@ -1004,9 +1109,17 @@ export const ptBR: Record<MessageKey, string> = {
 
   'prefs.agentsTitle': 'Agentes habilitados',
   'prefs.agentsDesc': 'Escolha quais agentes podem ser usados ao criar terminais e sub-tabs.',
+  'prefs.shell': 'Shell',
+  'prefs.shellDesc':
+    'O Alethe escolhe o shell sozinho (PowerShell 7 quando disponível, senão o Windows PowerShell; $SHELL nos demais sistemas). Aponte outro binário para sobrescrever — vale para abas Shell, não para abas de agente.',
+  'prefs.shellPathPick': 'Selecione o executável do shell',
+  'prefs.terminalFont': 'Fonte do terminal',
+  'prefs.terminalFontDesc':
+    'Fontes usadas nos painéis de terminal. Prompts como oh-my-posh e Starship precisam de uma Nerd Font instalada no sistema — por exemplo "CaskaydiaCove Nerd Font".',
+  'prefs.terminalFontFamily': 'Família da fonte',
   'prefs.cliPaths': 'Caminhos dos CLIs',
   'prefs.cliPathsDesc':
-    'O Alethe encontra o CLI de cada agente sozinho. Só defina um caminho se o CLI estiver num lugar fora do comum — e aponte para a ferramenta de linha de comando, não para o aplicativo gráfico.',
+    'O Alethe encontra o CLI de cada agente sozinho. Só defina um caminho se o CLI estiver num lugar fora do comum — e aponte para a ferramenta de linha de comando, não para o aplicativo gráfico. Esses caminhos são do Windows: terminais cuja pasta está dentro do WSL os ignoram e resolvem o CLI dentro da distro.',
   'prefs.cliPathAuto': 'Detectado automaticamente',
   'prefs.cliPathSet': 'Definir caminho',
   'prefs.cliPathReset': 'Limpar',
@@ -1139,11 +1252,30 @@ export const ptBR: Record<MessageKey, string> = {
   'pomodoro.settingsShortBreakMinutes': 'Pausa curta (minutos)',
   'pomodoro.settingsLongBreakMinutes': 'Pausa longa (minutos)',
   'pomodoro.titlebarOpen': 'Abrir Pomodoro',
+  'pluginsTab.title': 'Plugins',
+  'pluginsTab.searchPlaceholder': 'Buscar plugins',
+  'pluginsTab.refresh': 'Atualizar a lista de plugins',
+  'pluginsTab.loading': 'Carregando plugins…',
+  'pluginsTab.empty': 'Nenhum plugin corresponde a essa busca.',
+  'pluginsTab.installed': 'Instalado',
+  'pluginsTab.available': 'No catálogo',
+  'pluginsTab.updateBadge': 'Atualizar',
+  'pluginsTab.offBadge': 'Off',
+  'pluginsTab.noProject': 'Abra um projeto primeiro para ver o perfil de um plugin.',
+  'pluginPane.missing': 'Este plugin não está instalado nem listado no catálogo.',
+  'pluginPane.notInstalled': 'Não instalado',
+  'pluginPane.enable': 'Habilitar',
+  'pluginPane.disable': 'Desabilitar',
+  'pluginPane.permissions': 'Permissões',
+  'pluginPane.repository': 'Repositório',
   'prs.title': 'PRs abertos',
   'prs.refresh': 'Atualizar',
   'prs.loading': 'Carregando pull requests…',
   'prs.emptyTitle': 'Nenhum PR aberto',
   'prs.emptyDescription': 'Pull requests em que você é autor ou revisor vão aparecer aqui.',
+  'prs.emptyDescriptionProject': 'Este repositório não tem pull requests abertos.',
+  'prs.scopeProject': 'em {project}',
+  'prs.scopeAll': 'em tudo',
   'prs.draftBadge': 'Rascunho',
   'prs.updatedLabel': 'Atualizado em {date}',
   'prs.openInBrowser': 'Abrir no GitHub',
@@ -1167,6 +1299,35 @@ export const ptBR: Record<MessageKey, string> = {
   'whatsNew.close': 'Entendi',
   'whatsNew.update': 'Ver atualização',
   'whatsNew.releaseHeading': 'v{version} — {date}',
+  'whatsNew.v170.note1':
+    'Recursos agora carregam como plugins: Git Control, Todo List e o Theme Pack viram plugins oficiais, e um plugin pode ser importado a partir da sua pasta.',
+  'whatsNew.v170.note2':
+    'Um catálogo de plugins nas Preferências instala e atualiza plugins com um clique, cada pacote fixado a um checksum SHA-256.',
+  'whatsNew.v170.note3':
+    'Orquestração v2: um agente líder delega para workers Claude e Codex num quadro, pede permissão antes de sair do sandbox e confere antes a quota restante de cada fornecedor.',
+  'whatsNew.v170.note4':
+    'O controle remoto virou um cliente mobile com terminal ao vivo, visualização de chat do agente e perguntas interativas.',
+  'whatsNew.v170.note5':
+    'Projetos podem ser divididos em grids nomeados opcionais, cada um com seus terminais e layout.',
+  'whatsNew.v170.note6': 'Novos agentes e terminais: Cursor CLI, Kiro CLI e terminais WSL simples.',
+  'whatsNew.v170.note7':
+    'Integração de roteamento com o 9router e sincronização na nuvem das preferências (plano gratuito).',
+  'whatsNew.v170.note8': 'O Ctrl+P agora encontra comandos, não só terminais.',
+  'whatsNew.v160.note1':
+    'Estilos de interface Normal e Clean para o app inteiro, escolhidos no onboarding com prévia ao vivo.',
+  'whatsNew.v160.note2':
+    'Conversas do Claude Code e do Codex podem ser continuadas no outro agente a partir do terminal.',
+  'whatsNew.v160.note3':
+    'Agentes podem ser instalados, atualizados e desinstalados de dentro do Alethe, e o GitHub Copilot CLI entra como novo agente.',
+  'whatsNew.v160.note4':
+    'Nova aba MCP na barra lateral direita com todos os servidores MCP configurados e as skills instaladas para cada agente.',
+  'whatsNew.v160.note5':
+    'Layouts de grid são editados direto no grid, com presets adaptativos e os oito layouts salvos mais recentes.',
+  'whatsNew.v160.note6':
+    'Painéis de navegador voltaram ao grid do workspace, e uma URL impressa no terminal pode abrir como um deles.',
+  'whatsNew.v160.note7':
+    'O controle remoto pareia por uma janela de pareamento de curta duração, começa em modo somente leitura e pode ocultar terminais específicos.',
+  'whatsNew.v160.note8': 'Novos temas Golden Premium e Ember.',
   'whatsNew.v150.note1':
     'O export de backup de perfil agora arquiva o perfil inteiro (todos, histórico, preferências, tokens, scrollback) em vez de uma lista curta fixa.',
   'whatsNew.v150.note2':
@@ -1340,6 +1501,7 @@ export const ptBR: Record<MessageKey, string> = {
   'widget.tryAgain': 'Tentar novamente',
   'widget.noTokenConfigured': 'sem token configurado',
   'widget.connectToSeeUsage': 'conecte para ver o uso',
+  'widget.usageUnavailableHint': 'o serviço de uso recusou a consulta; tente de novo em instantes',
   'widget.usage5h': 'uso 5h',
   'widget.resetIn': 'reset em {time}',
   'widget.resetsIn': 'reseta em {time}',
@@ -1385,6 +1547,9 @@ export const ptBR: Record<MessageKey, string> = {
   'widget.antigravityNotSignedIn': 'sem login no agy',
   'widget.antigravityUsageHint': 'rode agy e faça login para ver as quotas ao vivo',
   'widget.usageUnavailable': 'uso indisponível',
+  'widget.usageOff': 'uso desligado',
+  'widget.usageOffHint': 'ligar usa seu login do {provider} e contata a {vendor}',
+  'widget.turnOnUsage': 'ligar',
   'widget.mostUsed': 'mais consumido',
   'widget.mostUsedBucket': 'mais consumido · {name}',
   'widget.remainingLabel': 'restante',
@@ -1424,6 +1589,7 @@ export const ptBR: Record<MessageKey, string> = {
   'crud.projectPathLabel': 'Pasta do projeto',
   'crud.projectPathPlaceholder': 'Escolha a pasta do projeto',
   'crud.projectPathHint': 'Novos terminais começarão nesta pasta.',
+  'crud.wslHint': 'Rodando dentro do WSL · {distro}',
   'crud.groupLabel': 'Grupo',
   'crud.noGroup': 'Solto (sem grupo)',
   'crud.colorLabel': 'Cor',
@@ -1503,6 +1669,11 @@ export const ptBR: Record<MessageKey, string> = {
   'term.goalPlaceholder': 'O que o planner precisa entregar?',
   'term.createMore': 'Criar mais',
   'term.createOrchestration': 'Criar orquestração',
+  'term.wslBadgeLabel': 'Rodando dentro do WSL · {distro}',
+  'term.wslPick': 'WSL',
+  'term.wslPickTitle': 'Abrir uma pasta dentro de uma distro WSL',
+  'term.wslPickFailed': 'Não foi possível acessar o WSL',
+  'term.wslPickFailedBody': 'O Alethe não conseguiu ler a pasta home da distro {distro}.',
   'term.openAgent': 'Abrir {agent}',
   'term.cancel': 'Cancelar',
   'term.create': 'Criar',
@@ -1531,6 +1702,8 @@ export const ptBR: Record<MessageKey, string> = {
   'term.bootQueued': 'Aguardando uma vaga para iniciar…',
   'term.bootSpawning': 'Iniciando processo…',
   'term.bootAttaching': 'Conectando ao terminal…',
+  'term.bootMemoryWait':
+    'Aguardando memória ({available} MB livres; necessário {threshold} MB) · {seconds}s',
   'term.chooseFolder': 'Escolher pasta',
   'term.nameOptional': 'Nome (opcional)',
   'term.folderCwd': 'Pasta (cwd)',
@@ -1705,6 +1878,18 @@ export const ptBR: Record<MessageKey, string> = {
   'usageModal.title': 'Detalhes de uso de IA',
   'usageModal.description':
     'Limites atuais, janelas de reset e status da conta dos seus agentes de código conectados.',
+  'usageModal.customize': 'Personalizar itens',
+  'usageModal.showInUsagePanel': 'Painel de uso',
+  'usageModal.showInTopbar': 'Topbar',
+  'usageModal.allHidden':
+    'Todos os itens de uso estão ocultos. Reative-os no painel de detalhes de uso de IA.',
+  'prefs.usageAccess': 'Leitura de uso de IA',
+  'prefs.usageAccessDesc':
+    'Escolha de quais provedores o Alethe lê o seu uso. Ligar um deles usa as credenciais da CLI já instalada neste computador e contata esse provedor. Enquanto estiver desligado, o Alethe nunca lê essas credenciais nem contata o provedor.',
+  'usageAccess.providerHint': 'Usa o login do {provider} neste computador e contata a {vendor}.',
+  'usageAccess.orchestratorToastTitle': 'Leitura de uso ligada',
+  'usageAccess.orchestratorToastBody':
+    'O orquestrador usa a cota para avisar você e escolher os papéis, então o Alethe agora lê o uso de {providers} com as credenciais da CLI instalada. Você pode desligar em Preferências > Integrações.',
   'ui.titlebar.itemClaude': 'Uso do Claude Code',
   'ui.titlebar.itemCodex': 'Uso do Codex',
   'ui.titlebar.itemAntigravity': 'Status do Antigravity',
@@ -1808,6 +1993,10 @@ export const ptBR: Record<MessageKey, string> = {
   'ui.sidebar.navigation': 'Navegacao da barra lateral',
   'ui.sidebar.archiveGroup': 'Arquivar grupo',
   'ui.sidebar.archiveProject': 'Arquivar projeto',
+  'ui.sidebar.hideProject': 'Ocultar projeto',
+  'ui.sidebar.unhideProject': 'Desocultar projeto',
+  'ui.sidebar.revealHiddenProjects': 'Revelar projetos ocultos ({count})',
+  'ui.sidebar.hideHiddenProjects': 'Ocultar de novo os projetos ocultos',
   'ui.sidebar.ungroupedDropArea': 'Solto — solte aqui para tirar do grupo',
   'ui.sidebar.dropHere': 'Soltar aqui',
   'ui.sidebar.moveIntoGroup': 'Mover para este grupo',
@@ -2075,10 +2264,12 @@ export const ptBR: Record<MessageKey, string> = {
   'ws.now': 'agora',
   'ws.claude5h': 'claude 5h {pct}%',
   'ws.codex5h': 'codex 5h {pct}%',
+  'ws.codexWeek': 'codex semana {pct}%',
   'ws.usagePanelOpen': 'Stats de uso (Claude / Codex)',
   'ws.usage5hLabel': '5h',
   'ws.usageWeekLabel': '7 dias',
   'ws.usageOpusLabel': 'opus 7d',
+  'ws.usageModelLabel': '{model} 7d',
   'ws.usageStatus': 'status',
   'ws.usageOk': 'ok',
   'ws.usageLimited': 'limite atingido',
@@ -2126,6 +2317,15 @@ export const ptBR: Record<MessageKey, string> = {
   'ws.copied': 'copiado!',
   'ws.copy': 'copiar',
   'ws.agentsChangedRestart': 'agents mudaram — reinicia o claude ↻',
+  'ws.permissionsChangedRestart': 'modo de permissão mudou — reinicia o claude ↻',
+  'ws.permissionsAsk': 'permissões: perguntar',
+  'ws.permissionsBypass': 'permissões: ignorar',
+  'ws.permissionsAskTitle':
+    'Os agentes perguntam antes de executar comandos ou editar arquivos. Um worker em segundo plano não tem a quem perguntar, então o que precisa de aprovação é recusado. Clique para alterar.',
+  'ws.permissionsBypassTitle':
+    'Os agentes executam comandos e editam arquivos sem perguntar. Clique para alterar.',
+  'ws.workerAskRefused':
+    'Modo perguntar: ninguém podia aprovar este worker, então qualquer ação que precisava de aprovação foi recusada. Altere o modo em Preferências → Terminal e agentes.',
   'ws.exitedCode': 'encerrado (code {code})',
   'ws.economyModeTitle':
     'Modo economia: escreve/remove agents Haiku e codex-executor em .claude/agents/ da pasta',
@@ -2157,6 +2357,17 @@ export const ptBR: Record<MessageKey, string> = {
   'orchestrator.agentSpendTitle': '{agent}: {cost} · {tokens} tokens nesta sessão do planner',
   'orchestrator.isolated': 'worktree',
   'orchestrator.hasDiff': 'diff',
+  'orchestrator.roleTitle': 'Delegado com o papel {role}',
+  'orchestrator.settingsNotApplied': 'As configurações de orquestração não foram aplicadas',
+  'orchestrator.settingsNotAppliedBody':
+    'O planner continua com os papéis e limites anteriores até isso ser corrigido: {error}',
+  'orchestrator.modelTitle': 'Roda no {model}, como o planner pediu',
+  'orchestrator.effortTitle': 'Roda com esforço de raciocínio {effort}, como o planner pediu',
+  'orchestrator.modelEffortTitle':
+    'Roda no {model} com esforço de raciocínio {effort}, como o planner pediu',
+  'orchestrator.readOnly': 'somente leitura',
+  'orchestrator.readOnlyTitle':
+    'Iniciado em sandbox somente leitura: lê arquivos e roda comandos, mas não escreve',
   'orchestrator.status.queued': 'esperando vaga',
   'orchestrator.status.running': 'rodando',
   'orchestrator.status.done': 'concluído',
@@ -2201,6 +2412,10 @@ export const ptBR: Record<MessageKey, string> = {
   'orchestrator.plannerEyebrow': 'planner',
   'orchestrator.plannerNodeTitle': 'Abrir o terminal em que este planner roda',
   'orchestrator.plannerGone': 'O terminal em que este planner rodava não está mais aberto',
+  'orchestrator.plannerInMainWindow': 'Abra o terminal deste planner pela janela principal',
+  'orchestrator.openInWindow': 'Abrir em nova janela',
+  'orchestrator.openInWindowFailed': 'Não foi possível abrir o board em uma nova janela',
+  'orchestrator.windowPaneGone': 'Este painel de orquestração não existe mais.',
   'orchestrator.noPlanner': 'sem planner',
   'orchestrator.noPlannerTitle': 'Trabalho delegado de fora de um terminal de agente',
   'orchestrator.plannerTitle': '{label} · {agent}',
@@ -2252,6 +2467,7 @@ export const ptBR: Record<MessageKey, string> = {
   'orchestrator.askFileChange': 'Ele quer alterar arquivos.',
   'orchestrator.routingChosen': 'escolhido · {agent} {window} {used}%',
   'orchestrator.routingIgnored': 'hint ignorado · {agent} {window} {used}%',
+  'orchestrator.routingFallback': 'fallback · {from} → {to} · {agent} {window} {used}%',
   'orchestrator.askIn': 'em {path}',
   'orchestrator.askHint':
     'Recusar deixa ele seguir por outro caminho. Abortar encerra o turno dele.',
@@ -2268,6 +2484,10 @@ export const ptBR: Record<MessageKey, string> = {
   'orchestrator.diffTab': 'Diff',
   'orchestrator.stopWorker': 'Parar este worker',
   'orchestrator.stopFailed': 'O worker não parou',
+  'orchestrator.menuOpen': 'Abrir',
+  'orchestrator.menuStop': 'Parar',
+  'orchestrator.menuRestart': 'Reiniciar',
+  'orchestrator.restartFailed': 'Não foi possível reiniciar o worker',
   'orchestrator.inspectorClose': 'Fechar',
   'orchestrator.shellCwd': 'em {path}',
   'orchestrator.noPlannerForShortcuts':
@@ -2312,6 +2532,13 @@ export const ptBR: Record<MessageKey, string> = {
   'mod.jobGuardInactive':
     'Proteção contra processos órfãos: indisponível nesta plataforma/sessão. Um crash pode deixar processos rodando; o próximo boot ainda tenta limpar automaticamente.',
   'ui.terminal.restartFailed': 'Falha ao reiniciar o terminal',
+  'ui.terminal.orchestrationStartFailed': 'Não foi possível iniciar a orquestração',
+  'ui.terminal.orchestrationStartFailedBody':
+    'O Claude não voltou com as ferramentas do orquestrador.',
+  'ui.terminal.openOrchestration': 'Abrir orquestração',
+  'ui.terminal.orchestrationRestartTitle': 'Reiniciar o Claude para a orquestração?',
+  'ui.terminal.orchestrationRestartBody':
+    'Esta conversa foi iniciada sem as ferramentas do orquestrador. O Claude reinicia na mesma conversa para recebê-las, e a orquestração de agentes fica ligada para os próximos terminais Claude e Codex.',
   'git.initOffer.title': 'Ainda não é um repositório Git',
   'git.initOffer.body':
     'Isolamento de agentes, worktrees e merges precisam que esta pasta seja um repositório Git. Inicializar agora?',
@@ -2506,6 +2733,8 @@ export const ptBR: Record<MessageKey, string> = {
   'sync.error.access_denied': 'A autorização foi negada no GitHub.',
   'sync.error.code_expired': 'O código expirou — tente entrar de novo.',
   'sync.error.malformed_payload': 'Os dados na nuvem estão malformados.',
+  'sync.error.secure_store_unavailable':
+    'O cofre de credenciais do sistema não está disponível, então nada foi salvo. No Linux, instale e desbloqueie um cofre como o GNOME Keyring ou o KWallet e tente de novo.',
   'sync.error.generic': 'Falha na sincronização: {error}',
 
   /* ---- supervisor de recursos ---- */
@@ -2553,6 +2782,11 @@ export const ptBR: Record<MessageKey, string> = {
   'sandbox.statusWorking': 'Trabalhando',
   'sandbox.statusDone': 'Concluído',
   'sandbox.statusError': 'Erro',
+  'sandbox.statusBlocked': 'Bloqueado',
+  'sandbox.approvalDeclinedCommand':
+    'Parado por um pedido de permissão: um comando precisava de aprovação e ninguém podia responder, então foi recusado. Altere o modo em Preferências → Terminal e agentes.',
+  'sandbox.approvalDeclinedFileChange':
+    'Parado por um pedido de permissão: uma alteração de arquivo precisava de aprovação e ninguém podia responder, então foi recusada. Altere o modo em Preferências → Terminal e agentes.',
   'sandbox.terminalPreview': 'Prévia do terminal',
   'sandbox.selectTerminal': 'Selecione um terminal de agente para inspecioná-lo aqui.',
   'sandbox.resizeTerminal': 'Redimensionar terminal',
@@ -2930,6 +3164,13 @@ export const ptBR: Record<MessageKey, string> = {
   'mcp.registryNoResults': 'Nenhum servidor encontrado.',
   'mcp.registryOffline': 'Não deu para alcançar o registry e não há nada em cache para esta busca.',
   'mcp.registryStale': 'Registry fora do ar — mostrando a cópia salva em {date}.',
+  'mcp.registryReviewTitle': 'Seleção do registry',
+  'mcp.registryReviewOrigin': 'Origem no registry',
+  'mcp.registryReviewName': 'Título publicado',
+  'mcp.registryReviewVersion': 'Versão publicada',
+  'mcp.registryReviewRepository': 'Repositório',
+  'mcp.registryAcknowledgement':
+    'Entendo que este é um software de terceiros que pode executar código local ou acessar serviços remotos quando um agente iniciar, e que aparecer no registry não significa um endosso da Alethe.',
   'mcp.addWritten': '{count} servidor(es) adicionado(s) em {agents}',
   'mcp.fieldName': 'Nome',
   'mcp.fieldTransport': 'Transporte',
@@ -3074,4 +3315,71 @@ export const ptBR: Record<MessageKey, string> = {
     'O 9router é um proxy local opcional. Instale agora ou depois, em Preferências → Integrações.',
   'router9.onboardingSkipHint': 'Opcional — dá pra pular esta etapa.',
   'router9.onboardingEnable': 'Ativar roteamento para agentes novos',
+
+  /* ---- voice command ---- */
+  'voice.bar.title': 'Comando de voz',
+  'voice.bar.inputLabel': 'Comando de voz',
+  'voice.bar.keyInputLabel': 'Chave da decisions API',
+  'voice.bar.speakPlaceholder': 'Diga o que você quer que o workspace faça',
+  'voice.bar.listeningPlaceholder': 'Ouvindo...',
+  'voice.bar.keyPlaceholder': 'Cole a chave da decisions API',
+  'voice.bar.startRecording': 'Começar a gravar',
+  'voice.bar.startRecordingTitle': 'Começar a gravar, ou segure o F9',
+  'voice.bar.stopRecording': 'Parar a gravação',
+  'voice.bar.stopHint': 'Solte o F9, ou clique no quadrado, para parar',
+  'voice.bar.transcribingHint': 'Transcrevendo seu áudio',
+  'voice.bar.decidingHint': 'Perguntando ao Jev o que fazer',
+  'voice.bar.runnableHint': 'Enter executa esse plano | Esc cancela',
+  'voice.bar.idleHint':
+    'Clique no microfone ou segure o F9 para falar | Enter decide | Esc cancela',
+  'voice.bar.noKeyHint': 'A chave fica guardada nas preferências e esta barra para de pedir',
+  'voice.bar.micSilent': 'Sem sinal deste microfone.',
+  'voice.bar.micLabel': 'Microfone',
+  'voice.bar.micDefault': 'Padrão do sistema',
+  'voice.bar.nothingToDecide': 'Nada pra decidir ainda. Fale, ou digite o que você quer.',
+  'voice.bar.busy': 'Ainda esperando a solicitação anterior.',
+  'voice.error.timeout': 'O Jev não respondeu em 20 segundos. Verifique a chave e a rede.',
+  'voice.failedToast': 'Comando de voz falhou',
+  'voice.summary.splitTasks': 'Dividiu {count} tarefas em {project}',
+  'voice.summary.launchAgents': 'Abrir {agents} em {project}',
+  'voice.summary.launchN': 'Abrir {count}x {agent} em {project}',
+  'voice.summary.reuse': 'Passar isso pra {terminal}, já em execução',
+  'voice.summary.focus': 'Trazer {terminal} pra frente',
+  'voice.summary.kill': 'Parar {terminal}',
+  'voice.action.focused': '{terminal} em foco',
+  'voice.action.stopped': '{terminal} parado',
+  'voice.action.sent': 'Tarefa enviada pra {terminal}',
+  'voice.action.openedWith': 'Abriu {agent} em {project} com: {prompt}',
+  'voice.action.opened': 'Abriu {agent} em {project}',
+  'voice.block.notACommand': 'Isso não era um comando pro app.',
+  'voice.block.unclearAction': 'Não sei o que fazer com isso. Diga de outro jeito.',
+  'voice.block.needsFolder': 'Adicionar projeto precisa escolher uma pasta na mão.',
+  'voice.block.noProject': 'Sem projeto pra trabalhar. Abra um primeiro.',
+  'voice.block.noTerminal': 'Nenhum terminal combinou. Foque um primeiro.',
+  'voice.block.noLiveTerminal': 'Esse terminal não tem processo rodando.',
+  'voice.block.noPrompt': 'Não achei tarefa nenhuma nessa frase pra passar adiante.',
+  'voice.warn.destructive': 'Isso para ou descarta trabalho.',
+  'voice.warn.busyTerminal': 'Esse agente está ocupado, o prompt fica na fila dele.',
+  'voice.warn.noPromptSpawn': 'O agente abre sem prompt.',
+  'voice.warn.lowPrompt': 'O trecho da tarefa estava incerto e foi descartado.',
+  'voice.warn.sharedPrompt': 'Todo agente recebe esse mesmo prompt, não uma tarefa cada.',
+  'voice.lifecycle.askingJev': 'Perguntando ao Jev',
+  'voice.lifecycle.transcribing': 'Transcrevendo',
+  'voice.lifecycle.heardNothing': 'Não ouvi nada',
+  'voice.lifecycle.failed': 'Falhou',
+  'voice.history.tabTitle': 'Histórico do Jev',
+  'voice.history.clear': 'Limpar histórico',
+  'voice.history.emptyTitle': 'Nenhum comando ainda',
+  'voice.history.emptyBody': 'Aperte Ctrl+Shift+Espaço, diga o que você quer, e isso aparece aqui.',
+  'voice.history.silence': '(silêncio)',
+  'voice.history.status.deciding': 'decidindo',
+  'voice.history.status.ran': 'executado',
+  'voice.history.status.waiting': 'aguardando',
+  'voice.history.status.blocked': 'bloqueado',
+  'voice.history.status.failed': 'falhou',
+  'voice.history.agentConf': 'agente {value}',
+  'voice.history.projectConf': 'projeto {value}',
+  'voice.history.voiceMs': 'voz {ms} ms',
+  'voice.confirm.run': 'Executar',
+  'voice.confirm.cancel': 'Cancelar',
 }

@@ -78,6 +78,136 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   guide to the app before answering, then walks you through the screens instead of guessing. It is
   told never to edit Alethe's own settings files, which the running app would overwrite.
 
+- **Projects inside WSL.** On Windows, a project or terminal whose folder lives under
+  `\\wsl.localhost\<distro>\…` now runs inside that distro: shell tabs open the distro's login
+  shell in the right Linux directory, and agent tabs run the CLI installed in the distro, found
+  through the account's own login shell so installers that only edit `~/.bashrc` or `~/.zshrc`
+  still count. A **WSL** button next to Browse in the New Project and New Terminal dialogs opens
+  the folder picker inside a chosen distro, and a pane running in one carries a badge naming it.
+  Claude Code, Codex, OpenCode and Antigravity sessions started there are listed and resumed, Git
+  actions no longer fail with git's *dubious ownership* error on those repositories, and
+  installing a missing agent installs it inside the distro. Graphify and AI memory stay off for
+  these panes. The whole integration sits behind **Preferences → Features → WSL integration**, on
+  by default; turning it off treats every folder as a Windows one again.
+- **Preferences → Terminal → Shell** picks which binary plain Shell tabs open. Alethe still detects
+  one on its own (PowerShell 7 when available, then Windows PowerShell; `$SHELL` elsewhere), so the
+  setting only matters when you want a specific shell — PowerShell 7 installed outside PATH, or
+  `bash`, `zsh` and `nu`. The choice survives restarting a tab, and a path that no longer exists
+  falls back to the automatic detection instead of failing to open.
+- **Preferences → Terminal → Terminal font** sets the font the terminal panes render with. Custom
+  prompts such as oh-my-posh and Starship draw their separators and icons with Powerline/Nerd Font
+  glyphs, which the previous fixed font stack did not carry — they showed up as empty boxes. Point
+  this at an installed Nerd Font (for example `CaskaydiaCove Nerd Font`) and the prompt renders as
+  intended.
+- **Simplified Chinese.** The interface can now be shown in Simplified Chinese (中文), and the
+  README has a Chinese edition.
+- **Right-click a worker to open, stop or restart it.** On the orchestration board and in the
+  Executions list, a worker's context menu opens its details, stops it while it is queued,
+  running or waiting on you, or runs the same request again as a new worker under the same
+  planner. Claude's own subagents and background shells run inside the planner, so they can only
+  be opened.
+- **Start orchestration on a Claude terminal that is already open.** A button in a Claude
+  terminal's header puts an orchestration board next to it, so the conversation where the work
+  was planned can become the planner. A conversation started before orchestration was on is
+  restarted on the same conversation, after asking, to get the orchestrator tools, and
+  orchestration stays on for the Claude and Codex terminals opened after it.
+- **Open the orchestration board in its own window.** A button in the orchestration pane's header
+  opens its board in a separate window, handy on a second monitor, and brings it back if it is
+  already open. It follows the same live workers and keeps the board's own actions; actions that
+  change the main workspace stay in the main window. The detached window reads the saved state
+  but never writes it, so the two windows cannot overwrite each other.
+- **Orchestration settings with named worker roles.** A new Orchestration category in Preferences
+  holds roles such as a reviewer: each sets the agent, model, effort, read-only mode and time
+  budget, with the models and efforts listed from the installed Codex (and Codex's common efforts
+  when it cannot be asked). A planner delegates with
+  `role` and gets exactly that, so switching the model that does a kind of work is one change in
+  Preferences. The same page sets how many workers run at the same time and the default budget
+  per worker, which were fixed at 4 and 900 seconds.
+- **Codex workers can start without chosen plugins.** The Orchestration settings take a list of
+  Codex plugin ids that worker threads start without, so plugins that run hooks on every start
+  and prompt, or add their context to every call, stay out of workers that only read and report.
+  Interactive Codex sessions, and your own hooks and MCP servers, are not affected.
+- **A role can fall back to another when its provider runs out.** Each role in the Orchestration
+  settings can name a fallback role. When a delegation asks for a role whose provider is at or past
+  80% of its quota and the fallback's provider has room, the workers run as the fallback role, and
+  the worker card says so. A read-only role only falls back to a read-only one. The headroom hint a
+  planner gets now reads the agent a role runs on instead of assuming Codex.
+- **A role can run differently for Claude and Codex orchestrators.** Each role row in the
+  Orchestration settings can be for Any, Claude or Codex orchestrators. When a session delegates a
+  role, the row for its own agent wins over the Any row of the same name, so switching the
+  orchestrator also switches which provider the workers spend.
+- **Delegated workers can run on a chosen model, effort and read-only sandbox.** A planner can now
+  pass `model`, `effort` and `readOnly` when it delegates, so work such as an independent review on
+  another model runs as a worker on the orchestration board instead of outside Alethe. The worker
+  card shows the model, the effort and a read-only mark, and a worker picked up again keeps them.
+  `readOnly` applies to Codex workers; asking for it on a Claude worker is refused, while `effort`
+  reaches Claude as `--effort`.
+- **Grok Build and Codewhale are now native agents.** Grok Build (xAI, `grok` CLI) and
+  Codewhale (`codewhale` CLI) appear in every agent picker with their own icons and accent
+  colors. Install entries cover the official Grok PowerShell/npm installers and
+  `npm install -g codewhale`. Unrestricted mode maps to Grok's `--yolo` (alias of
+  `--always-approve`); Codewhale has no documented launch-time unrestricted flag, so Full
+  Access remains a TUI posture. Launch can pass a known session id (`grok --resume <id>`,
+  `codewhale resume <id>`), but Alethe does not yet mint or discover those ids across
+  restarts — pane auto-resume is therefore not wired the way Claude/Codex are.
+- **Kimi Code is now a native agent.** Kimi Code (Moonshot AI) appears in every agent picker with
+  its own icon and accent color, launches through the `kimi` CLI (unrestricted mode maps to
+  `--yolo`), ships an install entry (`npm install -g @moonshot-ai/kimi-code`), and is part of the
+  MCP manager, which reads and writes `~/.kimi-code/mcp.json` (or `$KIMI_CODE_HOME`) and
+  per-project `.kimi-code/mcp.json`.
+- **AI usage items are customizable.** The AI usage details modal gained a customize button that
+  opens an editor where each provider (Claude Code, Codex, Antigravity) is shown or hidden
+  independently in the usage panel and in the topbar. The existing topbar toggles stay in sync,
+  and hiding every item shows an empty-state hint instead of the cards.
+- **Memory-aware terminal startup feedback.** When system memory is below the safe spawn
+  threshold, terminal panes now show the available memory and elapsed wait instead of an opaque
+  loading state; the wait is also recorded separately in diagnostics.
+- **Voice commands into the workspace.** `Ctrl+Shift+Space` opens a command bar where you say or
+  type what you want, and Alethe routes it into a real action: launching one or more agents in a
+  project, handing the task to a terminal that is already open, bringing one up, or stopping one.
+  Routing runs on TypeSafe Jev, a model that only picks between options built from live workspace
+  state, so the prompt handed over is a verbatim span of what you said, never text the model wrote.
+  The plan, its confidences, latency and cost are shown before anything runs, and nothing runs
+  without confirmation. The first time the bar opens it asks for a decisions API key and remembers
+  it. A mic button starts and stops recording by click, F9 still works as push to talk, and a live
+  spectrum shows the audio actually coming in, so a dead microphone is visible immediately rather
+  than after the fact. Plans now run the moment they are decided; the bar only stops to ask when the
+  request looks destructive, when it would stop a running agent, or when the task would be handed to
+  an agent that is already busy. Held plans show Run and Cancel buttons next to the Enter and Esc
+  shortcuts. Plain
+  shell and WSL panes are never offered as the agent for a task, so an unclear agent name falls back
+  to a coding agent instead of typing the request into a PowerShell prompt.
+- **One sentence can now delegate different jobs to different agents.** Saying "open one agent to
+  run the build and another to read the first line of main.ts" starts two agents, each with its own
+  task, instead of starting two copies of the same request. The sentence is split into clauses and
+  the model picks which clause is each job and which agent should carry it, so every prompt handed
+  over is still a verbatim piece of what was said. Repeating one task across several agents still
+  works and still says so.
+- **Faster, English-first dictation.** A Zipformer model trained on conversational speech replaces
+  the multilingual Parakeet as the default: roughly nine times smaller and several times quicker to
+  transcribe. Agent and command words such as Codex, Claude Code, terminal and git status are now
+  boosted during decoding, so a coding request is recognised as one instead of being spelled out
+  phonetically. Parakeet stays available for other languages and keeps its original decoding.
+- **Counts are honoured per agent.** Asking for "two claude codes and two codex" opens two of each
+  instead of one of each, and a sentence that names no number still opens one.
+- **Voice tells a shell apart from an AI agent.** Open panes reach the model labelled by what they
+  are, so "run the build" goes to a shell that is already open while "read this file and explain it"
+  goes to a coding agent, without either being named out loud.
+- **Voice can answer an agent that is already open.** Terminals now reach the model with their pane
+  name and the order they were opened in, so "agent one, answer yes" or "tell the codex to continue"
+  lands on the right pane, and a one word reply counts as something to hand over.
+- **Jev history in the right sidebar.** A new tab records every voice command of the session: what
+  was heard, what it was routed to, the prompt handed over, any warnings, and the action and agent
+  confidences alongside latency and cost. Failures are recorded with their reason instead of
+  disappearing, which makes a request that did nothing traceable after the fact. Releasing the key
+  closes the bar immediately and the sidebar takes over, so transcription and routing no longer hold
+  a modal open; only a destructive plan reopens it to ask. Each entry also lists what actually
+  happened, terminal by terminal, so the plan and the result can be told apart.
+- **Per-model Claude limits.** The Claude usage card, the title-bar popover, and the canvas usage
+  panel now list each model-scoped weekly limit, such as Fable, below the Opus row, and the
+  orchestrator counts them when it checks Claude's remaining quota
+  ([#208](https://github.com/Kc1t/alethe-agents/issues/208)).
+
 ### Changed
 
 - **Preferences sections fold away.** Every section on a Preferences page now has a clickable
@@ -85,6 +215,68 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   remembers what you left open. On Multi-Agent & Telemetry the bulky read-only sections
   — metrics, traces and the audit log — start folded; jumping to a setting from the search
   opens its section on the way.
+
+- **Agent Canvas workers now ask before acting — behaviour change.** The experimental Agent Canvas
+  used to start every agent with its permission checks off, without saying so. It now has a
+  permission mode, **Ask** by default for new and existing profiles: Claude starts without
+  `--dangerously-skip-permissions` and Codex with an on-request approval policy and a
+  workspace-write sandbox. The lead Claude terminal asks you in the terminal as usual. A worker
+  running in the background has nobody to ask, so an action that needs approval is refused instead
+  of approved automatically — **if you already use the Canvas, expect such workers to stop where
+  they used to carry on**; the worker card says why. To let agents run commands and edit files
+  without asking again, switch **Preferences → Terminal and agents → Agent Canvas permissions** to
+  **Bypass**. The Canvas toolbar shows the current mode and opens that setting. The choice stays on
+  this computer and is not synced. Regular terminal tabs and the orchestrator are not affected.
+- **The MCP introduction no longer opens by itself.** It used to appear right after the first-run
+  setup closed, for anyone who already had MCP servers configured. It now opens only from
+  **Preferences → Features**.
+- **Usage reading is now opt-in, per provider.** Reading your Claude Code, Codex or Antigravity
+  usage means using the credentials of the CLI already installed and contacting that provider, so
+  Alethe now asks first. **Preferences → Integrations → AI usage reading** has one switch per
+  provider, and onboarding asks the same question. While a provider is off, Alethe never reads its
+  credentials or contacts it: no check at startup, none in the background, none when the usage
+  panel opens. Hiding a card or a topbar pill is still a separate, purely visual choice. A card
+  whose provider is off says so and offers to turn it on. New profiles start with all three off;
+  existing profiles keep them on. Turning the orchestrator on turns the reading on for Claude Code
+  and Codex, which it uses to warn about quota and to pick roles, and says so in a notification;
+  you can turn them off again and the orchestrator simply runs without quota information.
+- **GitHub Sync and Spotify credentials live in the system credential store.** The GitHub Sync
+  token, the Spotify Client Secret and the Spotify access and refresh tokens are no longer kept as
+  plain text in the profile folder. What is already saved moves over on its own, and the plain-text
+  copy is only removed once the stored value has been read back; if the credential store cannot be
+  reached, nothing is lost and the app says so. Spotify credentials are also left out of exported
+  backups. On Linux this needs a keyring such as GNOME Keyring or KWallet.
+- **Remote Control fails closed.** Turning it on from the quick dialog or from Preferences now asks
+  for confirmation first, spelling out which network the listeners open on, how long paired
+  sessions last, and whether paired devices can send agent or shell input. It only reports itself
+  on once every access setting was applied and both listeners are open; if anything fails it stays
+  off, the setting is switched back, and a notice says why. Turning it off always wins over a
+  pending turn-on, and no remote input reaches a terminal after it is off. A fresh backend also
+  starts read-only until the app applies your settings.
+- Adding an MCP server from the registry now shows where it comes from, its version and
+  repository, and asks you to confirm before it is saved. Packages are pinned to the exact
+  version the registry lists, and options without one, along with Docker and NuGet options,
+  are no longer offered. The registry cache is readable only by you on Linux and macOS.
+- The local telemetry log keeps only event identifiers and duration, cost and memory figures, is
+  readable only by your user on Linux and macOS, and stays under 2 MiB. It never leaves the
+  device.
+- **A worker that runs out of time no longer loses its work.** A delegated worker is told its time
+  budget when it starts, and by when to write its answer. If it is still stopped at the end, the
+  planner and the board get what it had written by then along with the timeout, instead of only
+  the message that the budget ran out.
+- The startup loading screen now opens in your selected theme and visual style instead of the
+  default dark theme, and its card, backdrop and progress indicator follow the design system
+  tokens used across the rest of the app.
+- **The voice command UI is fully localized.** Every string in the command bar, the plan summary,
+  the block and warning reasons, and the Jev history now goes through i18n in English and pt-BR,
+  so nothing in the voice flow is hardcoded to a single language anymore.
+- **The handoff dialog asks what the other agent receives.** *Full conversation*, the default and
+  what a handoff carried before, sends your messages, the assistant replies, tool activity and the
+  names of changed files, so file contents or secrets that appeared in the conversation can reach
+  another vendor. *Only my messages* sends what you typed plus the branch and how many files
+  changed, and nothing else. The dialog remembers the last choice. In both, the packet is redacted
+  again when it is saved, after your edits, its generated title is redacted too, and the temporary
+  context file is created owner-only and never overwrites an existing one.
 
 ### Fixed
 
@@ -140,6 +332,168 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   shell, and MCP wrapper processes from surviving an app update or overlapping Alethe instance.
 - Codex handoffs on Windows now write escaped bridge-script paths to project `config.toml` files,
   preventing `\U` TOML parse errors from blocking the receiving session.
+
+- **Agent CLIs installed under fnm or a custom Volta home are found on Linux.** Launched from a
+  desktop menu, Alethe does not inherit the PATH your shell sets up, so a CLI installed through
+  fnm, or through Volta with `VOLTA_HOME` pointing somewhere other than `~/.volta`, was reported
+  as missing.
+- The Linux AppImage no longer opens to an empty window on modern Wayland desktops (Ubuntu
+  24.04+, Fedora 40+, Arch). It shipped its own copy of a system graphics library that clashed
+  with the one your graphics driver loads, so the window died before drawing anything. It now
+  uses the system's copy, and the release build checks the finished AppImage, so this cannot be
+  announced as fixed again without being fixed. The `.deb` and `.rpm` installers were never
+  affected.
+- Mermaid, nanoid and DOMPurify are updated past versions with published security advisories,
+  among them a DOMPurify issue that could let a crafted diagram run script.
+- On Linux, the settings file that lets Claude Code report back to Alethe is no longer written
+  to the shared temp folder, where other users of the machine could read the access token in
+  it. It now lives in your own runtime folder, readable only by you.
+- On Linux, opening Alethe while it is already running no longer exits without a word. It says
+  it is focusing the open window, or, when that instance is stuck, which process holds it and
+  how to end it.
+- Text copy and paste works on KDE Plasma without `wl-clipboard` or `xclip`, through Klipper.
+  Images and files still need `wl-clipboard` (Wayland) or `xclip` (X11), and the error now says
+  which one to install.
+- A Codex worker that Codex refuses to start, for example on a model or reasoning effort it
+  does not accept, now fails with Codex's reason. It used to show as running, holding a slot,
+  until its time budget ran out, or for good when it had none.
+- Alethe no longer closes by itself while a delegated worker streams a long reply with accented
+  or other non-ASCII text. Trimming the live reply to its last 16,000 bytes could cut a character
+  in half, which crashed the whole app
+  ([#256](https://github.com/Kc1t/alethe-agents/issues/256)).
+- The orchestration board names a newly opened terminal's planner after the terminal again. Its
+  label was looked up before the terminal's first launch had given the tab its pty, so the board
+  showed a random id instead ([#264](https://github.com/Kc1t/alethe-agents/issues/264)).
+- **The Open PRs sidebar showed a raw git error for a project whose folder is not a git
+  checkout.** A project opened on `C:\`, for example, made `gh pr list` run git in a folder
+  without a repository and fail with "not a git repository". The sidebar now falls back to the
+  account-wide list (every open PR you are involved in) whenever the project's own list cannot be
+  loaded, and its header switches to the account-wide label so it is clear which list you see.
+- **A task sent again no longer shows its dead worker next to the new one.** When a worker is
+  interrupted, cancelled or fails and the same planner sends the same task again, the earlier worker
+  leaves the orchestration board and the run list, so each task shows the worker that currently has
+  it. This survives a restart. What the earlier worker spent still counts in the session totals, and
+  it comes back to the board if it is sent more work. Workers that finished are never hidden.
+- A planner can read its orchestration status again. `alethe_status` returned every worker of
+  every planner with the whole task text, which with a dozen long tasks passed the size a tool
+  result may have, so the call failed. It now lists the calling planner's active and most recent
+  workers with long texts trimmed, says how many were left out, and takes `all` for the rest
+  ([#258](https://github.com/Kc1t/alethe-agents/issues/258)).
+- Every coding agent reached the routing model described the same way, so a request that named no
+  agent had nothing to choose on and the answer spread evenly across them, which showed up as a low
+  confidence and a fallback. Agents now carry how many panes they have open and whether one of them
+  is the pane in front of the user, which is what an unnamed follow up actually refers to.
+- Voice history no longer leaves a command that asked for confirmation stuck on “waiting”.
+  Confirming the plan now settles the entry as ran, with the actions it actually performed.
+- Jev routing requests now have a hard timeout and retry transient failures (network errors, 429
+  and 5xx) before giving up, instead of failing the whole command on a single network blip.
+- Naming a pane out loud left the pane's name inside the command that was handed over, so "run git
+  status in the shell" typed the whole sentence into the shell whenever dictation misheard the pane
+  name. The trailing place is now dropped by shape as well as by name, while a place that is part of
+  the work, such as "in the web folder", is kept. "Shell" is also boosted during dictation now.
+- A prompt handed to a freshly launched agent could stay typed but unsent when the CLI was still
+  drawing its first screen or sitting on a trust prompt, which swallowed the return. Sending it now
+  retries a few times instead of once.
+- Boosted command words had no effect on the English dictation model, because biasing on a
+  BPE model also needs its vocabulary, which was never downloaded or passed along. It ships with the
+  model now, so agent names are recognised as words instead of being spelled out phonetically.
+- Codex asked to review and trust its hooks on every single launch, and kept asking even after the
+  script stopped being written per terminal, because the listener port reached the filename too and
+  that port moves between runs. The scripts are now named per install, so the command Codex reads
+  stays the same and trusting once holds.
+- Dictation rebuilt the whole speech recogniser on every utterance, reading the model from disk and
+  creating fresh ONNX sessions each time a sentence was transcribed. The recogniser is now kept for
+  as long as the model stays the same, it is loaded as soon as the voice bar opens rather than after
+  a sentence ends, decoding uses the machine's cores instead of a fixed pair of threads, and leading
+  and trailing silence is dropped before decoding instead of being transcribed along with speech.
+  The voice history now reports transcription and routing time separately, so the two are no longer
+  guessed at from a single number.
+- Voice commands could stop responding entirely after a decision request hung, because the request
+  had no timeout and the bar stayed permanently busy without saying so. Requests now give up after
+  20 seconds, and every refusal to act reports why instead of ignoring the keystroke.
+- Removed the duplicate Pomodoro widget embedded between the Todo List composer and tasks; the
+  timer remains available in the title bar.
+- Markdown tabs in the sidebar viewer now keep readable labels at narrow widths and scroll
+  horizontally instead of collapsing into a row of close buttons.
+- Opening a pull request now uses the system browser instead of creating an unexpected app surface.
+- The Features preferences page now matches the grouped, searchable feature selector used during
+  onboarding, with consistent Browser and Playwright controls.
+- Closing the app no longer leaves the window frozen on screen for up to four seconds while the
+  terminals' processes are stopped. The window disappears as soon as the close is confirmed, and
+  how long the teardown took is written to `app-events.log`.
+- A Codex worker's card read "100% context" after a few turns, because it added up every turn's
+  prompt. It now shows how full the context window is on the last turn.
+- A finished worker on the orchestration board showed the same green dot as a running one. Its dot
+  now uses the finished colour from the legend, in the run list, on its card and in the composer.
+- The close button of a pane shown inside a group, such as the Orchestration pane next to its
+  planner, now closes it. It did nothing, because the group kept drawing the pane. Closing the
+  first pane of a group also no longer hides the other panes in it.
+- Terminal links to files in your home folder now open. A `~\` path was cut down to a path inside
+  the terminal's folder, and neither `~/` nor `~\` was expanded to the home folder, so opening such
+  a link in its folder, in VS Code, in a pane or in a preview reported that the path did not exist.
+- A background command started by a Claude planner no longer stays running on the orchestration
+  board after it finishes. The board only noticed a background task when the agent stopped it,
+  so one that ended on its own kept its timer counting indefinitely; it now ends when Claude
+  reports the task as completed, failed or killed. At the end of each of the planner's turns, any
+  background command or subagent Claude no longer lists as running is ended too, which also clears
+  a subagent that was interrupted before reporting that it stopped.
+- The Claude Code usage card no longer claims "no token configured" when the usage service is
+  only rate limiting. A refresh it refuses keeps the last reading on screen, without the live
+  marker and dimmed in the title bar, and a card with no reading yet says usage is unavailable.
+  Such an old reading no longer suggests switching agents, and pressing refresh while a read is
+  already on its way no longer sends another request.
+- Cancelling a worker that was still waiting in the orchestration queue no longer starts it. It
+  also freed a slot it never held, letting one more worker run than the concurrency limit allows.
+- A worker restored after a restart keeps the time budget it was delegated with, instead of
+  falling back to 15 minutes.
+- A relative path printed by an agent working in another git worktree of the project failed to open
+  ("path nao existe"), because it was looked up only in the terminal's folder. When it is not there,
+  the project's other worktrees are searched too, including paths that start with the worktree's
+  folder name.
+- Relaunching a Claude terminal no longer drops its MCP servers and hooks. Claude only reads them
+  at launch, and only the first launch passed them, so restarting a terminal (from its header, the
+  inspector or the sidebar), resuming a conversation in it, resetting the last session or moving
+  it to a new worktree left a planner without the orchestrator tools, along with Playwright,
+  Graphify and AI memory.
+- On Linux, closing a terminal could end every process of your user session instead of only that
+  terminal's processes, depending on the process ID it got. Terminals are now stopped directly
+  through the system call, so only their own processes are affected.
+- **What's New lists 1.6.0 and 1.7.0.** The in-app panel stopped at 1.5.0 and its title read
+  1.5.0. It now covers both releases, and the test suite fails when the list does not start at the
+  app version, so a release can no longer ship with stale notes. Release dates in the panel no
+  longer show the day before for anyone west of UTC
+  ([#213](https://github.com/Kc1t/alethe-agents/issues/213)).
+- **Graphify MCP server starts for Claude, Codex, and opencode.** Alethe configured it as
+  `graphify <repo> --mcp`, a flag Graphify does not have, so the agent timed out waiting for it;
+  it now runs `graphify-mcp <repo>/graphify-out/graph.json`. Existing entries are rewritten the
+  next time a session starts ([#206](https://github.com/Kc1t/alethe-agents/issues/206)).
+- **Graphify builds the code graph without an LLM API key.** Alethe generated a missing graph with
+  Graphify's full extraction, which needs an API key for docs and images; without one it failed
+  and the graph never appeared. It now runs `graphify update`, which builds the code graph in
+  seconds and spends no LLM credits ([#211](https://github.com/Kc1t/alethe-agents/issues/211)).
+- **Codex usage no longer starts `codex.exe` on every poll.** Usage is read over HTTP with the
+  Codex CLI's saved ChatGPT login, falling back to `codex app-server` only when that fails, and the
+  fallback now lets the process exit on its own instead of killing it. Frequent short-lived
+  `codex.exe` processes were linked to `lsass.exe` crashes that forced a reboot on Windows 11 ([#202](https://github.com/Kc1t/alethe-agents/issues/202)).
+- **Codex weekly quota shown in the right place.** On plans whose only limit is weekly, such as
+  ChatGPT Pro Lite, the weekly usage appeared as the 5-hour quota and the week read 0%. Windows are
+  now placed by their length, and plans without a 5-hour limit show only the weekly one ([#187](https://github.com/Kc1t/alethe-agents/issues/187)).
+- Agent and 9router install and uninstall dialogs can now be cancelled while an installer runs, so
+  one stuck on a prompt no longer locks the dialog and every other install until Alethe restarts.
+- npm installs now work on a fresh Windows, where the default PowerShell execution policy refused
+  to run the `npm.ps1` shipped with Node.js; the relaxed policy only applies to the installer's own
+  shell.
+- WinGet and Chocolatey installs no longer stop on a confirmation prompt the dialog could not
+  answer, such as WinGet's source agreement on its first run.
+- Installing Node.js through WinGet, Scoop or Chocolatey is no longer cut short as soon as `npm`
+  appears on disk; Alethe now waits for the package manager to finish.
+- Renaming a project, group, or terminal now also updates its pinned/recent tab in the topbar. The
+  tab strip snapshotted its label only once, when the tab was first created, so a later rename kept
+  showing the old name there even though the workspace itself reflected the new one.
+- Renaming a terminal from the sidebar now actually sticks there too. The row's display name
+  preferred a live auto-title — Claude's own session title, or the active sub-tab's agent-type
+  name — over the renamed value, so the rename looked like it silently did nothing.
+
 
 ## [1.7.0] — 2026-09-20
 

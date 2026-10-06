@@ -60,7 +60,9 @@ export function Router9Settings() {
   if (resolved && resolved.source !== config.source) {
     notices.push({
       key: 'fallback',
-      text: t(resolved.source === 'external' ? 'router9.fallbackExternal' : 'router9.fallbackManaged'),
+      text: t(
+        resolved.source === 'external' ? 'router9.fallbackExternal' : 'router9.fallbackManaged',
+      ),
       tone: 'warn',
     })
   }
@@ -74,12 +76,7 @@ export function Router9Settings() {
       tone: 'warn',
     })
   }
-  if (
-    managed?.installed &&
-    managed.version &&
-    status &&
-    managed.version !== status.pinnedVersion
-  ) {
+  if (managed?.installed && managed.version && status && managed.version !== status.pinnedVersion) {
     notices.push({ key: 'pinned', text: t('router9.pinnedMismatch'), tone: 'info' })
   }
   // Only worth saying once it can actually bite: routing is on and agents may already be attached.
@@ -111,7 +108,9 @@ export function Router9Settings() {
                 type="button"
                 className={styles.quietBtn}
                 disabled={!running}
-                onClick={() => void openInBrowser(status?.dashboardUrl ?? '').catch(() => undefined)}
+                onClick={() =>
+                  void openInBrowser(status?.dashboardUrl ?? '').catch(() => undefined)
+                }
               >
                 <ExternalLink size={12} />
                 {t('router9.dashboard')}
@@ -249,7 +248,9 @@ export function Router9Settings() {
                       className={controls.input}
                       type="number"
                       value={config.port}
-                      onChange={(event) => patch({ port: normalizePort(Number(event.target.value)) })}
+                      onChange={(event) =>
+                        patch({ port: normalizePort(Number(event.target.value)) })
+                      }
                     />
                   </label>
                 </div>

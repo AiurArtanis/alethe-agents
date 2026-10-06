@@ -11,7 +11,7 @@ use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::cli_resolver;
-use crate::orchestrator_core::{Core, Launcher, Planner};
+use crate::orchestrator_core::{Core, Launcher, OrchestrationSettings, Planner};
 
 const JOBS_EVENT: &str = "orchestrator://jobs";
 
@@ -49,9 +49,10 @@ fn prepare(app: &AppHandle, state: &OrchestratorState) {
     if let Some(program) = cli_resolver::find_windows_cli_launcher("codex") {
         let mut launcher = Launcher::codex_app_server(PathBuf::from(program));
         #[cfg(windows)]
-        launcher
-            .env
-            .push(("Path".to_string(), crate::orchestrator_core::path_without_store_aliases(&cli_resolver::rebuilt_path())));
+        launcher.env.push((
+            "Path".to_string(),
+            crate::orchestrator_core::path_without_store_aliases(&cli_resolver::rebuilt_path()),
+        ));
         core.set_launcher(launcher);
     }
     if let Some(program) = cli_resolver::find_windows_cli_launcher("claude") {
@@ -126,6 +127,28 @@ pub fn orchestrator_set_concurrency(state: tauri::State<'_, OrchestratorState>, 
     state.core.set_concurrency_limit(limit);
 }
 
+/// The Orchestration settings from Preferences, sent when the app loads and whenever they change.
+#[tauri::command]
+pub fn orchestrator_apply_settings(
+    state: tauri::State<'_, OrchestratorState>,
+    settings: OrchestrationSettings,
+) {
+    state.core.apply_settings(settings);
+}
+
+/// The Codex models and efforts the Orchestration settings offer for a role.
+#[tauri::command]
+pub async fn orchestrator_codex_models(
+    app: AppHandle,
+    state: tauri::State<'_, OrchestratorState>,
+) -> Result<Value, String> {
+    prepare(&app, &state);
+    let core = state.core.clone();
+    tauri::async_runtime::spawn_blocking(move || core.list_codex_models())
+        .await
+        .map_err(|error| error.to_string())?
+}
+
 /// Fed by the same usage poll that drives the warning chip, so the planner and the person read the
 /// same numbers at the same cadence.
 #[tauri::command]
@@ -196,6 +219,40 @@ pub fn orchestrator_cancel_job(state: tauri::State<'_, OrchestratorState>, job_i
     json!({ "cancelled": state.core.cancel_jobs(&[job_id]) })
 }
 
+/// The label of the detached board window for one orchestration pane. The frontend reads the pane
+/// back from it, and `capabilities/orchestration-window.json` covers exactly `orchestration-*`.
+fn orchestration_window_label(terminal_id: &str) -> String {
+    let safe: String = terminal_id
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    format!("orchestration-{safe}")
+}
+
+/// Opens an orchestration pane's board in its own window, or brings back the one already open.
+/// Async on purpose: building a window from a synchronous command can deadlock on Windows.
+#[tauri::command]
+pub async fn open_orchestration_window(app: AppHandle, terminal_id: String) -> Result<(), String> {
+    let label = orchestration_window_label(&terminal_id);
+    if let Some(window) = app.get_webview_window(&label) {
+        let _ = window.unminimize();
+        return window.set_focus().map_err(|error| error.to_string());
+    }
+    tauri::WebviewWindowBuilder::new(&app, &label, tauri::WebviewUrl::App("index.html".into()))
+        .title("Alethe")
+        .inner_size(1180.0, 780.0)
+        .min_inner_size(640.0, 420.0)
+        .build()
+        .map(|_| ())
+        .map_err(|error| error.to_string())
+}
+
 /// Lets the pane talk to one worker without going through the lead. A worker mid-turn is steered so
 /// the correction lands on what it is doing now; an idle one gets the message as a new turn.
 #[tauri::command]
@@ -249,4 +306,31 @@ pub async fn orchestrator_shell_restart(app: AppHandle, shell_id: String) -> Res
 #[tauri::command]
 pub async fn orchestrator_shell_remove(app: AppHandle, shell_id: String) -> Result<Value, String> {
     on_shells(app, move |core| core.remove_shell(&shell_id)).await
+}
+
+/// The board's Restart: the same request again as a new worker under the same planner.
+#[tauri::command]
+pub fn orchestrator_restart(
+    state: tauri::State<'_, OrchestratorState>,
+    job_id: String,
+) -> Result<Value, String> {
+    crate::orchestrator_core::restart_job(&state.core, &job_id)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::orchestration_window_label;
+
+    // One detached board window per orchestration pane, with a label the capability matches (#247).
+    #[test]
+    fn a_board_window_label_is_safe_and_matches_its_capability() {
+        assert_eq!(
+            orchestration_window_label("orchestrator-mWHJe7AX_ilh-tn"),
+            "orchestration-orchestrator-mWHJe7AX_ilh-tn"
+        );
+        assert_eq!(
+            orchestration_window_label("../pane id?"),
+            "orchestration-___pane_id_"
+        );
+    }
 }

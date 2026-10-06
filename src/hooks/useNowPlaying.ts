@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { getLocale, translate } from '../lib/i18n'
 import { readScopedStorage, writeScopedStorage } from '../lib/storageNamespace'
 import {
   type NowPlaying,
@@ -27,11 +28,11 @@ function getSpotifyStatus(): Promise<boolean> {
   return statusRequest
 }
 
-function getCurrentTrack(credentials: SpotifyCredentials): Promise<NowPlaying | null> {
-  const key = `${credentials.clientId ?? ''}\u0000${credentials.clientSecret ?? ''}`
+function getCurrentTrack(clientId?: string): Promise<NowPlaying | null> {
+  const key = clientId ?? ''
   if (currentRequest?.key === key) return currentRequest.promise
 
-  const request = spotifyGetCurrent(credentials)
+  const request = spotifyGetCurrent({ clientId })
   const promise = request.finally(() => {
     if (currentRequest?.promise === promise) currentRequest = null
   })
@@ -39,7 +40,6 @@ function getCurrentTrack(credentials: SpotifyCredentials): Promise<NowPlaying | 
   return promise
 }
 
-                                                                     
 function loadLastTrack(): NowPlaying | null {
   try {
     const raw = readScopedStorage(LAST_TRACK_KEY, true)
@@ -52,19 +52,18 @@ function loadLastTrack(): NowPlaying | null {
   }
 }
 
-                                                                    
 function saveLastTrack(np: NowPlaying): void {
   try {
     writeScopedStorage(LAST_TRACK_KEY, JSON.stringify(np))
   } catch {
-                                             
+    // Best effort: the last track only seeds the widget on the next launch.
   }
 }
 
 export type NowPlayingState = {
   /** null means the connection status is still being checked. */
   connected: boolean | null
-                                           
+
   current: NowPlaying | null
   error: string | null
   loading: boolean
@@ -73,22 +72,18 @@ export type NowPlayingState = {
   refresh: () => Promise<void>
 }
 
-   
-                                                          
-                                                              
-                                                                       
-   
 export function useNowPlaying(enabled: boolean): NowPlayingState {
   const spotifyClientId = useProjectsStore((s) => s.preferences.spotifyClientId)
   const spotifyClientSecret = useProjectsStore((s) => s.preferences.spotifyClientSecret)
+  const setPreferences = useProjectsStore((s) => s.setPreferences)
   const [connected, setConnected] = useState<boolean | null>(null)
-                                                                       
+
   const [current, setCurrent] = useState<NowPlaying | null>(() => loadLastTrack())
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   const cancelledRef = useRef(false)
-  const credentials = useMemo(
+  const credentials = useMemo<SpotifyCredentials>(
     () => ({
       clientId: spotifyClientId.trim() || undefined,
       clientSecret: spotifyClientSecret.trim() || undefined,
@@ -98,13 +93,12 @@ export function useNowPlaying(enabled: boolean): NowPlayingState {
 
   const fetchCurrent = useCallback(async () => {
     try {
-      const np = await getCurrentTrack(credentials)
+      const np = await getCurrentTrack(credentials.clientId)
       if (cancelledRef.current) return
       if (np) {
         setCurrent(np)
         saveLastTrack(np)
       } else {
-                                                                     
         setCurrent((previous) => (previous ? { ...previous, playing: false } : null))
       }
       setError(null)
@@ -143,11 +137,18 @@ export function useNowPlaying(enabled: boolean): NowPlayingState {
     setError(null)
     try {
       await spotifyLogin(credentials)
+      setPreferences({ spotifyClientSecret: '' })
       setConnected(true)
       await fetchCurrent()
     } catch (err) {
       setConnected(false)
-      setError(String(err))
+      const message = String(err)
+      // The backend could not reach the OS credential store, so nothing was saved.
+      setError(
+        message.includes('secure_store_unavailable')
+          ? translate(getLocale(), 'sync.error.secure_store_unavailable')
+          : message,
+      )
     } finally {
       setLoading(false)
     }

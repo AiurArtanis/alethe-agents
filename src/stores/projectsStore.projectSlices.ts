@@ -3,9 +3,7 @@ import { normalizeProjectGrids } from '../lib/projectGrids'
 
 import { nanoid } from 'nanoid'
 
-import { preparePtyRuntimeLaunch } from '../lib/agentRuntimeAdapter'
 import { getLocale, translate } from '../lib/i18n'
-import { buildAgentLaunch } from '../lib/sessionLaunch'
 import {
   clearTerminalPtyIds,
   collectTerminalPtyIds,
@@ -13,21 +11,17 @@ import {
 } from '../lib/terminalFactory'
 import { cleanupPtys } from '../lib/terminalLifecycle'
 import type { Group, Project } from '../lib/types'
-import { resolveAgentCliCommand } from '../lib/agentProviders'
 import { GROUP_COLORS } from '../lib/types'
 import { sanitizeWorkspaceSnapshot } from '../lib/workspaceNavigation'
 import type { ProjectsState } from './projectsStore'
 import { collectGroupProjectIds } from './projectsStore.migrations'
 import type { SliceCtx } from './projectsStore.slices'
-import { useTerminalsStore } from './terminalsStore'
 import { useUiStore } from './uiStore'
 
 function t(key: Parameters<typeof translate>[1], params?: Record<string, string | number>) {
   return translate(getLocale(), key, params)
 }
 
-                                                                              
-                                                                              
 const migratingWorktreeProjectIds = new Set<string>()
 
 type GroupsSlice = Pick<
@@ -49,7 +43,7 @@ type GroupsSlice = Pick<
   | 'reorderUngrouped'
 >
 
-export function createGroupsSlice({ update }: SliceCtx): GroupsSlice {
+export function createGroupsSlice({ update, navigationUpdate }: SliceCtx): GroupsSlice {
   return {
     createGroup: (name, color, parentGroupId = null) => {
       const group: Group = {
@@ -101,8 +95,18 @@ export function createGroupsSlice({ update }: SliceCtx): GroupsSlice {
       }),
 
     renameGroup: (id, name) =>
-      update((state) => ({
+      // navigationUpdate: the topbar's saved/pinned tab strip snapshots its label at creation
+      // time and never rereads the group, so a rename has to be pushed into it explicitly here —
+      // and a plain `update` touching `workspace` would have its own active-tab composition
+      // resync immediately overwrite that targeted relabel.
+      navigationUpdate((state) => ({
         groups: state.groups.map((g) => (g.id === id ? { ...g, name } : g)),
+        workspace: {
+          ...state.workspace,
+          tabs: state.workspace.tabs.map((tab) =>
+            tab.kind === 'group' && tab.sourceId === id ? { ...tab, label: name } : tab,
+          ),
+        },
       })),
 
     setGroupColor: (id, color) =>
@@ -366,6 +370,7 @@ type ProjectsSlice = Pick<
   | 'renameProject'
   | 'archiveProject'
   | 'unarchiveProject'
+  | 'setProjectHidden'
   | 'setProjectColor'
   | 'setProjectIconUrl'
   | 'addMarkdownComment'
@@ -391,7 +396,13 @@ type ProjectsSlice = Pick<
   | 'deleteProject'
 >
 
-export function createProjectsSlice({ set, get, update, updateProject }: SliceCtx): ProjectsSlice {
+export function createProjectsSlice({
+  set,
+  get,
+  update,
+  updateProject,
+  navigationUpdate,
+}: SliceCtx): ProjectsSlice {
   return {
     createProject: ({
       name,
@@ -467,11 +478,27 @@ export function createProjectsSlice({ set, get, update, updateProject }: SliceCt
       return project
     },
 
-    renameProject: (id, name) => updateProject(id, (p) => ({ ...p, name })),
+    renameProject: (id, name) => {
+      updateProject(id, (p) => ({ ...p, name }))
+      // The topbar's saved/pinned tab strip snapshots its label at creation time and never
+      // rereads the project, so a rename has to be pushed into it explicitly here. Uses
+      // `navigationUpdate` so this targeted relabel isn't immediately overwritten by the active-tab
+      // composition resync that a plain `update` touching `workspace` would trigger.
+      navigationUpdate((state) => ({
+        workspace: {
+          ...state.workspace,
+          tabs: state.workspace.tabs.map((tab) =>
+            tab.kind === 'project' && tab.sourceId === id ? { ...tab, label: name } : tab,
+          ),
+        },
+      }))
+    },
 
     archiveProject: (id) => updateProject(id, (p) => ({ ...p, archived: true })),
 
     unarchiveProject: (id) => updateProject(id, (p) => ({ ...p, archived: false })),
+
+    setProjectHidden: (id, hidden) => updateProject(id, (p) => ({ ...p, hidden })),
 
     setProjectColor: (id, color) => updateProject(id, (p) => ({ ...p, color })),
 
@@ -521,12 +548,6 @@ export function createProjectsSlice({ set, get, update, updateProject }: SliceCt
     setGraphifyEnabled: (id, graphifyEnabled) =>
       updateProject(id, (p) => ({ ...p, graphifyEnabled })),
 
-                                                                         
-                                                                               
-                                                                              
-                                                                             
-                                                                                          
-                                                          
     setAutoWorktree: (id, autoWorktree) => updateProject(id, (p) => ({ ...p, autoWorktree })),
 
     setMergePostAction: (id, mergePostAction) =>
@@ -545,24 +566,22 @@ export function createProjectsSlice({ set, get, update, updateProject }: SliceCt
       if (!repo) return { ok: false, error: 'no_repo' }
 
       try {
-        const { worktreeProvision, restartPty } = await import('../lib/tauri')
+        const { worktreeProvision } = await import('../lib/tauri')
+        const { relaunchAgentPty } = await import('../lib/agentRelaunch')
+        const { graphifyRepoOf } = await import('../lib/claudeMcpConfigs')
         const agentId = `merge-${nanoid(6)}`
         const info = await worktreeProvision(repo, agentId, project.worktreeMode ?? 'gitWorktree')
 
         for (const tab of terminal.tabs) {
           if (!tab.ptyId) continue
-          const runtime = preparePtyRuntimeLaunch(tab.type, tab.runtimeProfile, tab.extraArgs ?? [])
-          const launch = buildAgentLaunch(tab.type, runtime.args)
-          useTerminalsStore.getState().beginRestart(tab.ptyId)
           try {
-            await restartPty({
-              id: tab.ptyId,
-              cols: 80,
-              rows: 24,
-              command: resolveAgentCliCommand(tab.type),
+            await relaunchAgentPty({
+              ptyId: tab.ptyId,
+              agent: tab.type,
+              runtimeProfile: tab.runtimeProfile,
+              extraArgs: tab.extraArgs,
               cwd: info.path,
-              extraArgs: launch.args,
-              env: runtime.env,
+              graphifyRepo: graphifyRepoOf(project, info.path),
             })
             window.dispatchEvent(
               new CustomEvent('alethe:terminal-resize-request', { detail: { ptyId: tab.ptyId } }),
@@ -595,7 +614,7 @@ export function createProjectsSlice({ set, get, update, updateProject }: SliceCt
     },
 
     migrateProjectTerminalsToWorktrees: async (projectId, gsdWatcherEnabledOverride) => {
-      if (migratingWorktreeProjectIds.has(projectId)) return                                             
+      if (migratingWorktreeProjectIds.has(projectId)) return
       const project = get().projects.find((p) => p.id === projectId)
       if (!project) return
       const repo = getProjectRepoRoot(project)
@@ -609,15 +628,11 @@ export function createProjectsSlice({ set, get, update, updateProject }: SliceCt
 
       migratingWorktreeProjectIds.add(projectId)
       try {
-        const { worktreeProvision, restartPty, gitStatus, gsdOpenCodePluginWrite } =
+        const { worktreeProvision, gitStatus, gsdOpenCodePluginWrite } =
           await import('../lib/tauri')
+        const { relaunchAgentPty } = await import('../lib/agentRelaunch')
+        const { graphifyRepoOf } = await import('../lib/claudeMcpConfigs')
 
-                                                                                 
-                                                                            
-                                                                            
-                                                                           
-                                                                              
-                                                                             
         // o erro cru not_a_git_repository vazando pro toast final).
         let status: Awaited<ReturnType<typeof gitStatus>> | null = null
         try {
@@ -658,12 +673,7 @@ export function createProjectsSlice({ set, get, update, updateProject }: SliceCt
             )
 
             // Terminal migrado com watcher GSD ligado e rodando OpenCode nunca
-                                                                                
-                                                                              
-                                                                               
-                                                                           
-                                                                                
-                                                           
+
             const gsdWatcherEnabled = gsdWatcherEnabledOverride ?? project.gsdWatcherEnabled
             if (
               gsdWatcherEnabled &&
@@ -679,35 +689,16 @@ export function createProjectsSlice({ set, get, update, updateProject }: SliceCt
               })
             }
 
-                                                                               
-                                                                               
-                                                                               
-                                                                                
-                                                                               
-                                                                            
-                                                                             
-                                                                              
-                                                                            
-                                                                               
-                                                          
             for (const tab of terminal.tabs) {
               if (!tab.ptyId) continue
-              const runtime = preparePtyRuntimeLaunch(
-                tab.type,
-                tab.runtimeProfile,
-                tab.extraArgs ?? [],
-              )
-              const launch = buildAgentLaunch(tab.type, runtime.args)
-              useTerminalsStore.getState().beginRestart(tab.ptyId)
               try {
-                await restartPty({
-                  id: tab.ptyId,
-                  cols: 80,
-                  rows: 24,
-                  command: resolveAgentCliCommand(tab.type),
+                await relaunchAgentPty({
+                  ptyId: tab.ptyId,
+                  agent: tab.type,
+                  runtimeProfile: tab.runtimeProfile,
+                  extraArgs: tab.extraArgs,
                   cwd: info.path,
-                  extraArgs: launch.args,
-                  env: runtime.env,
+                  graphifyRepo: graphifyRepoOf(project, info.path),
                 })
                 window.dispatchEvent(
                   new CustomEvent('alethe:terminal-resize-request', {
@@ -785,9 +776,7 @@ export function createProjectsSlice({ set, get, update, updateProject }: SliceCt
         next[index] = {
           ...existing[index],
           ...entry,
-                                                                       
-                                                                                 
-                                                                           
+
           adminLockReason: entry.adminLockReason,
         }
         return { ...p, orphanWorktrees: next }
@@ -811,12 +800,9 @@ export function createProjectsSlice({ set, get, update, updateProject }: SliceCt
       const { worktreeCleanup, worktreeRemove } = await import('../lib/tauri')
       set({ isCleaningOrphans: true })
 
-                                                                              
-                                                                         
       for (const orphan of orphans) {
         try {
           if (orphan.pruneOnly) {
-                                                                              
             // fantasma do git.
             await worktreeCleanup(repoPath)
             get().removeOrphanWorktree(projectId, orphan.path)
@@ -825,18 +811,15 @@ export function createProjectsSlice({ set, get, update, updateProject }: SliceCt
           }
 
           // requiresRawDeletion (ou nenhuma flag ainda — primeira tentativa):
-                                                                             
-                                                                              
+
           const agentId = orphan.path.split(/[\\/]/).filter(Boolean).pop() ?? ''
           await worktreeRemove(repoPath, agentId, true)
 
-                                                                             
           try {
             await worktreeCleanup(repoPath)
             get().removeOrphanWorktree(projectId, orphan.path)
             summary.cleaned++
           } catch {
-                                                                           
             get().addOrphanWorktree(projectId, {
               path: orphan.path,
               mode: orphan.mode,

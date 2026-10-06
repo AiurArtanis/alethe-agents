@@ -2,9 +2,33 @@ import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 
-import { agentHooksEndpoint, agentHooksSettingsPath, agentHooksToken, codexAppServerSend, codexAppServerStart, codexAppServerStop, killPty, listenCodexAppServer, listenPtyData, listenPtyExit, spawnPty, writePty } from '../lib/tauri'
+import {
+  codexApprovalAnswer,
+  codexThreadStartParams,
+  codexTurnStartParams,
+  interactivePermissionArgs,
+  oneShotArgs,
+} from '../lib/experimentalAgentPolicy'
+import { getLocale, translate } from '../lib/i18n'
+import {
+  agentHooksEndpoint,
+  agentHooksSettingsPath,
+  agentHooksToken,
+  codexAppServerSend,
+  codexAppServerStart,
+  codexAppServerStop,
+  killPty,
+  listenCodexAppServer,
+  listenPtyData,
+  listenPtyExit,
+  spawnPty,
+  writePty,
+} from '../lib/tauri'
+import type { ExperimentalAgentPermissionMode } from '../lib/types'
+import { useProjectsStore } from './projectsStore'
 
-export type SandboxNodeStatus = 'starting' | 'idle' | 'working' | 'done' | 'error'
+/** `blocked`: an approval request was declined because nobody could answer it. */
+export type SandboxNodeStatus = 'starting' | 'idle' | 'working' | 'done' | 'error' | 'blocked'
 
 export type SandboxNode = {
   id: string
@@ -20,6 +44,8 @@ export type SandboxNode = {
   threadId?: string
   turnId?: string
   transport?: 'pty' | 'app-server'
+  /** Permission mode the worker was started with; later turns keep it. */
+  permissionMode?: ExperimentalAgentPermissionMode
   parentId?: string
   status: SandboxNodeStatus
   x: number
@@ -60,7 +86,15 @@ type AgentSandboxState = {
   resizeNode: (id: string, width: number, height: number) => void
   clearInitialInput: (id: string) => void
   sendMessage: (from: string, to: string, text: string) => Promise<void>
-  syncProjectTerminals: (terminals: Array<{ id: string; label: string; command: SandboxNode['command']; ptyId: string | null; cwd: string }>) => void
+  syncProjectTerminals: (
+    terminals: Array<{
+      id: string
+      label: string
+      command: SandboxNode['command']
+      ptyId: string | null
+      cwd: string
+    }>,
+  ) => void
   groupNodes: (nodeIds: string[]) => void
   ungroupNodes: (groupId: string) => void
 }
@@ -77,9 +111,36 @@ type SpawnPayload = {
   job_id?: string
 }
 
-const DEMO_NODES: Omit<SandboxNode, 'ptyId' | 'status' | 'lastMessage'>[] = [
-  { id: 'lead', label: 'Planner Claude · Haiku · YOLO', role: 'planner', command: 'claude', extraArgs: ['--model', 'haiku', '--dangerously-skip-permissions', '--append-system-prompt', SPAWN_BRIDGE_PROMPT], x: 90, y: 24, width: 420, height: 300, color: 'var(--agent-claude)' },
-]
+/** Read at each launch so a mode change applies to the next worker. */
+function currentPermissionMode(): ExperimentalAgentPermissionMode {
+  return useProjectsStore.getState().preferences.experimentalAgentPermissionMode
+}
+
+function demoNodes(
+  mode: ExperimentalAgentPermissionMode,
+): Omit<SandboxNode, 'ptyId' | 'status' | 'lastMessage'>[] {
+  return [
+    {
+      id: 'lead',
+      label: mode === 'bypass' ? 'Planner Claude · Haiku · YOLO' : 'Planner Claude · Haiku',
+      role: 'planner',
+      command: 'claude',
+      extraArgs: [
+        '--model',
+        'haiku',
+        ...interactivePermissionArgs('claude', mode),
+        '--append-system-prompt',
+        SPAWN_BRIDGE_PROMPT,
+      ],
+      permissionMode: mode,
+      x: 90,
+      y: 24,
+      width: 420,
+      height: 300,
+      color: 'var(--agent-claude)',
+    },
+  ]
+}
 
 const exitCleanups = new Map<string, () => void>()
 const outputCleanups = new Map<string, () => void>()
@@ -89,7 +150,10 @@ let hookEventCleanup: UnlistenFn | null = null
 let sandboxGeneration = 0
 
 function normalizeSandboxPath(path: string): string {
-  return path.replace(/[\\/]+$/, '').replace(/\\/g, '/').toLowerCase()
+  return path
+    .replace(/[\\/]+$/, '')
+    .replace(/\\/g, '/')
+    .toLowerCase()
 }
 
 function shellLine(text: string): string {
@@ -98,14 +162,16 @@ function shellLine(text: string): string {
 }
 
 function hookSummary(payload: Record<string, unknown>): string {
-  const eventName = typeof payload.hook_event_name === 'string' ? payload.hook_event_name : 'agent event'
+  const eventName =
+    typeof payload.hook_event_name === 'string' ? payload.hook_event_name : 'agent event'
   const tool = typeof payload.tool_name === 'string' ? ` ${payload.tool_name}` : ''
   const detailSource = payload.tool_response ?? payload.tool_input ?? payload.message
-  const detail = typeof detailSource === 'string'
-    ? detailSource
-    : detailSource && typeof detailSource === 'object'
-      ? JSON.stringify(detailSource)
-      : ''
+  const detail =
+    typeof detailSource === 'string'
+      ? detailSource
+      : detailSource && typeof detailSource === 'object'
+        ? JSON.stringify(detailSource)
+        : ''
   return `[Alethe hook] ${eventName}${tool}${detail ? `: ${detail.replace(/[\r\n]+/g, ' ').slice(0, 420)}` : ''}`
 }
 
@@ -145,13 +211,14 @@ export const useAgentSandboxStore = create<AgentSandboxState>((set, get) => ({
       agentHooksSettingsPath('sandbox-demo', true, null),
     ])
     if (generation !== sandboxGeneration) return
+    const leadNodes = demoNodes(currentPermissionMode())
     set({
       active: true,
       cwd,
       runningDemo: true,
       messages: [],
       groups: [],
-      nodes: DEMO_NODES.map((node) => ({
+      nodes: leadNodes.map((node) => ({
         ...node,
         ptyId: null,
         status: 'starting',
@@ -163,16 +230,23 @@ export const useAgentSandboxStore = create<AgentSandboxState>((set, get) => ({
 
     const generationCleanup = await listen<SpawnPayload>('agent-spawn', (event) => {
       const payload = event.payload
-      if (generation !== sandboxGeneration || !payload.agent || (payload.cwd && normalizeSandboxPath(payload.cwd) !== normalizeSandboxPath(cwd))) return
+      if (
+        generation !== sandboxGeneration ||
+        !payload.agent ||
+        (payload.cwd && normalizeSandboxPath(payload.cwd) !== normalizeSandboxPath(cwd))
+      )
+        return
       const task = payload.task?.trim()
+      const permissionMode = currentPermissionMode()
       const isCodexAppServer = payload.agent === 'codex' && payload.mode !== 'interactive'
-      const automatedTaskArgs = task && payload.mode !== 'interactive'
-        ? payload.agent === 'codex'
-          ? undefined
-          : payload.agent === 'claude'
-            ? ['--model', 'haiku', '--dangerously-skip-permissions', '-p', task]
-            : undefined
-        : undefined
+      const automatedTaskArgs =
+        task && payload.mode !== 'interactive'
+          ? payload.agent === 'codex'
+            ? undefined
+            : payload.agent === 'claude'
+              ? ['--model', 'haiku', ...(oneShotArgs('claude', task, permissionMode) ?? [])]
+              : undefined
+          : undefined
       const node: SandboxNode = {
         id: `spawned-${payload.agent}-${nanoid(6)}`,
         label: isCodexAppServer ? 'Codex worker · app-server' : `Spawned ${payload.agent}`,
@@ -185,8 +259,9 @@ export const useAgentSandboxStore = create<AgentSandboxState>((set, get) => ({
         color: payload.agent === 'codex' ? 'var(--agent-codex)' : 'var(--agent-claude)',
         ptyId: null,
         appServerId: isCodexAppServer ? `app-server-${nanoid(8)}` : undefined,
-        jobId: isCodexAppServer ? payload.job_id ?? `sandbox-job-${nanoid(10)}` : undefined,
+        jobId: isCodexAppServer ? (payload.job_id ?? `sandbox-job-${nanoid(10)}`) : undefined,
         transport: isCodexAppServer ? 'app-server' : 'pty',
+        permissionMode,
         parentId: payload.parent_id || 'lead',
         initialInput: task && !automatedTaskArgs && payload.agent !== 'shell' ? task : undefined,
         status: 'starting' as SandboxNodeStatus,
@@ -210,8 +285,10 @@ export const useAgentSandboxStore = create<AgentSandboxState>((set, get) => ({
             agent: node.command,
             cwd: payload.cwd || cwd,
             extraArgs: automatedTaskArgs
-              ? [...automatedTaskArgs.slice(0, -1), `<task ${task?.length ?? 0} chars>`]
-              : (payload.agent === 'claude' ? ['--model', 'haiku'] : []),
+              ? automatedTaskArgs.map((arg) => (arg === task ? `<task ${task.length} chars>` : arg))
+              : payload.agent === 'claude'
+                ? ['--model', 'haiku']
+                : [],
           })
           if (ptyId) {
             await spawnPty({
@@ -221,7 +298,10 @@ export const useAgentSandboxStore = create<AgentSandboxState>((set, get) => ({
               cwd: payload.cwd || cwd,
               command: node.command === 'shell' ? undefined : node.command,
               extraArgs: [
-                ...(automatedTaskArgs ?? (payload.agent === 'claude' ? ['--model', 'haiku', '--dangerously-skip-permissions'] : [])),
+                ...(automatedTaskArgs ?? [
+                  ...(payload.agent === 'claude' ? ['--model', 'haiku'] : []),
+                  ...interactivePermissionArgs(node.command, permissionMode),
+                ]),
                 ...(payload.agent === 'claude' ? ['--settings', settingsPath] : []),
               ],
               env: { ALETHE_AGENT_HOOKS_ENDPOINT: endpoint, ALETHE_AGENT_HOOKS_TOKEN: token },
@@ -233,16 +313,28 @@ export const useAgentSandboxStore = create<AgentSandboxState>((set, get) => ({
             return
           }
           console.info('[sandbox] worker PTY ready', { ptyId, agent: node.command })
-          const unlisten = ptyId ? await listenPtyExit(ptyId, () => {
-            if (node.appServerId) void codexAppServerStop(node.appServerId).catch(() => {})
-            appServerCleanups.get(node.appServerId ?? '')?.()
-            appServerCleanups.delete(node.appServerId ?? '')
-            outputCleanups.get(ptyId)?.()
-            outputCleanups.delete(ptyId)
-            set((state) => ({ nodes: state.nodes.map((item) => item.ptyId === ptyId ? { ...item, status: 'done' } : item) }))
-          }) : null
+          const unlisten = ptyId
+            ? await listenPtyExit(ptyId, () => {
+                if (node.appServerId) void codexAppServerStop(node.appServerId).catch(() => {})
+                appServerCleanups.get(node.appServerId ?? '')?.()
+                appServerCleanups.delete(node.appServerId ?? '')
+                outputCleanups.get(ptyId)?.()
+                outputCleanups.delete(ptyId)
+                set((state) => ({
+                  nodes: state.nodes.map((item) =>
+                    item.ptyId === ptyId ? { ...item, status: 'done' } : item,
+                  ),
+                }))
+              })
+            : null
           if (ptyId && unlisten) exitCleanups.set(ptyId, unlisten)
-          set((state) => ({ nodes: state.nodes.map((item) => item.id === node.id ? { ...item, ptyId, cwd: payload.cwd || cwd, status: task ? 'working' : 'idle' } : item) }))
+          set((state) => ({
+            nodes: state.nodes.map((item) =>
+              item.id === node.id
+                ? { ...item, ptyId, cwd: payload.cwd || cwd, status: task ? 'working' : 'idle' }
+                : item,
+            ),
+          }))
           if (ptyId && node.command === 'shell' && task) {
             window.setTimeout(() => {
               void writeAgentMessage(ptyId, task).catch((error) => {
@@ -256,46 +348,144 @@ export const useAgentSandboxStore = create<AgentSandboxState>((set, get) => ({
             let nextRequestId = 10
             let activeTurnId: string | null = null
             let initialTurnRequested = false
+            // Set when an approval request of the running turn was declined; cleared by the next turn.
+            let approvalDeclined = false
             const cleanup = await listenCodexAppServer(appServerId, (event) => {
               const method = typeof event.method === 'string' ? event.method : ''
-              const params = event.params && typeof event.params === 'object' ? event.params as Record<string, unknown> : {}
-              const result = event.result && typeof event.result === 'object' ? event.result as Record<string, unknown> : {}
-              const thread = result.thread && typeof result.thread === 'object' ? result.thread as Record<string, unknown> : null
-              const threadId = typeof thread?.id === 'string' ? thread.id : typeof params.threadId === 'string' ? params.threadId : null
-              if (threadId) set((state) => ({ nodes: state.nodes.map((item) => item.id === node.id ? { ...item, threadId } : item) }))
+              const params =
+                event.params && typeof event.params === 'object'
+                  ? (event.params as Record<string, unknown>)
+                  : {}
+              const result =
+                event.result && typeof event.result === 'object'
+                  ? (event.result as Record<string, unknown>)
+                  : {}
+              const thread =
+                result.thread && typeof result.thread === 'object'
+                  ? (result.thread as Record<string, unknown>)
+                  : null
+              const threadId =
+                typeof thread?.id === 'string'
+                  ? thread.id
+                  : typeof params.threadId === 'string'
+                    ? params.threadId
+                    : null
+              if (threadId)
+                set((state) => ({
+                  nodes: state.nodes.map((item) =>
+                    item.id === node.id ? { ...item, threadId } : item,
+                  ),
+                }))
               if (method === 'item/agentMessage/delta') {
                 const delta = typeof params.delta === 'string' ? params.delta : ''
                 turnOutput += delta
-                set((state) => ({ nodes: state.nodes.map((item) => item.id === node.id ? { ...item, status: 'working', lastMessage: delta || item.lastMessage, output: `${item.output ?? ''}${delta}`.slice(-16000) } : item) }))
+                set((state) => ({
+                  nodes: state.nodes.map((item) =>
+                    item.id === node.id
+                      ? {
+                          ...item,
+                          status: approvalDeclined ? 'blocked' : 'working',
+                          lastMessage: delta || item.lastMessage,
+                          output: `${item.output ?? ''}${delta}`.slice(-16000),
+                        }
+                      : item,
+                  ),
+                }))
               }
               if (method === 'turn/started') {
-                const turn = params.turn && typeof params.turn === 'object' ? params.turn as Record<string, unknown> : null
+                approvalDeclined = false
+                const turn =
+                  params.turn && typeof params.turn === 'object'
+                    ? (params.turn as Record<string, unknown>)
+                    : null
                 const startedTurnId = typeof turn?.id === 'string' ? turn.id : null
                 if (startedTurnId) {
                   activeTurnId = startedTurnId
-                  set((state) => ({ nodes: state.nodes.map((item) => item.id === node.id ? { ...item, turnId: startedTurnId, status: 'working' } : item) }))
+                  set((state) => ({
+                    nodes: state.nodes.map((item) =>
+                      item.id === node.id
+                        ? { ...item, turnId: startedTurnId, status: 'working' }
+                        : item,
+                    ),
+                  }))
                 }
               }
               if (method === 'turn/completed') {
-                const completedTurn = params.turn && typeof params.turn === 'object' ? params.turn as Record<string, unknown> : null
-                const completedTurnId = typeof completedTurn?.id === 'string' ? completedTurn.id : null
+                const completedTurn =
+                  params.turn && typeof params.turn === 'object'
+                    ? (params.turn as Record<string, unknown>)
+                    : null
+                const completedTurnId =
+                  typeof completedTurn?.id === 'string' ? completedTurn.id : null
                 if (activeTurnId && completedTurnId && completedTurnId !== activeTurnId) return
                 const reply = turnOutput.trim()
                 const parent = get().nodes.find((item) => item.id === node.parentId)
                 if (reply && parent?.ptyId) {
                   const relay = `[Alethe reply from ${node.label}] ${reply}`
-                  void writeAgentMessage(parent.ptyId, relay).catch((error) => console.error('[sandbox] worker reply relay failed', error))
+                  void writeAgentMessage(parent.ptyId, relay).catch((error) =>
+                    console.error('[sandbox] worker reply relay failed', error),
+                  )
                   set((state) => ({
-                    messages: [...state.messages, { id: nanoid(), from: node.id, to: parent.id, text: reply, createdAt: Date.now(), state: 'delivered' as const }].slice(-80),
+                    messages: [
+                      ...state.messages,
+                      {
+                        id: nanoid(),
+                        from: node.id,
+                        to: parent.id,
+                        text: reply,
+                        createdAt: Date.now(),
+                        state: 'delivered' as const,
+                      },
+                    ].slice(-80),
                   }))
                 }
                 turnOutput = ''
                 activeTurnId = null
-                set((state) => ({ nodes: state.nodes.map((item) => item.id === node.id ? { ...item, status: 'idle', output: `${item.output ?? ''}\n\n[Alethe] Turn completed. Ready for another message.\n` } : item) }))
+                set((state) => ({
+                  nodes: state.nodes.map((item) =>
+                    item.id === node.id
+                      ? {
+                          ...item,
+                          status: approvalDeclined ? 'blocked' : 'idle',
+                          output: `${item.output ?? ''}\n\n[Alethe] Turn completed. Ready for another message.\n`,
+                        }
+                      : item,
+                  ),
+                }))
               }
-              if (method === 'item/commandExecution/requestApproval' || method === 'item/fileChange/requestApproval') {
+              // This node has no UI to answer an approval, so the policy answers: bypass accepts,
+              // ask declines and leaves the worker visibly blocked.
+              const approval = codexApprovalAnswer(method, permissionMode)
+              if (approval) {
                 const requestId = event.id
-                if (requestId !== undefined) void codexAppServerSend(appServerId, { id: requestId, result: { decision: 'accept' } }).catch(() => {})
+                if (requestId !== undefined)
+                  void codexAppServerSend(appServerId, {
+                    id: requestId,
+                    result: { decision: approval.decision },
+                  }).catch((error) =>
+                    console.error('[sandbox] failed to answer Codex approval request', error),
+                  )
+                if (approval.decision === 'decline') {
+                  approvalDeclined = true
+                  const notice = translate(
+                    getLocale(),
+                    approval.kind === 'command'
+                      ? 'sandbox.approvalDeclinedCommand'
+                      : 'sandbox.approvalDeclinedFileChange',
+                  )
+                  set((state) => ({
+                    nodes: state.nodes.map((item) =>
+                      item.id === node.id
+                        ? {
+                            ...item,
+                            status: 'blocked',
+                            lastMessage: notice,
+                            output: `${item.output ?? ''}\n\n[Alethe] ${notice}\n`,
+                          }
+                        : item,
+                    ),
+                  }))
+                }
               }
               if (event.id === 2 && threadId && task && !initialTurnRequested) {
                 initialTurnRequested = true
@@ -303,11 +493,22 @@ export const useAgentSandboxStore = create<AgentSandboxState>((set, get) => ({
                 void codexAppServerSend(appServerId, {
                   id: requestId,
                   method: 'turn/start',
-                  params: { threadId, input: [{ type: 'text', text: task }], approvalPolicy: 'never' },
+                  params: codexTurnStartParams(threadId, task, permissionMode),
                 }).catch((error) => console.error('[sandbox] app-server turn failed', error))
               }
               if (event.type === 'transport_error' || event.type === 'transport_closed') {
-                set((state) => ({ nodes: state.nodes.map((item) => item.id === node.id ? { ...item, status: 'error', lastMessage: 'Codex app-server connection closed', output: `${item.output ?? ''}\n\n[Alethe] Codex connection closed.\n` } : item) }))
+                set((state) => ({
+                  nodes: state.nodes.map((item) =>
+                    item.id === node.id
+                      ? {
+                          ...item,
+                          status: 'error',
+                          lastMessage: 'Codex app-server connection closed',
+                          output: `${item.output ?? ''}\n\n[Alethe] Codex connection closed.\n`,
+                        }
+                      : item,
+                  ),
+                }))
               }
             })
             appServerCleanups.set(appServerId, cleanup)
@@ -315,7 +516,7 @@ export const useAgentSandboxStore = create<AgentSandboxState>((set, get) => ({
             await codexAppServerSend(appServerId, {
               id: 2,
               method: 'thread/start',
-              params: { cwd: payload.cwd || cwd, approvalPolicy: 'never', sandbox: 'danger-full-access' },
+              params: codexThreadStartParams(payload.cwd || cwd, permissionMode),
             })
           } else if (automatedTaskArgs && ptyId) {
             let outputUnlisten: UnlistenFn | null = null
@@ -325,7 +526,11 @@ export const useAgentSandboxStore = create<AgentSandboxState>((set, get) => ({
               const failed = /not inside a trusted directory/i.test(outputTail)
               const completed = /tokens used\b/i.test(outputTail)
               if (!failed && !completed) return
-              set((state) => ({ nodes: state.nodes.map((item) => item.ptyId === ptyId ? { ...item, status: failed ? 'error' : 'done' } : item) }))
+              set((state) => ({
+                nodes: state.nodes.map((item) =>
+                  item.ptyId === ptyId ? { ...item, status: failed ? 'error' : 'done' } : item,
+                ),
+              }))
               outputUnlisten?.()
               outputCleanups.delete(ptyId)
             })
@@ -333,7 +538,11 @@ export const useAgentSandboxStore = create<AgentSandboxState>((set, get) => ({
           }
         } catch (error) {
           console.error('[sandbox] worker PTY failed', { ptyId, agent: node.command, error })
-          set((state) => ({ nodes: state.nodes.map((item) => item.id === node.id ? { ...item, status: 'error' } : item) }))
+          set((state) => ({
+            nodes: state.nodes.map((item) =>
+              item.id === node.id ? { ...item, status: 'error' } : item,
+            ),
+          }))
         }
       })()
     })
@@ -347,21 +556,24 @@ export const useAgentSandboxStore = create<AgentSandboxState>((set, get) => ({
       const payload = event.payload
       const eventCwd = typeof payload.cwd === 'string' ? payload.cwd : ''
       if (!eventCwd) return
-      const child = get().nodes.find((node) =>
-        node.id !== 'lead' &&
-        node.command === 'claude' &&
-        Boolean(node.parentId) &&
-        Boolean(node.cwd) &&
-        normalizeSandboxPath(node.cwd!) === normalizeSandboxPath(eventCwd),
+      const child = get().nodes.find(
+        (node) =>
+          node.id !== 'lead' &&
+          node.command === 'claude' &&
+          Boolean(node.parentId) &&
+          Boolean(node.cwd) &&
+          normalizeSandboxPath(node.cwd!) === normalizeSandboxPath(eventCwd),
       )
-      const parent = child?.parentId ? get().nodes.find((node) => node.id === child.parentId) : undefined
+      const parent = child?.parentId
+        ? get().nodes.find((node) => node.id === child.parentId)
+        : undefined
       if (!child || !parent?.ptyId) return
       void writeAgentMessage(parent.ptyId, hookSummary(payload)).catch((error) => {
         console.error('[sandbox] Claude hook relay failed', { child: child.id, error })
       })
     })
 
-    for (const node of DEMO_NODES) {
+    for (const node of leadNodes) {
       const ptyId = `sandbox-${node.id}-${nanoid(6)}`
       try {
         await spawnPty({
@@ -437,13 +649,20 @@ export const useAgentSandboxStore = create<AgentSandboxState>((set, get) => ({
 
   clearInitialInput: (id) =>
     set((state) => ({
-      nodes: state.nodes.map((node) => node.id === id ? { ...node, initialInput: undefined } : node),
+      nodes: state.nodes.map((node) =>
+        node.id === id ? { ...node, initialInput: undefined } : node,
+      ),
     })),
 
   sendMessage: async (from, to, text) => {
     const source = get().nodes.find((node) => node.id === from)
     const target = get().nodes.find((node) => node.id === to)
-    if ((!target?.ptyId && !target?.appServerId) || (target.appServerId && !target.threadId) || !text.trim()) return
+    if (
+      (!target?.ptyId && !target?.appServerId) ||
+      (target.appServerId && !target.threadId) ||
+      !text.trim()
+    )
+      return
     const message: SandboxMessage = {
       id: nanoid(),
       from,
@@ -460,11 +679,15 @@ export const useAgentSandboxStore = create<AgentSandboxState>((set, get) => ({
     }))
     try {
       if (target.appServerId && target.threadId) {
-          await codexAppServerSend(target.appServerId, {
-            id: Date.now(),
-            method: 'turn/start',
-            params: { threadId: target.threadId, input: [{ type: 'text', text: `[Message from ${source?.label ?? from}] ${text.trim()}` }], approvalPolicy: 'never' },
-          })
+        await codexAppServerSend(target.appServerId, {
+          id: Date.now(),
+          method: 'turn/start',
+          params: codexTurnStartParams(
+            target.threadId,
+            `[Message from ${source?.label ?? from}] ${text.trim()}`,
+            target.permissionMode ?? 'ask',
+          ),
+        })
       } else if (target.ptyId) {
         await writePty(target.ptyId, agentInput(target.command, source?.label ?? from, text))
       }
@@ -483,39 +706,62 @@ export const useAgentSandboxStore = create<AgentSandboxState>((set, get) => ({
     }
   },
 
-  syncProjectTerminals: (terminals) => set((state) => {
-    const incomingIds = new Set(terminals.map((terminal) => `terminal-${terminal.id}`))
-    const existing = new Map(state.nodes.map((node) => [node.id, node]))
-    const managedNodes = state.nodes.filter((node) => node.managed !== false)
-    const externalNodes = terminals.map((terminal, index) => {
-      const id = `terminal-${terminal.id}`
-      const current = existing.get(id)
+  syncProjectTerminals: (terminals) =>
+    set((state) => {
+      const incomingIds = new Set(terminals.map((terminal) => `terminal-${terminal.id}`))
+      const existing = new Map(state.nodes.map((node) => [node.id, node]))
+      const managedNodes = state.nodes.filter((node) => node.managed !== false)
+      const externalNodes = terminals.map((terminal, index) => {
+        const id = `terminal-${terminal.id}`
+        const current = existing.get(id)
+        return {
+          id,
+          label: terminal.label,
+          role: 'project terminal',
+          command: terminal.command,
+          ptyId: terminal.ptyId,
+          cwd: terminal.cwd,
+          status: terminal.ptyId
+            ? ('idle' as SandboxNodeStatus)
+            : ('starting' as SandboxNodeStatus),
+          x: current?.x ?? 90 + index * 32,
+          y: current?.y ?? 370,
+          width: current?.width ?? 420,
+          height: current?.height ?? 300,
+          color: current?.color ?? 'var(--accent)',
+          lastMessage: current?.lastMessage ?? null,
+          managed: false,
+        }
+      })
+      const nextGroups = state.groups
+        .map((group) => ({
+          ...group,
+          nodeIds: group.nodeIds.filter(
+            (id) => managedNodes.some((node) => node.id === id) || incomingIds.has(id),
+          ),
+        }))
+        .filter((group) => group.nodeIds.length > 1)
+      return { nodes: [...managedNodes, ...externalNodes], groups: nextGroups }
+    }),
+
+  groupNodes: (nodeIds) =>
+    set((state) => {
+      const uniqueIds = [...new Set(nodeIds)].filter((id) =>
+        state.nodes.some((node) => node.id === id),
+      )
+      if (uniqueIds.length < 2) return state
       return {
-        id,
-        label: terminal.label,
-        role: 'project terminal',
-        command: terminal.command,
-        ptyId: terminal.ptyId,
-        cwd: terminal.cwd,
-        status: terminal.ptyId ? 'idle' as SandboxNodeStatus : 'starting' as SandboxNodeStatus,
-        x: current?.x ?? 90 + index * 32,
-        y: current?.y ?? 370,
-        width: current?.width ?? 420,
-        height: current?.height ?? 300,
-        color: current?.color ?? 'var(--accent)',
-        lastMessage: current?.lastMessage ?? null,
-        managed: false,
+        groups: [
+          ...state.groups,
+          {
+            id: `group-${nanoid(6)}`,
+            label: `Agent group ${state.groups.length + 1}`,
+            nodeIds: uniqueIds,
+          },
+        ],
       }
-    })
-    const nextGroups = state.groups.map((group) => ({ ...group, nodeIds: group.nodeIds.filter((id) => managedNodes.some((node) => node.id === id) || incomingIds.has(id)) })).filter((group) => group.nodeIds.length > 1)
-    return { nodes: [...managedNodes, ...externalNodes], groups: nextGroups }
-  }),
+    }),
 
-  groupNodes: (nodeIds) => set((state) => {
-    const uniqueIds = [...new Set(nodeIds)].filter((id) => state.nodes.some((node) => node.id === id))
-    if (uniqueIds.length < 2) return state
-    return { groups: [...state.groups, { id: `group-${nanoid(6)}`, label: `Agent group ${state.groups.length + 1}`, nodeIds: uniqueIds }] }
-  }),
-
-  ungroupNodes: (groupId) => set((state) => ({ groups: state.groups.filter((group) => group.id !== groupId) })),
+  ungroupNodes: (groupId) =>
+    set((state) => ({ groups: state.groups.filter((group) => group.id !== groupId) })),
 }))

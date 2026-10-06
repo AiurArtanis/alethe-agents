@@ -3,7 +3,7 @@
 // O Claude Code dispara hooks `SubagentStart`/`SubagentStop` como POST HTTP
 
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU16, Ordering};
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
@@ -67,6 +67,25 @@ pub fn agent_hooks_token() -> String {
     init_token().to_string()
 }
 
+/// The main window's subagent canvas, as it last published it. A detached orchestration board has
+/// its own, empty store and only sees hook events from the moment it opens, so it shows this
+/// instead (#247).
+static CANVAS_MIRROR: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+const CANVAS_MIRROR_EVENT: &str = "agent-canvas://mirror";
+
+#[tauri::command]
+pub fn set_agent_canvas_mirror(app: AppHandle, snapshot: String) {
+    if let Ok(mut slot) = CANVAS_MIRROR.lock() {
+        *slot = Some(snapshot.clone());
+    }
+    let _ = app.emit(CANVAS_MIRROR_EVENT, snapshot);
+}
+
+#[tauri::command]
+pub fn agent_canvas_mirror() -> Option<String> {
+    CANVAS_MIRROR.lock().ok().and_then(|slot| slot.clone())
+}
+
 #[tauri::command]
 pub fn agent_hooks_settings_path(
     app: AppHandle,
@@ -86,8 +105,9 @@ pub fn agent_hooks_settings_path(
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
         .collect();
     let variant = if orchestrator { "full" } else { "session" };
-    let path = std::env::temp_dir()
-        .join(format!("alethe-agent-hooks-{port}-{variant}-{safe_planner}.json"));
+    let path = hook_settings_dir()?.join(format!(
+        "alethe-agent-hooks-{port}-{variant}-{safe_planner}.json"
+    ));
     let token = init_token();
     let hook = serde_json::json!([
         { "hooks": [ {
@@ -118,6 +138,10 @@ pub fn agent_hooks_settings_path(
             "TeammateIdle",
             "TaskCreated",
             "TaskCompleted",
+            // Lists what is still running when a turn ends, which is how the board notices a
+            // background worker whose own end event never came. `/hook` answers with an empty
+            // body, so this never blocks the agent from stopping.
+            "Stop",
         ] {
             hooks.insert(event.to_string(), hook.clone());
         }
@@ -136,7 +160,7 @@ pub fn agent_hooks_settings_path(
 
     let body = serde_json::to_string_pretty(&serde_json::Value::Object(settings))
         .map_err(|e| e.to_string())?;
-    std::fs::write(&path, body).map_err(|e| e.to_string())?;
+    write_private_file(&path, body.as_bytes())?;
     eprintln!(
         "[agent_events] hooks settings escrito em {}",
         path.display()
@@ -144,8 +168,121 @@ pub fn agent_hooks_settings_path(
     Ok(path.to_string_lossy().to_string())
 }
 
+/// Where the Claude hook settings go. They carry the listener token, so on Unix they live in the
+/// user's own runtime folder, or a private cache folder, never in the shared temp folder, where
+/// another user could read the token or plant a symlink at the predictable name (#116). Windows'
+/// temp folder is already the user's own.
+fn hook_settings_dir() -> Result<PathBuf, String> {
+    #[cfg(unix)]
+    {
+        let dir = std::env::var_os("XDG_RUNTIME_DIR")
+            .map(PathBuf::from)
+            .filter(|dir| dir.is_absolute())
+            .map(|dir| dir.join("alethe"))
+            .or_else(|| dirs_next::cache_dir().map(|dir| dir.join("alethe").join("runtime")))
+            .ok_or_else(|| "no private folder for the agent hook settings".to_string())?;
+        ensure_private_dir(&dir)?;
+        Ok(dir)
+    }
+    #[cfg(not(unix))]
+    Ok(std::env::temp_dir())
+}
+
+#[cfg(unix)]
+fn ensure_private_dir(path: &Path) -> Result<(), String> {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::create_dir_all(path).map_err(|e| e.to_string())?;
+    let metadata = std::fs::symlink_metadata(path).map_err(|e| e.to_string())?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(format!("{} is not a private folder", path.display()));
+    }
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700))
+        .map_err(|e| e.to_string())
+}
+
+/// Written next to its final name and moved over it, so the file is never half-written and never
+/// readable by anyone else, not even for a moment.
+fn write_private_file(path: &Path, body: &[u8]) -> Result<(), String> {
+    use std::io::Write;
+    let parent = path
+        .parent()
+        .ok_or_else(|| format!("{} has no folder", path.display()))?;
+    let temporary = parent.join(format!(".alethe-agent-hooks-{}.tmp", nanoid::nanoid!(12)));
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let written = options
+        .open(&temporary)
+        .and_then(|mut file| {
+            file.write_all(body)?;
+            file.sync_all()
+        })
+        .and_then(|()| std::fs::rename(&temporary, path));
+    if written.is_err() {
+        let _ = std::fs::remove_file(&temporary);
+    }
+    written.map_err(|e| e.to_string())
+}
+
+#[cfg(all(test, unix))]
+mod private_file_tests {
+    use super::{ensure_private_dir, write_private_file};
+    use std::os::unix::fs::PermissionsExt;
+
+    fn scratch(label: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!("alethe-hooks-{label}-{}", nanoid::nanoid!(8)))
+    }
+
+    // The hook settings carry the listener token: only their owner may read them (#116).
+    #[test]
+    fn hook_settings_are_readable_only_by_their_owner() {
+        let dir = scratch("private");
+        ensure_private_dir(&dir).unwrap();
+        let path = dir.join("settings.json");
+        write_private_file(&path, b"first").unwrap();
+        write_private_file(&path, b"second").unwrap();
+
+        assert_eq!(std::fs::read(&path).unwrap(), b"second");
+        let mode = |p: &std::path::Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode(&path), 0o600);
+        assert_eq!(mode(&dir), 0o700);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // Someone else's symlink at the folder's name must not redirect where the token is written.
+    #[test]
+    fn a_symlinked_hook_folder_is_refused() {
+        let target = scratch("target");
+        std::fs::create_dir_all(&target).unwrap();
+        let link = scratch("link");
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+
+        assert!(ensure_private_dir(&link).is_err());
+        let _ = std::fs::remove_file(&link);
+        let _ = std::fs::remove_dir_all(&target);
+    }
+}
+
 const CODEX_HOOKS_MARK_START: &str = "# alethe-managed-hooks-start";
 const CODEX_HOOKS_MARK_END: &str = "# alethe-managed-hooks-end";
+
+// The listener port moves between runs, so it must not reach the filename: Codex would read a
+// changed command and ask to trust the hooks again. The exe path keeps dev and prod apart.
+fn install_tag() -> &'static str {
+    static TAG: OnceLock<String> = OnceLock::new();
+    TAG.get_or_init(|| {
+        use sha2::{Digest, Sha256};
+        let exe = std::env::current_exe()
+            .map(|p| p.to_string_lossy().to_lowercase())
+            .unwrap_or_else(|_| "alethe".to_string());
+        let digest = Sha256::digest(exe.as_bytes());
+        digest.iter().take(4).map(|b| format!("{b:02x}")).collect()
+    })
+}
 
 fn ps_escape(value: &str) -> String {
     value.replace('\'', "''")
@@ -156,21 +293,23 @@ fn toml_string(value: &str) -> String {
 }
 
 /// Codex CLI hooks only run `command`/`commandWindows` handlers — there is no built-in http type
-/// like Claude Code's. So a tiny PowerShell forwarder is generated per terminal, carrying its own
-/// endpoint/token/planner baked in, and piped Codex's hook JSON on stdin.
-fn write_codex_hook_forwarder(port: u16, planner_id: &str, safe_planner: &str) -> Result<PathBuf, String> {
+/// like Claude Code's, so a PowerShell forwarder is piped Codex's hook JSON on stdin. One script
+/// per install, never per terminal or per port: Codex asks to trust .codex/config.toml again
+/// whenever it changes, so the endpoint lives inside the script and the terminal identifies itself
+/// through ALETHE_PLANNER at run time.
+fn write_codex_hook_forwarder(port: u16) -> Result<PathBuf, String> {
     let endpoint = listener_endpoint(port);
     let token = init_token();
     let script = format!(
         "$body = [Console]::In.ReadToEnd()\r\n\
+         $planner = $env:ALETHE_PLANNER\r\n\
          try {{\r\n\
-         \x20\x20Invoke-RestMethod -Uri '{endpoint}/hook' -Method Post -Body $body -ContentType 'application/json' -Headers @{{ 'X-Alethe-Token' = '{token}'; 'X-Alethe-Planner' = '{planner}'; 'X-Alethe-Agent' = 'codex' }} | Out-Null\r\n\
+         \x20\x20Invoke-RestMethod -Uri '{endpoint}/hook' -Method Post -Body $body -ContentType 'application/json' -Headers @{{ 'X-Alethe-Token' = '{token}'; 'X-Alethe-Planner' = $planner; 'X-Alethe-Agent' = 'codex' }} | Out-Null\r\n\
          }} catch {{}}\r\n",
         endpoint = endpoint,
         token = ps_escape(token),
-        planner = ps_escape(planner_id),
     );
-    let path = std::env::temp_dir().join(format!("alethe-codex-hook-forward-{port}-{safe_planner}.ps1"));
+    let path = std::env::temp_dir().join(format!("alethe-codex-hook-forward-{}.ps1", install_tag()));
     std::fs::write(&path, script).map_err(|e| format!("write_failed:{e}"))?;
     Ok(path)
 }
@@ -180,37 +319,35 @@ const CODEX_MCP_MARK_END: &str = "# alethe-managed-mcp-end";
 
 /// Codex's MCP client only declares servers via `command`/`args` (stdio), unlike Claude Code's
 /// remote `http` support — this script bridges stdin/stdout JSON-RPC to Alethe's `/mcp` endpoint.
-fn write_codex_mcp_bridge(port: u16, planner_id: &str, safe_planner: &str) -> Result<PathBuf, String> {
+fn write_codex_mcp_bridge(port: u16) -> Result<PathBuf, String> {
     let endpoint = listener_endpoint(port);
     let token = init_token();
     let script = format!(
-        "while ($line = [Console]::In.ReadLine()) {{\r\n\
+        "$planner = $env:ALETHE_PLANNER\r\n\
+         while ($line = [Console]::In.ReadLine()) {{\r\n\
          \x20\x20if ([string]::IsNullOrWhiteSpace($line)) {{ continue }}\r\n\
          \x20\x20try {{\r\n\
-         \x20\x20\x20\x20$resp = Invoke-WebRequest -Uri '{endpoint}/mcp' -Method Post -Body $line -ContentType 'application/json' -Headers @{{ 'X-Alethe-Token' = '{token}'; 'X-Alethe-Planner' = '{planner}' }}\r\n\
+         \x20\x20\x20\x20$resp = Invoke-WebRequest -UseBasicParsing -ErrorAction Stop -Uri '{endpoint}/mcp' -Method Post -Body $line -ContentType 'application/json' -Headers @{{ 'X-Alethe-Token' = '{token}'; 'X-Alethe-Planner' = $planner }}\r\n\
          \x20\x20\x20\x20if ($resp.Content) {{\r\n\
          \x20\x20\x20\x20\x20\x20[Console]::Out.WriteLine($resp.Content)\r\n\
          \x20\x20\x20\x20\x20\x20[Console]::Out.Flush()\r\n\
          \x20\x20\x20\x20}}\r\n\
-         \x20\x20}} catch {{}}\r\n\
+         \x20\x20}} catch {{\r\n\
+         \x20\x20\x20\x20[Console]::Error.WriteLine('[alethe-mcp] request failed: ' + $_.Exception.Message)\r\n\
+         \x20\x20}}\r\n\
          }}\r\n",
         endpoint = endpoint,
         token = ps_escape(token),
-        planner = ps_escape(planner_id),
     );
-    let path = std::env::temp_dir().join(format!("alethe-codex-mcp-bridge-{port}-{safe_planner}.ps1"));
+    let path = std::env::temp_dir().join(format!("alethe-codex-mcp-bridge-{}.ps1", install_tag()));
     std::fs::write(&path, script).map_err(|e| format!("write_failed:{e}"))?;
     Ok(path)
 }
 
-fn codex_mcp_config_write_inner(repo: String, planner_id: String) -> Result<(), String> {
+fn codex_mcp_config_write_inner(repo: String, _planner_id: String) -> Result<(), String> {
     let port = wait_for_listener_port()
         .ok_or_else(|| "listener de agents ainda nao esta disponivel".to_string())?;
-    let safe_planner: String = planner_id
-        .chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
-        .collect();
-    let script_path = write_codex_mcp_bridge(port, &planner_id, &safe_planner)?;
+    let script_path = write_codex_mcp_bridge(port)?;
 
     let root = crate::git_control::repository_root(&repo)?;
     let codex_dir = root.join(".codex");
@@ -274,14 +411,10 @@ pub async fn codex_mcp_config_write(
         .map_err(|error| format!("codex_mcp_config_write: falha na task bloqueante: {error}"))?
 }
 
-fn codex_hooks_config_write_inner(repo: String, planner_id: String) -> Result<(), String> {
+fn codex_hooks_config_write_inner(repo: String, _planner_id: String) -> Result<(), String> {
     let port = wait_for_listener_port()
         .ok_or_else(|| "listener de agents ainda nao esta disponivel".to_string())?;
-    let safe_planner: String = planner_id
-        .chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
-        .collect();
-    let script_path = write_codex_hook_forwarder(port, &planner_id, &safe_planner)?;
+    let script_path = write_codex_hook_forwarder(port)?;
 
     let root = crate::git_control::repository_root(&repo)?;
     let codex_dir = root.join(".codex");
@@ -578,5 +711,33 @@ mod tests {
             .expect("generated path should be valid TOML");
 
         assert_eq!(document["path"].as_str(), Some(path));
+    }
+
+    #[test]
+    fn codex_mcp_bridge_script_requests_with_basic_parsing() {
+        // The file name comes from the test binary's own path, so this never touches the bridge
+        // a running app uses.
+        let path = super::write_codex_mcp_bridge(8123).expect("bridge script should be written");
+        let script = std::fs::read_to_string(&path).expect("bridge script should be readable");
+        let removed = std::fs::remove_file(&path);
+
+        assert!(
+            script.contains("Invoke-WebRequest -UseBasicParsing -ErrorAction Stop -Uri"),
+            "bridge script should pass -UseBasicParsing and -ErrorAction Stop to Invoke-WebRequest"
+        );
+        assert!(
+            !script.contains("Invoke-WebRequest -Uri"),
+            "bridge script should not call Invoke-WebRequest without -UseBasicParsing"
+        );
+        // Failures go to stderr; stdout stays reserved for JSON-RPC responses.
+        assert!(
+            !script.contains("catch {}"),
+            "bridge script should not swallow request failures"
+        );
+        assert!(
+            script.contains("[Console]::Error.WriteLine("),
+            "bridge script should report request failures on stderr"
+        );
+        removed.expect("generated bridge script should be removable");
     }
 }

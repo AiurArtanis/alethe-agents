@@ -41,15 +41,25 @@ export async function remoteControlRevoke(): Promise<RemoteControlInfo> {
   return invoke<RemoteControlInfo>('remote_control_revoke')
 }
 
-export async function setRemoteControlEnabled(enabled: boolean): Promise<RemoteControlInfo> {
-  return invoke<RemoteControlInfo>('remote_control_set_enabled', { enabled })
+/**
+ * `requestId` must grow with every call: the backend only honours the newest
+ * request, so an older enable finishing late can never undo a disable. Rejects
+ * when the listeners could not be opened; remote control is then off.
+ */
+export async function setRemoteControlEnabled(
+  enabled: boolean,
+  requestId: number,
+): Promise<RemoteControlInfo> {
+  return invoke<RemoteControlInfo>('remote_control_set_enabled', { enabled, requestId })
 }
 
 export async function setRemoteControlMaxDevices(maxDevices: number): Promise<RemoteControlInfo> {
   return invoke<RemoteControlInfo>('remote_control_set_max_devices', { maxDevices })
 }
 
-export async function setRemoteControlSessionExpiry(sessionExpirySecs: number): Promise<RemoteControlInfo> {
+export async function setRemoteControlSessionExpiry(
+  sessionExpirySecs: number,
+): Promise<RemoteControlInfo> {
   return invoke<RemoteControlInfo>('remote_control_set_session_expiry', { sessionExpirySecs })
 }
 
@@ -96,6 +106,7 @@ export async function remoteControlTailscaleStatus(): Promise<TailscaleStatus> {
   return invoke<TailscaleStatus>('remote_control_tailscale_status')
 }
 
+/** Rejects when a live reach-mode switch could not rebind; remote control is then off. */
 export async function setRemoteControlReachMode(useTailscale: boolean): Promise<RemoteControlInfo> {
   return invoke<RemoteControlInfo>('remote_control_set_reach_mode', { useTailscale })
 }
@@ -105,7 +116,7 @@ export function listenRemoteAutoDisabled(handler: () => void): Promise<UnlistenF
   return listen('remote://auto-disabled', () => handler())
 }
 
-/** Fires when the backend fails to bind its listener (port conflict, Tailscale not reachable, ...) and turns itself back off. */
+/** Fires when a live listener dies on its own and the backend turns remote control back off. */
 export function listenRemoteStartFailed(handler: () => void): Promise<UnlistenFn> {
   return listen('remote://start-failed', () => handler())
 }
@@ -118,7 +129,6 @@ export async function saveProjectsFile(content: string, sequence: number): Promi
   await invoke('save_projects', { content, sequence })
 }
 
-                                                                                                     
 export async function recordFrontendError(
   message: string,
   stack: string | null,
@@ -320,11 +330,10 @@ export type PlanningStatus = {
   progress: number | null
   roadmapPendingCount: number | null
   roadmapTotalCount: number | null
-                                                                                                                         
+
   notes: string | null
 }
 
-                                                                                                    
 export async function readPlanningStatus(repoPath: string): Promise<PlanningStatus> {
   return invoke<PlanningStatus>('read_planning_status', { repoPath })
 }
@@ -345,22 +354,18 @@ export async function listProjectPlans(repoPath: string, projectId: string): Pro
   return invoke<PlanItem[]>('list_project_plans', { repoPath, projectId })
 }
 
-                                                                                                                                                                                                                                                                      
 export async function gsdOpenCodePluginWrite(repo: string, modelChain: string[]): Promise<void> {
   await invoke('gsd_opencode_plugin_write', { repo, modelChain })
 }
 
-                                                                                                                                                                                 
 export async function readGsdChildSession(repoPath: string): Promise<string | null> {
   return invoke<string | null>('read_gsd_child_session', { repoPath })
 }
 
-                                                                                                                      
 export async function readGsdChildBusy(repoPath: string): Promise<boolean> {
   return invoke<boolean>('read_gsd_child_busy', { repoPath })
 }
 
-                                                                                                                                                                 
 export async function readGsdChildError(repoPath: string): Promise<string | null> {
   return invoke<string | null>('read_gsd_child_error', { repoPath })
 }
@@ -377,7 +382,6 @@ export async function readGsdChildState(repoPath: string): Promise<GsdChildState
 
 export type GsdProcedureStep = { description: string; category: string }
 
-                                                                                                                                                                                                                
 export async function readGsdProcedure(repoPath: string): Promise<GsdProcedureStep[]> {
   return invoke<GsdProcedureStep[]>('read_gsd_procedure', { repoPath })
 }
@@ -392,7 +396,7 @@ export type SchedulerTask = {
   status: 'pending' | 'ready' | 'running' | 'completed' | 'failed' | 'blocked'
   assignedAgentId: string | null
   leaseResource: string | null
-                                                                           
+
   worktreePath: string | null
   priority: number
 }

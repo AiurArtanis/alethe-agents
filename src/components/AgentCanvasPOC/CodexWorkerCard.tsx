@@ -9,7 +9,7 @@ import styles from './AgentCanvasPOC.module.css'
 type CodexWorkerCardProps = {
   worker: CodexWorker
   onOpen: (ptyId: string) => void
-                                                                       
+
   cardRefs: MutableRefObject<Map<string, HTMLDivElement>>
 }
 
@@ -40,6 +40,9 @@ export function CodexWorkerCard({ worker: w, onOpen, cardRefs }: CodexWorkerCard
       </div>
       <div className={styles.cardPrompt}>{w.title}</div>
       {w.result ? <div className={styles.codexResult}>{w.result}</div> : null}
+      {w.oneShot && w.permissionMode === 'ask' && w.exitedCode !== null ? (
+        <div className={styles.workerPermissionNote}>{t('ws.workerAskRefused')}</div>
+      ) : null}
       <div className={styles.codexCardFooter}>
         <span className={styles.cardId}>{w.ptyId}</span>
         <span className={styles.codexExpandHint}>

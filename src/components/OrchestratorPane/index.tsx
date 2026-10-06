@@ -1,8 +1,11 @@
 import { convertFileSrc } from '@tauri-apps/api/core'
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import {
+  AppWindow,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Eye,
   FilePen,
   GitBranch,
   Minus,
@@ -14,6 +17,7 @@ import {
 } from 'lucide-react'
 import {
   memo,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
@@ -25,6 +29,7 @@ import {
 
 import { useOrchestratorQuotaWarnings } from '../../hooks/useOrchestratorQuotaWarnings'
 import { COST_POLL_MS } from '../../lib/agentCanvasConfig'
+import { startAgentCanvasMirror } from '../../lib/agentCanvasMirror'
 import { formatReset } from '../../lib/agentCanvasUtils'
 import { fmtUsd } from '../../lib/costFormat'
 import { type MessageKey, type TFunction, useT } from '../../lib/i18n'
@@ -47,6 +52,7 @@ import {
   type Attention,
   type AttentionLane,
   attentionOf,
+  boardPlannerIds,
   emptyCounts,
   groupPlanners,
   LANE_OF,
@@ -60,6 +66,7 @@ import { nativeSubagentJobs } from '../../lib/orchestratorSubagents'
 import { basename } from '../../lib/paths'
 import {
   listenOrchestratorJobs,
+  openOrchestrationWindow,
   orchestratorAnswer,
   orchestratorCancelJob,
   type OrchestratorDecision,
@@ -71,6 +78,7 @@ import {
   orchestratorShellRestart,
   orchestratorShellStop,
   type OrchestratorShell,
+  orchestratorRestart,
   type OrchestratorSnapshot,
 } from '../../lib/tauri'
 import {
@@ -93,6 +101,7 @@ import { AgentGlyph, contextShare, formatElapsed, formatTokens, statusTitle } fr
 import { OrchestratorInspector, type InspectorTarget } from './OrchestratorInspector'
 import { ShellNode } from './ShellNode'
 import styles from './OrchestratorPane.module.css'
+import { WorkerContextMenu } from './WorkerContextMenu'
 
 const EMPTY: OrchestratorSnapshot = {
   jobs: [],
@@ -101,6 +110,7 @@ const EMPTY: OrchestratorSnapshot = {
   queued: 0,
   concurrencyLimit: 0,
   shells: [],
+  roles: [],
 }
 
 const LIVE_TICK_MS = 1_000
@@ -163,6 +173,15 @@ function canStop(job: OrchestratorJob): boolean {
   return (
     !job.native && (job.status === 'queued' || job.status === 'running' || job.status === 'blocked')
   )
+}
+
+/** What the planner chose to run a worker on; either part can be given without the other. */
+function modelTitle(job: OrchestratorJob, t: TFunction): string {
+  if (job.model && job.effort) {
+    return t('orchestrator.modelEffortTitle', { model: job.model, effort: job.effort })
+  }
+  if (job.model) return t('orchestrator.modelTitle', { model: job.model })
+  return t('orchestrator.effortTitle', { effort: job.effort ?? '' })
 }
 
 function laneTitle(lane: RunLane, t: TFunction): string | undefined {
@@ -259,6 +278,8 @@ function ApprovalAsk({ job, ask, answering, onAnswer, t }: ApprovalAskProps) {
   )
 }
 
+type WorkerMenuFn = (event: ReactMouseEvent, id: string) => void
+
 type WorkerNodeProps = {
   job: OrchestratorJob
   node: GraphNode
@@ -270,6 +291,7 @@ type WorkerNodeProps = {
   onAnswer: AnswerFn
   onStop: (id: string) => void
   onShortcut: (job: OrchestratorJob, shortcut: OrchestratorShortcut) => void
+  onContextMenu: WorkerMenuFn
   bind: BindNode
   t: TFunction
 }
@@ -285,6 +307,7 @@ function WorkerNode({
   onAnswer,
   onStop,
   onShortcut,
+  onContextMenu,
   bind,
   t,
 }: WorkerNodeProps) {
@@ -300,6 +323,7 @@ function WorkerNode({
   return (
     <article
       ref={(element) => bind(job.id, element)}
+      onContextMenu={(event) => onContextMenu(event, job.id)}
       className={styles.worker}
       style={{ left: node.x, top: node.y, width: node.width }}
       data-status={job.status}
@@ -359,6 +383,20 @@ function WorkerNode({
           <span className={styles.metaStatus} title={statusTitle(job.status, t)}>
             {t(`orchestrator.status.${job.status}`)}
           </span>
+          {job.role && (
+            <span title={t('orchestrator.roleTitle', { role: job.role })}>{job.role}</span>
+          )}
+          {(job.model || job.effort) && (
+            <span title={modelTitle(job, t)}>
+              {[job.model, job.effort].filter(Boolean).join(' · ')}
+            </span>
+          )}
+          {job.readOnly && (
+            <span className={styles.metaIcon} title={t('orchestrator.readOnlyTitle')}>
+              <Eye size={9} aria-hidden />
+              {t('orchestrator.readOnly')}
+            </span>
+          )}
           {share !== null && (
             <span title={t('orchestrator.contextTitle', { percent: share })}>
               {t('orchestrator.contextChip', { value: share })}
@@ -500,11 +538,12 @@ type PlannerNodeProps = {
   node: GraphNode
   theme: Theme
   onReveal: (() => void) | null
+  detached: boolean
   bind: BindNode
   t: TFunction
 }
 
-function PlannerNode({ group, node, theme, onReveal, bind, t }: PlannerNodeProps) {
+function PlannerNode({ group, node, theme, onReveal, detached, bind, t }: PlannerNodeProps) {
   const name = group.label ?? t('orchestrator.noPlanner')
   return (
     <article
@@ -517,7 +556,13 @@ function PlannerNode({ group, node, theme, onReveal, bind, t }: PlannerNodeProps
         type="button"
         className={styles.plannerCard}
         disabled={onReveal === null}
-        title={onReveal ? t('orchestrator.plannerNodeTitle') : t('orchestrator.plannerGone')}
+        title={
+          onReveal
+            ? t('orchestrator.plannerNodeTitle')
+            : detached
+              ? t('orchestrator.plannerInMainWindow')
+              : t('orchestrator.plannerGone')
+        }
         onPointerDown={(event) => event.stopPropagation()}
         onClick={() => onReveal?.()}
       >
@@ -546,10 +591,11 @@ type RailRowProps = {
   selected: boolean
   theme: Theme
   onSelect: (id: string) => void
+  onContextMenu: WorkerMenuFn
   t: TFunction
 }
 
-function RailRow({ job, depth, selected, theme, onSelect, t }: RailRowProps) {
+function RailRow({ job, depth, selected, theme, onSelect, onContextMenu, t }: RailRowProps) {
   const elapsed = formatElapsed(job.seconds)
   const lane = LANE_OF[job.status]
   // A blocked worker's clock is still running, but the state is what the row has to report.
@@ -564,6 +610,7 @@ function RailRow({ job, depth, selected, theme, onSelect, t }: RailRowProps) {
       title={statusTitle(job.status, t) ?? t('orchestrator.selectWorker')}
       onPointerDown={(event) => event.stopPropagation()}
       onClick={() => onSelect(job.id)}
+      onContextMenu={(event) => onContextMenu(event, job.id)}
     >
       <span className={styles.dot} aria-hidden />
       <AgentGlyph agent={job.agent} theme={theme} size={12} className={styles.glyph} />
@@ -580,10 +627,20 @@ type RunBranchProps = {
   theme: Theme
   onToggle: (id: string) => void
   onSelectWorker: (id: string) => void
+  onWorkerMenu: WorkerMenuFn
   t: TFunction
 }
 
-function RunBranch({ run, open, selectedId, theme, onToggle, onSelectWorker, t }: RunBranchProps) {
+function RunBranch({
+  run,
+  open,
+  selectedId,
+  theme,
+  onToggle,
+  onSelectWorker,
+  onWorkerMenu,
+  t,
+}: RunBranchProps) {
   return (
     <div className={styles.branch}>
       <button
@@ -611,6 +668,7 @@ function RunBranch({ run, open, selectedId, theme, onToggle, onSelectWorker, t }
             selected={job.id === selectedId}
             theme={theme}
             onSelect={onSelectWorker}
+            onContextMenu={onWorkerMenu}
             t={t}
           />
         ))}
@@ -715,11 +773,14 @@ function ShellGroupNode({ node, attachment, count, bind, t }: ShellGroupNodeProp
 export type OrchestratorPaneProps = {
   projectId: string
   terminal: Terminal
+  /** Shown alone in its own window (#247), away from the workspace it would otherwise act on. */
+  detached?: boolean
 }
 
 export const OrchestratorPane = memo(function OrchestratorPane({
   projectId,
   terminal,
+  detached = false,
 }: OrchestratorPaneProps) {
   const t = useT()
   const theme = useProjectsStore((state) => state.preferences.uiTheme)
@@ -741,6 +802,7 @@ export const OrchestratorPane = memo(function OrchestratorPane({
   const [inspecting, setInspecting] = useState<{ kind: 'worker' | 'shell'; id: string } | null>(
     null,
   )
+  const [workerMenu, setWorkerMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   const [openRuns, setOpenRuns] = useState<Record<string, boolean>>({})
   const [summaryOpen, setSummaryOpen] = useState(true)
   const [answering, setAnswering] = useState<ReadonlySet<string>>(() => new Set())
@@ -871,10 +933,20 @@ export const OrchestratorPane = memo(function OrchestratorPane({
     [snapshot.planners, projectPtyIds],
   )
   const groups = useMemo(() => groupPlanners(jobs, planners), [jobs, planners])
+  const ownPlannerIds = useMemo(
+    () => boardPlannerIds(project ?? undefined, terminal.id),
+    [project, terminal.id],
+  )
   const activeGroup =
-    groups.find((group) => plannerKey(group) === selectedPlanner) ?? groups[0] ?? null
+    groups.find((group) => plannerKey(group) === selectedPlanner) ??
+    ownPlannerIds.flatMap((id) => groups.filter((group) => group.id === id))[0] ??
+    groups[0] ??
+    null
   const groupJobs = useMemo(() => activeGroup?.jobs ?? [], [activeGroup])
-  const spendByAgent = useMemo(() => aggregateAgentSpend(groupJobs), [groupJobs])
+  const spendByAgent = useMemo(
+    () => aggregateAgentSpend([...groupJobs, ...(activeGroup?.superseded ?? [])]),
+    [groupJobs, activeGroup],
+  )
   const runs = useMemo(() => activeGroup?.runs ?? [], [activeGroup])
   const plannerId = activeGroup?.id ?? null
   // The planners of every group on screen right now — a shell of one of these stays under its own
@@ -1055,7 +1127,8 @@ export const OrchestratorPane = memo(function OrchestratorPane({
     }
     return rows.sort(attentionFirst)
   }, [groups, activeKey])
-  const interruptedAll = jobs.filter((job) => job.status === 'interrupted').length
+  // Counted from the groups so an interrupted worker whose task was sent again is not announced.
+  const interruptedAll = groups.reduce((sum, group) => sum + group.counts.interrupted, 0)
   const blockedAll = jobs.filter((job) => job.status === 'blocked').length
 
   const openPlanner = (key: string) => {
@@ -1088,14 +1161,29 @@ export const OrchestratorPane = memo(function OrchestratorPane({
     revealRun(id)
   }
 
-  const revealPlanner = plannerTarget
-    ? () => {
-        openTerminalWorkspace(plannerTarget.projectId, plannerTarget.terminalId)
-        setActiveTerminal(plannerTarget.projectId, plannerTarget.terminalId)
-        requestPaneFocus(plannerTarget.terminalId)
-        setActiveView('workspace')
-      }
-    : null
+  const revealPlanner =
+    plannerTarget && !detached
+      ? () => {
+          openTerminalWorkspace(plannerTarget.projectId, plannerTarget.terminalId)
+          setActiveTerminal(plannerTarget.projectId, plannerTarget.terminalId)
+          requestPaneFocus(plannerTarget.terminalId)
+          setActiveView('workspace')
+        }
+      : null
+
+  const openWorkerMenu: WorkerMenuFn = (event, id) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setWorkerMenu({ id, x: event.clientX, y: event.clientY })
+  }
+
+  const runWorkerAction = async (action: () => Promise<unknown>, failure: string) => {
+    try {
+      await action()
+    } catch (error) {
+      pushToast({ title: failure, body: error instanceof Error ? error.message : String(error) })
+    }
+  }
 
   const answer = async (jobId: string, decision: OrchestratorDecision) => {
     if (answering.has(jobId)) return
@@ -1324,13 +1412,38 @@ export const OrchestratorPane = memo(function OrchestratorPane({
             <span>{t('orchestrator.limit', { count: String(snapshot.concurrencyLimit) })}</span>
           </div>
           <div className={styles.actions}>
+            {!detached && (
+              <button
+                type="button"
+                className={styles.action}
+                title={t('orchestrator.openInWindow')}
+                aria-label={t('orchestrator.openInWindow')}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={() => {
+                  // The detached board shows this window's subagents; start handing them over.
+                  startAgentCanvasMirror()
+                  void openOrchestrationWindow(terminal.id).catch((error: unknown) =>
+                    pushToast({
+                      title: t('orchestrator.openInWindowFailed'),
+                      body: error instanceof Error ? error.message : String(error),
+                    }),
+                  )
+                }}
+              >
+                <AppWindow size={14} />
+              </button>
+            )}
             <button
               type="button"
               className={`${styles.action} ${styles.danger}`}
               title={t('common.close')}
               aria-label={t('common.close')}
               onPointerDown={(event) => event.stopPropagation()}
-              onClick={() => closePane(projectId, terminal.id)}
+              onClick={() =>
+                detached
+                  ? void getCurrentWebviewWindow().destroy()
+                  : closePane(projectId, terminal.id)
+              }
             >
               <X size={14} />
             </button>
@@ -1359,16 +1472,18 @@ export const OrchestratorPane = memo(function OrchestratorPane({
                 t={t}
               />
             ))}
-            <button
-              type="button"
-              className={styles.addPlanner}
-              title={t('orchestrator.addPlannerTitle')}
-              aria-label={t('orchestrator.addPlannerTitle')}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={addPlanner}
-            >
-              <Plus size={13} />
-            </button>
+            {!detached && (
+              <button
+                type="button"
+                className={styles.addPlanner}
+                title={t('orchestrator.addPlannerTitle')}
+                aria-label={t('orchestrator.addPlannerTitle')}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={addPlanner}
+              >
+                <Plus size={13} />
+              </button>
+            )}
           </div>
 
           <div className={styles.split}>
@@ -1424,13 +1539,17 @@ export const OrchestratorPane = memo(function OrchestratorPane({
                           style={{ left: edge.note.x, top: edge.note.y }}
                         >
                           {t(
-                            edge.note.verdict === 'ignored'
-                              ? 'orchestrator.routingIgnored'
-                              : 'orchestrator.routingChosen',
+                            edge.note.verdict === 'fallback'
+                              ? 'orchestrator.routingFallback'
+                              : edge.note.verdict === 'ignored'
+                                ? 'orchestrator.routingIgnored'
+                                : 'orchestrator.routingChosen',
                             {
                               agent: edge.note.agent,
                               window: edge.note.window,
                               used: String(edge.note.used),
+                              from: edge.note.from ?? '',
+                              to: edge.note.to ?? '',
                             },
                           )}
                         </span>
@@ -1443,6 +1562,7 @@ export const OrchestratorPane = memo(function OrchestratorPane({
                         node={graph.planner}
                         theme={theme}
                         onReveal={revealPlanner}
+                        detached={detached}
                         bind={bind}
                         t={t}
                       />
@@ -1475,6 +1595,7 @@ export const OrchestratorPane = memo(function OrchestratorPane({
                           onAnswer={(id, decision) => void answer(id, decision)}
                           onStop={(id) => void stopJob(id)}
                           onShortcut={(job, shortcut) => void sendShortcut(job, shortcut)}
+                          onContextMenu={openWorkerMenu}
                           bind={bind}
                           t={t}
                         />
@@ -1630,6 +1751,7 @@ export const OrchestratorPane = memo(function OrchestratorPane({
                       theme={theme}
                       onToggle={toggleRun}
                       onSelectWorker={reveal}
+                      onWorkerMenu={openWorkerMenu}
                       t={t}
                     />
                   ))}
@@ -1672,6 +1794,7 @@ export const OrchestratorPane = memo(function OrchestratorPane({
           projectId={projectId}
           theme={theme}
           terminalTheme={terminalTheme}
+          detached={detached}
           diffText={diffText[inspectorTarget.kind === 'worker' ? inspectorTarget.job.id : '']}
           diffLoading={diffLoading.has(
             inspectorTarget.kind === 'worker' ? inspectorTarget.job.id : '',
@@ -1690,6 +1813,19 @@ export const OrchestratorPane = memo(function OrchestratorPane({
           t={t}
         />
       )}
+      {workerMenu && jobById.has(workerMenu.id) ? (
+        <WorkerContextMenu
+          job={jobById.get(workerMenu.id)!}
+          x={workerMenu.x}
+          y={workerMenu.y}
+          onOpen={reveal}
+          onStop={(id) => void stopJob(id)}
+          onRestart={(id) =>
+            void runWorkerAction(() => orchestratorRestart(id), t('orchestrator.restartFailed'))
+          }
+          onClose={() => setWorkerMenu(null)}
+        />
+      ) : null}
     </section>
   )
 })

@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 
-import { installShellLine, type InstallMethod } from '../lib/agentInstall'
+import {
+  INSTALL_SHELL_ENV,
+  installArgv,
+  installShellLine,
+  type InstallMethod,
+} from '../lib/agentInstall'
 import {
   agentCliVersion,
+  findWslCli,
   killPty,
   listenPtyData,
   listenPtyExit,
@@ -12,6 +18,8 @@ import {
 } from '../lib/tauri'
 import { resolveAgentCliCommand } from '../lib/agentProviders'
 import type { AgentType } from '../lib/types'
+import { wslTargetFor } from '../lib/wsl'
+import { useProjectsStore } from '../stores/projectsStore'
 
 export type AgentInstallStatus = 'idle' | 'running' | 'success' | 'failed'
 
@@ -26,10 +34,10 @@ export type AgentInstallShadowConflict = { path: string }
 const MAX_LOG_CHARS = 12_000
 const PROMPT_SETTLE_MS = 400
 /**
- * Installers do not agree on ending their shell: some hand the prompt back, some leave a progress
- * bar or a pager behind, and a native script that only edits PATH may never return at all. Waiting
- * for the PTY to exit is therefore not enough to notice a finished install, so the resolver is
- * asked on this interval while the run is in flight.
+ * A native script that only edits PATH may never hand its shell back, so waiting for the PTY to
+ * exit is not enough to notice it finished: the resolver is asked on this interval while it runs.
+ * Package managers are left to exit on their own — their files land before they are done, and
+ * killing one then (an MSI mid-install) can roll the whole install back.
  */
 const VERIFY_POLL_MS = 1_500
 
@@ -78,7 +86,17 @@ export function useAgentOperationBusy(): string | null {
  * differs when the same screen also installs something else for that agent — the Node toolchain —
  * which must not look like the agent's own run or the two would be allowed to run together.
  */
-export function useAgentInstall(agent: AgentType, lockKey: string = agent) {
+export type AgentInstallTarget = {
+  /** A folder inside a WSL distro installs into that distro instead of on Windows. */
+  cwd?: string | null
+}
+
+export function useAgentInstall(
+  agent: AgentType,
+  lockKey: string = agent,
+  target?: AgentInstallTarget,
+) {
+  const targetCwd = target?.cwd ?? null
   const [status, setStatus] = useState<AgentInstallStatus>('idle')
   const [log, setLog] = useState('')
   const [shadowConflict, setShadowConflict] = useState<AgentInstallShadowConflict | null>(null)
@@ -86,6 +104,8 @@ export function useAgentInstall(agent: AgentType, lockKey: string = agent) {
   const cleanupRef = useRef<Array<() => void>>([])
   const disposedRef = useRef(false)
   const settledRef = useRef(false)
+  // Bumped by every run and by reset(), so an in-flight run can tell it was cancelled.
+  const runRef = useRef(0)
 
   const teardown = useCallback(() => {
     cleanupRef.current.forEach((stop) => stop())
@@ -119,6 +139,8 @@ export function useAgentInstall(agent: AgentType, lockKey: string = agent) {
   const install = useCallback(
     async (method: InstallMethod) => {
       if (status === 'running' || busyAgent !== null) return
+      const run = ++runRef.current
+      const stale = () => disposedRef.current || runRef.current !== run
       teardown()
       setLog('')
       setShadowConflict(null)
@@ -126,10 +148,17 @@ export function useAgentInstall(agent: AgentType, lockKey: string = agent) {
       setStatus('running')
       setBusyAgent(lockKey)
 
+      const wslTarget = wslTargetFor(
+        targetCwd,
+        useProjectsStore.getState().preferences.enabledFeatures.wsl,
+      )
       const command = method.verifyCommand ?? resolveAgentCliCommand(agent)
       // Only meaningful for an update of something already on PATH — a fresh install has
       // nothing to compare against, and verifyAbsent (uninstall) checks absence, not a version.
-      const beforeVersion = command && !method.verifyAbsent ? await agentCliVersion(command) : null
+      // The version probe runs on Windows, so it says nothing about a CLI inside a distro.
+      const beforeVersion =
+        !wslTarget && command && !method.verifyAbsent ? await agentCliVersion(command) : null
+      if (stale()) return
 
       /**
        * Whether the machine now shows what this run was supposed to produce. The environment is
@@ -138,7 +167,9 @@ export function useAgentInstall(agent: AgentType, lockKey: string = agent) {
        */
       const verify = async (): Promise<boolean> => {
         if (!command) return false
-        const found = await refreshCliLauncher(command).catch(() => null)
+        const found = await (
+          wslTarget ? findWslCli(wslTarget.distro, command, true) : refreshCliLauncher(command)
+        ).catch(() => null)
         if (method.verifyAbsent) return !found
         if (!found) return false
         if (!beforeVersion) return true
@@ -151,85 +182,111 @@ export function useAgentInstall(agent: AgentType, lockKey: string = agent) {
       // when the two differ. When the check passes before the installer even starts — a
       // re-install, or a CLI whose version cannot be read — only the shell exiting settles it.
       const alreadySatisfied = await verify()
+      if (stale()) return
 
       const ptyId = `agent-install:${lockKey}:${Date.now()}`
+      // Inside a distro a plain command runs as the PTY process itself, so its exit code is the
+      // installer's own.
+      const argv = wslTarget ? installArgv(method.command) : null
       try {
-        // A bare shell, then the command written into it: the native installers
+        // Otherwise a bare shell, then the command written into it: the native installers
         // are pipelines (`irm ... | iex`), which cannot be expressed as a
         // launcher plus argv.
-        const spawned = await spawnPty({ cols: 100, rows: 24, id: ptyId })
-        if (disposedRef.current) {
+        const spawned = await spawnPty({
+          cols: 100,
+          rows: 24,
+          id: ptyId,
+          ...(wslTarget
+            ? { cwd: targetCwd ?? undefined, command: argv?.program, extraArgs: argv?.args }
+            : { env: INSTALL_SHELL_ENV }),
+        })
+        if (stale()) {
           void killPty(spawned.id).catch(() => undefined)
           return
         }
         ptyIdRef.current = spawned.id
 
-        cleanupRef.current.push(
-          await listenPtyData(spawned.id, (chunk) => {
-            setLog((current) => trimLog(current + chunk))
-          }),
-        )
-        cleanupRef.current.push(
-          await listenPtyExit(spawned.id, (payload) => {
-            ptyIdRef.current = null
-            if (settledRef.current) return
-            // `installShellLine` ends the shell with a bare `exit`, which carries the
-            // installer command's own exit status. A non-zero code means the installer
-            // itself reported failure (network error, permission denied, ...) — trust it
-            // instead of falling through to the resolver, which would still find the
-            // previous binary on PATH and misreport the run as a success.
-            if (payload.code !== 0 || !command) {
-              settle('failed')
-              return
-            }
-            // A zero exit code still doesn't confirm the binary landed somewhere we
-            // can launch it from, so ask the resolver.
-            void verify()
-              .then(async (worked) => {
-                if (disposedRef.current || settledRef.current) return
-                if (worked) {
-                  settle('success')
-                  return
-                }
-                // The installer exited clean and a binary is still there, but its version never
-                // moved: the run likely reached a different install of this CLI than the one PATH
-                // resolves to — a shadowing copy the update never touched. Name it for the caller.
-                const found = beforeVersion
-                  ? await refreshCliLauncher(command).catch(() => null)
-                  : null
-                if (disposedRef.current) return
-                if (found) setShadowConflict({ path: found })
-                settle('failed')
-              })
-              .catch(() => {
-                if (!disposedRef.current) settle('failed')
-              })
-          }),
-        )
+        // Checked after each await: a cancel meanwhile already ran teardown(), which never sees a
+        // listener that registers later.
+        const keep = (stop: () => void): boolean => {
+          if (stale()) {
+            stop()
+            return false
+          }
+          cleanupRef.current.push(stop)
+          return true
+        }
 
-        // The shell exiting is only one of the two ways a run can end — see VERIFY_POLL_MS.
-        if (!alreadySatisfied) {
+        const stopData = await listenPtyData(spawned.id, (chunk) => {
+          if (stale()) return
+          setLog((current) => trimLog(current + chunk))
+        })
+        if (!keep(stopData)) return
+        const stopExit = await listenPtyExit(spawned.id, (payload) => {
+          if (stale()) return
+          ptyIdRef.current = null
+          if (settledRef.current) return
+          // The exit code is the installer's own: either it is the PTY process, or
+          // `installShellLine` ends the shell with a bare `exit` carrying the
+          // installer command's exit status. A non-zero code means the installer
+          // itself reported failure (network error, permission denied, ...) — trust it
+          // instead of falling through to the resolver, which would still find the
+          // previous binary on PATH and misreport the run as a success.
+          if (payload.code !== 0 || !command) {
+            settle('failed')
+            return
+          }
+          // A zero exit code still doesn't confirm the binary landed somewhere we
+          // can launch it from, so ask the resolver.
+          void verify()
+            .then(async (worked) => {
+              if (stale() || settledRef.current) return
+              if (worked) {
+                settle('success')
+                return
+              }
+              // The installer exited clean and a binary is still there, but its version never
+              // moved: the run likely reached a different install of this CLI than the one PATH
+              // resolves to — a shadowing copy the update never touched. Name it for the caller.
+              const found = beforeVersion
+                ? await refreshCliLauncher(command).catch(() => null)
+                : null
+              if (stale()) return
+              if (found) setShadowConflict({ path: found })
+              settle('failed')
+            })
+            .catch(() => {
+              if (!stale()) settle('failed')
+            })
+        })
+        if (!keep(stopExit)) return
+
+        // The shell exiting is only one of the two ways a native run can end — see VERIFY_POLL_MS.
+        if (method.id === 'native' && !alreadySatisfied) {
           const poll = window.setInterval(() => {
             void verify().then((worked) => {
-              if (worked && !disposedRef.current) settle('success')
+              if (worked && !stale()) settle('success')
             })
           }, VERIFY_POLL_MS)
           cleanupRef.current.push(() => window.clearInterval(poll))
         }
 
+        if (argv) return
         await new Promise((resolve) => setTimeout(resolve, PROMPT_SETTLE_MS))
-        if (disposedRef.current) return
+        if (stale()) return
         await writePty(spawned.id, installShellLine(method.command))
       } catch (error) {
+        if (stale()) return
         setLog((current) => trimLog(`${current}\n${String(error)}`))
         setStatus('failed')
         teardown()
       }
     },
-    [agent, lockKey, settle, status, teardown],
+    [agent, lockKey, settle, status, targetCwd, teardown],
   )
 
   const reset = useCallback(() => {
+    runRef.current += 1
     teardown()
     settledRef.current = false
     setLog('')

@@ -12,6 +12,8 @@
     <b>The multi-agent coding workspace.</b>
     <br />
     Run Claude Code, Codex, Copilot and your shells side by side — in one local-first desktop app.
+    <br />
+    <a href="./README.zh-CN.md">中文说明</a>
   </p>
 
   <p align="center">
@@ -101,6 +103,9 @@ Cross-platform (Windows, macOS, Linux), local-first, built with Tauri, Rust, Rea
 | **Antigravity** | `agy` | Usage cards |
 | **OpenCode** | `opencode` | Session resume |
 | **Kiro CLI** | `kiro-cli` | |
+| **Kimi Code** | `kimi` | |
+| **Grok Build** | `grok` | |
+| **Codewhale** | `codewhale` | |
 | **Mimo** | `mimo` | |
 | **Freebuff** | `freebuff` | |
 | **Shell** | pwsh / bash / zsh | The plain terminal, same pane model |
@@ -191,7 +196,7 @@ JavaScript with no build step; the [plugin guide](docs/PLUGINS.md) has the full 
   GitHub token is stored; authentication is delegated to `gh`.
 - Content panes beside the terminals: file explorer, Markdown, diffs, images, video, embedded browser.
 - Todos per project with a Pomodoro timer, isolated profiles, local backup export/import, UI and
-  terminal themes, EN and pt-BR.
+  terminal themes, EN, pt-BR, and zh-CN.
 - **Orchestration board**: a lead agent delegates units of work to Claude and Codex workers that
   Alethe runs in parallel — each optionally in its own git worktree, each reporting status, cost,
   tokens and diff on its card, and each able to ask you before it leaves its sandbox. Off by default.
@@ -348,22 +353,33 @@ See Alethe in real development workflows and learn how to orchestrate coding age
   </tr>
 </table>
 
+## Also On Mobile
+
+https://github.com/user-attachments/assets/ae3aed75-2ead-43c4-a9ca-fd29d83b7e1d
+
 ## Contributors
 
 Thanks to everyone helping shape Alethe.
 
 <p align="center">
+
   <!-- contributors:start -->
   <a href="https://github.com/Kc1t"><img src="https://github.com/Kc1t.png?size=100" width="80" height="80" alt="Kc1t" title="Kc1t" /></a>
+  <a href="https://github.com/HumbertoCG18"><img src="https://github.com/HumbertoCG18.png?size=100" width="80" height="80" alt="HumbertoCG18" title="HumbertoCG18" /></a>
   <a href="https://github.com/MiguelSilvaPorto"><img src="https://github.com/MiguelSilvaPorto.png?size=100" width="80" height="80" alt="MiguelSilvaPorto" title="MiguelSilvaPorto" /></a>
   <a href="https://github.com/HayatoG"><img src="https://github.com/HayatoG.png?size=100" width="80" height="80" alt="HayatoG" title="HayatoG" /></a>
-  <a href="https://github.com/slegarraga"><img src="https://github.com/slegarraga.png?size=100" width="80" height="80" alt="slegarraga" title="slegarraga" /></a>
+  <a href="https://github.com/Kc1tDev"><img src="https://github.com/Kc1tDev.png?size=100" width="80" height="80" alt="Kc1tDev" title="Kc1tDev" /></a>
   <a href="https://github.com/lucapohl-angel"><img src="https://github.com/lucapohl-angel.png?size=100" width="80" height="80" alt="lucapohl-angel" title="lucapohl-angel" /></a>
+  <a href="https://github.com/slegarraga"><img src="https://github.com/slegarraga.png?size=100" width="80" height="80" alt="slegarraga" title="slegarraga" /></a>
+  <a href="https://github.com/pinhaum"><img src="https://github.com/pinhaum.png?size=100" width="80" height="80" alt="pinhaum" title="pinhaum" /></a>
+  <a href="https://github.com/S1LV4"><img src="https://github.com/S1LV4.png?size=100" width="80" height="80" alt="S1LV4" title="S1LV4" /></a>
+  <a href="https://github.com/AiurArtanis"><img src="https://github.com/AiurArtanis.png?size=100" width="80" height="80" alt="AiurArtanis" title="AiurArtanis" /></a>
   <a href="https://github.com/1arley"><img src="https://github.com/1arley.png?size=100" width="80" height="80" alt="1arley" title="1arley" /></a>
   <a href="https://github.com/potatoiscompiled"><img src="https://github.com/potatoiscompiled.png?size=100" width="80" height="80" alt="potatoiscompiled" title="potatoiscompiled" /></a>
   <a href="https://github.com/GustavoAlmeidaDoNascimento"><img src="https://github.com/GustavoAlmeidaDoNascimento.png?size=100" width="80" height="80" alt="GustavoAlmeidaDoNascimento" title="GustavoAlmeidaDoNascimento" /></a>
   <a href="https://github.com/Jbnado"><img src="https://github.com/Jbnado.png?size=100" width="80" height="80" alt="Jbnado" title="Jbnado" /></a>
   <a href="https://github.com/chintanparmar011"><img src="https://github.com/chintanparmar011.png?size=100" width="80" height="80" alt="chintanparmar011" title="chintanparmar011" /></a>
+  <a href="https://github.com/jo20132012"><img src="https://github.com/jo20132012.png?size=100" width="80" height="80" alt="jo20132012" title="jo20132012" /></a>
   <a href="https://github.com/AshSgDe29071999"><img src="https://github.com/AshSgDe29071999.png?size=100" width="80" height="80" alt="AshSgDe29071999" title="AshSgDe29071999" /></a>
   <a href="https://github.com/sthevan027"><img src="https://github.com/sthevan027.png?size=100" width="80" height="80" alt="sthevan027" title="sthevan027" /></a>
   <a href="https://github.com/rlevidev"><img src="https://github.com/rlevidev.png?size=100" width="80" height="80" alt="rlevidev" title="rlevidev" /></a>
@@ -374,6 +390,7 @@ Thanks to everyone helping shape Alethe.
   <a href="https://github.com/diegoliveiraa"><img src="https://github.com/diegoliveiraa.png?size=100" width="80" height="80" alt="diegoliveiraa" title="diegoliveiraa" /></a>
   <a href="https://github.com/VicktorMS"><img src="https://github.com/VicktorMS.png?size=100" width="80" height="80" alt="VicktorMS" title="VicktorMS" /></a>
   <a href="https://github.com/rad4manthys"><img src="https://github.com/rad4manthys.png?size=100" width="80" height="80" alt="rad4manthys" title="rad4manthys" /></a>
+  <a href="https://github.com/valencestoredigital-design"><img src="https://github.com/valencestoredigital-design.png?size=100" width="80" height="80" alt="valencestoredigital-design" title="valencestoredigital-design" /></a>
   <a href="https://github.com/lucianoschirmer"><img src="https://github.com/lucianoschirmer.png?size=100" width="80" height="80" alt="lucianoschirmer" title="lucianoschirmer" /></a>
   <a href="https://github.com/lb1192176991-lab"><img src="https://github.com/lb1192176991-lab.png?size=100" width="80" height="80" alt="lb1192176991-lab" title="lb1192176991-lab" /></a>
   <a href="https://github.com/hgshreyas"><img src="https://github.com/hgshreyas.png?size=100" width="80" height="80" alt="hgshreyas" title="hgshreyas" /></a>
@@ -388,8 +405,8 @@ Thanks to everyone helping shape Alethe.
   <a href="https://github.com/devmatheusmota"><img src="https://github.com/devmatheusmota.png?size=100" width="80" height="80" alt="devmatheusmota" title="devmatheusmota" /></a>
   <a href="https://github.com/JohnPss"><img src="https://github.com/JohnPss.png?size=100" width="80" height="80" alt="JohnPss" title="JohnPss" /></a>
   <a href="https://github.com/GabrielKLopes"><img src="https://github.com/GabrielKLopes.png?size=100" width="80" height="80" alt="GabrielKLopes" title="GabrielKLopes" /></a>
-  <a href="https://github.com/pinhaum"><img src="https://github.com/pinhaum.png?size=100" width="80" height="80" alt="pinhaum" title="pinhaum" /></a>
   <a href="https://github.com/floze-the-genius"><img src="https://github.com/floze-the-genius.png?size=100" width="80" height="80" alt="floze-the-genius" title="floze-the-genius" /></a>
+  <a href="https://github.com/claude"><img src="https://github.com/claude.png?size=100" width="80" height="80" alt="claude" title="claude" /></a>
   <a href="https://github.com/aryansk"><img src="https://github.com/aryansk.png?size=100" width="80" height="80" alt="aryansk" title="aryansk" /></a>
   <a href="https://github.com/sousaakira"><img src="https://github.com/sousaakira.png?size=100" width="80" height="80" alt="sousaakira" title="sousaakira" /></a>
   <!-- contributors:end -->

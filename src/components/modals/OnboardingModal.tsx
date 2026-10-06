@@ -26,9 +26,11 @@ import { useUiStore } from '../../stores/uiStore'
 import { ImageInput } from './ImageInput'
 import { AgentsStep } from './onboarding/AgentsStep'
 import { FeaturesStep } from './onboarding/FeaturesStep'
+import { UsageAccessStep } from './onboarding/UsageAccessStep'
 import styles from './OnboardingModal.module.css'
 
-const STEP_COUNT = 3
+const STEP_COUNT = 4
+const USAGE_STEP = 2
 const LAST_STEP = STEP_COUNT - 1
 
 const CLI_DETECTION_TIMEOUT_MS = 4000
@@ -62,6 +64,9 @@ const AGENTS: { id: CodingAgent; label: string }[] = [
   { id: 'freebuff', label: 'Freebuff' },
   { id: 'mimo', label: 'Mimo' },
   { id: 'kiro', label: 'Kiro CLI' },
+  { id: 'kimi', label: 'Kimi Code' },
+  { id: 'grok', label: 'Grok Build' },
+  { id: 'codewhale', label: 'Codewhale' },
 ]
 
 export function OnboardingModal() {
@@ -298,7 +303,7 @@ export function OnboardingModal() {
                   data-active={preferences.language === locale.id}
                   onClick={() => setLanguage(locale.id)}
                 >
-                  {locale.id === 'en' ? 'EN' : 'PT'}
+                  {locale.id.split('-')[0].toUpperCase()}
                 </button>
               ))}
             </span>
@@ -386,7 +391,9 @@ export function OnboardingModal() {
                       disabled={cloudBusy}
                       onClick={() => void signInWithGithub()}
                     >
-                      {cloudBusy ? <Loader2 size={16} className={styles.spin} /> : (
+                      {cloudBusy ? (
+                        <Loader2 size={16} className={styles.spin} />
+                      ) : (
                         <Github size={16} />
                       )}
                       {t('onboarding.githubSignIn')}
@@ -424,9 +431,7 @@ export function OnboardingModal() {
                     {t('onboarding.githubImport')}
                   </button>
                 )}
-                {cloudFailed ? (
-                  <p className={styles.note}>{t('onboarding.githubFailed')}</p>
-                ) : null}
+                {cloudFailed ? <p className={styles.note}>{t('onboarding.githubFailed')}</p> : null}
 
                 {cloudLogin ? (
                   <p className={styles.note}>
@@ -458,6 +463,16 @@ export function OnboardingModal() {
               />
             ) : null}
 
+            {step === USAGE_STEP ? (
+              <>
+                <div className={styles.stepIntro}>
+                  <h2 className={styles.stepTitle}>{t('onboarding.usageTitle')}</h2>
+                  <p className={styles.stepSubtitle}>{t('onboarding.usageSubtitle')}</p>
+                </div>
+                <UsageAccessStep />
+              </>
+            ) : null}
+
             {step === LAST_STEP ? (
               <>
                 <div className={styles.stepIntro}>
@@ -476,7 +491,9 @@ export function OnboardingModal() {
                     enabled: enabledFeatureCount,
                     total: FEATURES.length,
                   })
-                : t('onboarding.footerNote')}
+                : step === USAGE_STEP
+                  ? t('onboarding.usageFooter')
+                  : t('onboarding.footerNote')}
             </div>
             {step > 0 ? (
               <button
