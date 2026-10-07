@@ -48,7 +48,9 @@
 > [privacy and data-flow guide](./docs/PRIVACY.md).
 
 <div align="center">
-  <img src="./docs/assets/alethe-preview.gif" alt="Alethe multi-agent coding workspace preview" width="760">
+
+https://github.com/user-attachments/assets/e5e52485-51e8-476c-acf3-4a5a5400dacf
+
 </div>
 
 ## What Alethe Is
