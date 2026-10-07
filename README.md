@@ -96,22 +96,22 @@ Cross-platform (Windows, macOS, Linux), local-first, built with Tauri, Rust, Rea
 
 ## Agents
 
-| Agent | CLI | |
-|---|---|---|
-| **Claude Code** | `claude` | Session resume, usage cards, local history |
-| **Codex** | `codex` | Session resume, usage cards |
-| **GitHub Copilot CLI** | `copilot` | |
-| **Cursor** | `cursor-agent` | Session resume |
-| **Antigravity** | `agy` | Usage cards |
-| **OpenCode** | `opencode` | Session resume |
-| **Kiro CLI** | `kiro-cli` | |
-| **Kimi Code** | `kimi` | |
-| **Grok Build** | `grok` | |
-| **Codewhale** | `codewhale` | |
-| **Mimo** | `mimo` | |
-| **Freebuff** | `freebuff` | |
-| **Shell** | pwsh / bash / zsh | The plain terminal, same pane model |
-| **WSL** | `wsl.exe` | The default distro, as a plain shell (Windows) |
+| | Agent | CLI | |
+|:-:|---|---|---|
+| <img src="./src/assets/claude-code.png" width="28" height="28" alt=""> | **Claude Code** | `claude` | Session resume, usage cards, local history |
+| <img src="./src/assets/codex.png" width="28" height="28" alt=""> | **Codex** | `codex` | Session resume, usage cards |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="./docs/assets/agents/copilot-dark.svg"><img src="./docs/assets/agents/copilot-light.svg" width="28" height="28" alt=""></picture> | **GitHub Copilot CLI** | `copilot` | |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="./docs/assets/agents/cursor-dark.svg"><img src="./docs/assets/agents/cursor-light.svg" width="28" height="28" alt=""></picture> | **Cursor** | `cursor-agent` | Session resume |
+| <img src="./src/assets/antigravity.png" width="28" height="28" alt=""> | **Antigravity** | `agy` | Usage cards |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="./docs/assets/agents/opencode-dark.png"><img src="./docs/assets/agents/opencode-light.png" width="28" height="28" alt=""></picture> | **OpenCode** | `opencode` | Session resume |
+| <img src="./src/assets/kiro.svg" width="28" height="28" alt=""> | **Kiro CLI** | `kiro-cli` | |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="./docs/assets/agents/kimi-dark.svg"><img src="./docs/assets/agents/kimi-light.svg" width="28" height="28" alt=""></picture> | **Kimi Code** | `kimi` | |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="./docs/assets/agents/grok-dark.svg"><img src="./docs/assets/agents/grok-light.svg" width="28" height="28" alt=""></picture> | **Grok Build** | `grok` | |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="./docs/assets/agents/codewhale-dark.svg"><img src="./docs/assets/agents/codewhale-light.svg" width="28" height="28" alt=""></picture> | **Codewhale** | `codewhale` | |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="./docs/assets/agents/mimo-dark.svg"><img src="./docs/assets/agents/mimo-light.svg" width="28" height="28" alt=""></picture> | **Mimo** | `mimo` | |
+| <img src="./docs/assets/agents/freebuff.png" width="28" height="28" alt=""> | **Freebuff** | `freebuff` | |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="./docs/assets/agents/shell-dark.svg"><img src="./docs/assets/agents/shell-light.svg" width="28" height="28" alt=""></picture> | **Shell** | pwsh / bash / zsh | The plain terminal, same pane model |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="./docs/assets/agents/wsl-dark.svg"><img src="./docs/assets/agents/wsl-light.svg" width="28" height="28" alt=""></picture> | **WSL** | `wsl.exe` | The default distro, as a plain shell (Windows) |
 
 Missing CLIs can be installed, updated, and uninstalled from inside Alethe — it probes the machine
 for Node, npm, WinGet, Scoop, and Chocolatey and offers only the methods that actually work there,
