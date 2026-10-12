@@ -801,7 +801,8 @@ export const zhCN: Record<MessageKey, string> = {
   'prefs.orchestrationRoutingIntro':
     '规划器会按类型和强度对每个委派任务进行分类；Alethe 按顺序逐条评估规则，第一条启用且匹配的规则决定角色。调用中显式指定的角色或模型始终优先。',
   'prefs.routingPresetEconomy': '经济',
-  'prefs.routingPresetEconomyDesc': '优先使用最便宜的角色：Haiku 侦察、只读 Codex，其余交给 Codex 构建者。',
+  'prefs.routingPresetEconomyDesc':
+    '优先使用最便宜的角色：Haiku 侦察、只读 Codex，其余交给 Codex 构建者。',
   'prefs.routingPresetBalanced': '均衡',
   'prefs.routingPresetBalancedDesc':
     '轻量任务用便宜角色，其余用 Sonnet，深度任务在 Opus 配额有余量时使用 Opus。',

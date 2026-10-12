@@ -900,7 +900,8 @@ export const en = {
   'prefs.routingPresetBalancedDesc':
     'Cheap roles for light work, Sonnet for the rest, Opus for deep tasks while its quota has room.',
   'prefs.routingPresetPerformance': 'Performance',
-  'prefs.routingPresetPerformanceDesc': 'Sonnet by default and Opus for deep tasks; Codex backs up Claude.',
+  'prefs.routingPresetPerformanceDesc':
+    'Sonnet by default and Opus for deep tasks; Codex backs up Claude.',
   'prefs.routingPresetCustom': 'Custom',
   'prefs.routingPresetCustomDesc': 'Your own rules, kept as they are.',
   'prefs.routingCustomHint': 'Custom turns on by itself when you edit any rule.',
@@ -935,7 +936,8 @@ export const en = {
   'prefs.routingOnBothCriticalRunCheapestDesc':
     'Runs anyway, on the provider with the most quota left.',
   'prefs.routingOnBothCriticalBlock': 'Block the call',
-  'prefs.routingOnBothCriticalBlockDesc': 'The delegate call fails until a provider has quota again.',
+  'prefs.routingOnBothCriticalBlockDesc':
+    'The delegate call fails until a provider has quota again.',
   'prefs.routingKindResearch': 'Research',
   'prefs.routingKindCode': 'Code',
   'prefs.routingKindReview': 'Review',

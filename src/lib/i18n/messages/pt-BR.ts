@@ -921,7 +921,8 @@ export const ptBR: Record<MessageKey, string> = {
   'prefs.routingPresetCustomDesc': 'Suas próprias regras, mantidas como estão.',
   'prefs.routingCustomHint': 'O Personalizado se ativa sozinho quando você edita qualquer regra.',
   'prefs.routingAdvanced': 'Regras avançadas ({count})',
-  'prefs.routingRulesHint': 'As regras rodam de cima para baixo; a primeira ativa que combina vence.',
+  'prefs.routingRulesHint':
+    'As regras rodam de cima para baixo; a primeira ativa que combina vence.',
   'prefs.routingRuleEnabled': 'Ativar regra {n}',
   'prefs.routingRuleRole': 'Papel da regra {n}',
   'prefs.routingRuleRoleMissing': 'Nenhum papel se chama "{name}" — o roteador pula esta regra.',
