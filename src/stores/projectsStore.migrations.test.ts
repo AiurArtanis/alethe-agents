@@ -98,6 +98,7 @@ describe('preference normalization', () => {
       defaultTimeoutSeconds: 900,
       workerDisabledPlugins: [],
       routing: DEFAULT_PREFERENCES.orchestration.routing,
+      skill: DEFAULT_PREFERENCES.orchestration.skill,
     })
   })
 
@@ -115,6 +116,44 @@ describe('preference normalization', () => {
       'ecc@ecc',
       'ponytail@ponytail',
     ])
+  })
+
+  it('keeps valid local skill preferences and repairs unsupported values', () => {
+    const preferences = normalizePreferences({
+      ...DEFAULT_PREFERENCES,
+      orchestration: {
+        ...DEFAULT_PREFERENCES.orchestration,
+        skill: {
+          backend: 'skill',
+          defaultStrategy: 'economy',
+          providerSwitch: 'automatic',
+          conserveProvider: 'claude',
+          preferredProvider: 'kimi',
+        },
+      },
+    })
+    expect(preferences.orchestration.skill).toEqual({
+      backend: 'skill',
+      defaultStrategy: 'economy',
+      providerSwitch: 'automatic',
+      conserveProvider: 'claude',
+      preferredProvider: 'kimi',
+    })
+
+    const repaired = normalizePreferences({
+      ...DEFAULT_PREFERENCES,
+      orchestration: {
+        ...DEFAULT_PREFERENCES.orchestration,
+        skill: {
+          backend: 'remote',
+          defaultStrategy: 'swarm',
+          providerSwitch: 'silent',
+          conserveProvider: 'unknown',
+          preferredProvider: 7,
+        },
+      } as unknown as typeof DEFAULT_PREFERENCES.orchestration,
+    })
+    expect(repaired.orchestration.skill).toEqual(DEFAULT_PREFERENCES.orchestration.skill)
   })
 
   // A role's fallback while its provider is running out (#268).
@@ -279,6 +318,7 @@ describe('preference normalization', () => {
       roles: [reviewer, writer, { ...writer, name: 'thinker', effort: 'high' }],
       workerDisabledPlugins: [],
       routing: DEFAULT_PREFERENCES.orchestration.routing,
+      skill: DEFAULT_PREFERENCES.orchestration.skill,
     })
   })
 

@@ -221,6 +221,46 @@ impl Default for RoutingSettings {
 }
 
 /// What the Orchestration settings in Preferences hand to the orchestrator.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillOrchestrationSettings {
+    #[serde(default = "default_skill_backend")]
+    pub backend: String,
+    #[serde(default = "default_skill_strategy")]
+    pub default_strategy: String,
+    #[serde(default = "default_provider_switch")]
+    pub provider_switch: String,
+    #[serde(default)]
+    pub conserve_provider: Option<String>,
+    #[serde(default)]
+    pub preferred_provider: Option<String>,
+}
+
+fn default_skill_backend() -> String {
+    "auto".into()
+}
+
+fn default_skill_strategy() -> String {
+    "auto".into()
+}
+
+fn default_provider_switch() -> String {
+    "ask".into()
+}
+
+impl Default for SkillOrchestrationSettings {
+    fn default() -> Self {
+        Self {
+            backend: default_skill_backend(),
+            default_strategy: default_skill_strategy(),
+            provider_switch: default_provider_switch(),
+            conserve_provider: None,
+            preferred_provider: None,
+        }
+    }
+}
+
+/// What the Orchestration settings in Preferences hand to the orchestrator.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OrchestrationSettings {
@@ -234,6 +274,8 @@ pub struct OrchestrationSettings {
     pub worker_disabled_plugins: Vec<String>,
     #[serde(default)]
     pub routing: RoutingSettings,
+    #[serde(default)]
+    pub skill: SkillOrchestrationSettings,
 }
 
 /// How long a Codex model list is reused; a Codex update shows up after this.

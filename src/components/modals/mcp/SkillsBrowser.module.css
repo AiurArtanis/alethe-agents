@@ -15,6 +15,14 @@
   gap: 2px;
 }
 
+.listTitle {
+  padding: 6px 9px 4px;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+}
+
 .skillCount {
   flex: none;
   font-size: 11px;

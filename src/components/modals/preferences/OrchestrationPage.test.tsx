@@ -39,6 +39,24 @@ beforeEach(() => withRoles([]))
 
 // The Orchestration category of Preferences (#254).
 describe('OrchestrationPage', () => {
+  it('saves the bundled skill backend, strategy, and provider switching policy', () => {
+    render(<OrchestrationPage />)
+
+    choose('Preferred backend', 'Local skill only')
+    choose('Default strategy', 'Economy')
+    choose('Provider to conserve', 'Claude Code')
+    choose('When that provider is selected', 'Switch automatically')
+    choose('Preferred local provider', 'Kimi Code')
+
+    expect(orchestration().skill).toEqual({
+      backend: 'skill',
+      defaultStrategy: 'economy',
+      providerSwitch: 'automatic',
+      conserveProvider: 'claude',
+      preferredProvider: 'kimi',
+    })
+  })
+
   it('adds a role that the orchestrator can run as soon as it appears', () => {
     render(<OrchestrationPage />)
 

@@ -1,7 +1,19 @@
 import { describe, expect, it } from 'vitest'
 
-import { countSkills, groupSkillsByName, matchesSkillQuery } from './skills'
-import type { SkillAgentSnapshot, SkillSummary } from './tauri/skills'
+import {
+  countSkills,
+  groupSkillsByName,
+  hasBundledUpdate,
+  isBundledSkillOffered,
+  matchesSkillQuery,
+  pendingBundledAgents,
+} from './skills'
+import type {
+  BundledSkill,
+  BundledSkillState,
+  SkillAgentSnapshot,
+  SkillSummary,
+} from './tauri/skills'
 
 function skill(agent: string, name: string, overrides: Partial<SkillSummary> = {}): SkillSummary {
   return {
@@ -13,6 +25,7 @@ function skill(agent: string, name: string, overrides: Partial<SkillSummary> = {
     linked: false,
     shared: false,
     bundled: false,
+    fromAlethe: false,
     entryCount: 1,
     ...overrides,
   }
@@ -93,5 +106,45 @@ describe('matchesSkillQuery', () => {
   it('accepts an empty query and rejects a non-match', () => {
     expect(matchesSkillQuery(group, '  ')).toBe(true)
     expect(matchesSkillQuery(group, 'pptx')).toBe(false)
+  })
+})
+
+function bundled(states: Record<string, BundledSkillState>): BundledSkill {
+  return {
+    name: 'alethe-orchestrate',
+    description: '',
+    version: 1,
+    body: '',
+    agents: Object.entries(states).map(([agent, state]) => ({ agent, state, path: null })),
+  }
+}
+
+describe('bundled skills', () => {
+  it('marks a group as from Alethe when any copy carries the marker', () => {
+    const groups = groupSkillsByName([
+      snapshot('claude', [skill('claude', 'alethe-orchestrate', { fromAlethe: true })]),
+      snapshot('codex', [skill('codex', 'brand')]),
+    ])
+
+    expect(groups.map((group) => group.fromAlethe)).toEqual([true, false])
+    expect(groups[0].removable).toHaveLength(1)
+  })
+
+  it('installs only where the skill is missing or outdated', () => {
+    expect(pendingBundledAgents(bundled({ claude: 'available', codex: 'update' }))).toEqual([
+      'claude',
+      'codex',
+    ])
+    expect(pendingBundledAgents(bundled({ claude: 'conflict', codex: 'installed' }))).toEqual([])
+  })
+
+  it('reports an update only when a copy is outdated', () => {
+    expect(hasBundledUpdate(bundled({ claude: 'installed', codex: 'update' }))).toBe(true)
+    expect(hasBundledUpdate(bundled({ claude: 'installed', codex: 'available' }))).toBe(false)
+  })
+
+  it('keeps offering the skill until one agent has the Alethe copy', () => {
+    expect(isBundledSkillOffered(bundled({ claude: 'available', codex: 'conflict' }))).toBe(true)
+    expect(isBundledSkillOffered(bundled({ claude: 'installed', codex: 'available' }))).toBe(false)
   })
 })

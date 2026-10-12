@@ -13,7 +13,11 @@ import {
   pluginIds,
 } from '../../../lib/orchestrationSettings'
 import { type CodexModelOption, orchestratorCodexModels } from '../../../lib/tauri/orchestrator'
-import type { OrchestrationRole, OrchestrationSettings } from '../../../lib/types'
+import type {
+  OrchestrationRole,
+  OrchestrationSettings,
+  OrchestrationSkillSettings,
+} from '../../../lib/types'
 import { useProjectsStore } from '../../../stores/projectsStore'
 import { Dropdown } from '../../ui/Dropdown'
 import controls from '../controls.module.css'
@@ -23,6 +27,15 @@ import { RoutingSection } from './RoutingSection'
 
 const AGENTS: OrchestrationRole['agent'][] = ['codex', 'claude']
 const ORCHESTRATORS: NonNullable<OrchestrationRole['orchestrator']>[] = ['claude', 'codex']
+const SKILL_PROVIDERS: Array<{
+  value: OrchestrationSkillSettings['conserveProvider']
+  label: string
+}> = [
+  { value: 'codex', label: 'Codex' },
+  { value: 'claude', label: 'Claude Code' },
+  { value: 'agy', label: 'Agy / Antigravity' },
+  { value: 'kimi', label: 'Kimi Code' },
+]
 
 function nextRoleName(roles: OrchestrationRole[]): string {
   const taken = new Set(roles.map((role) => role.name))
@@ -78,6 +91,8 @@ export function OrchestrationPage() {
     })
   const saveRole = (index: number, patch: Partial<OrchestrationRole>) =>
     save({ roles: settings.roles.map((role, i) => (i === index ? { ...role, ...patch } : role)) })
+  const saveSkill = (patch: Partial<OrchestrationSkillSettings>) =>
+    save({ skill: { ...settings.skill, ...patch } })
 
   const effortsOf = (model: string | null): string[] => {
     const listed = models ?? []
@@ -143,6 +158,114 @@ export function OrchestrationPage() {
 
   return (
     <>
+      <SettingsSection
+        id="orchestration-skill"
+        title={t('prefs.orchestrationSkill')}
+        description={t('prefs.orchestrationSkillDesc')}
+      >
+        <div className={styles.limits}>
+          <label className={controls.field}>
+            <span className={controls.label}>{t('prefs.orchestrationSkillBackend')}</span>
+            <Dropdown
+              value={settings.skill.backend}
+              ariaLabel={t('prefs.orchestrationSkillBackend')}
+              options={(['auto', 'skill', 'mcp'] as const).map((value) => ({
+                value,
+                label: t(`prefs.orchestrationSkillBackend.${value}`),
+              }))}
+              onChange={(value) =>
+                saveSkill({ backend: value as OrchestrationSkillSettings['backend'] })
+              }
+            />
+          </label>
+          <label className={controls.field}>
+            <span className={controls.label}>{t('prefs.orchestrationSkillStrategy')}</span>
+            <Dropdown
+              value={settings.skill.defaultStrategy}
+              ariaLabel={t('prefs.orchestrationSkillStrategy')}
+              options={(
+                [
+                  'auto',
+                  'economy',
+                  'balanced',
+                  'quality',
+                  'research',
+                  'parallel',
+                  'rescue',
+                ] as const
+              ).map((value) => ({
+                value,
+                label: t(`prefs.orchestrationSkillStrategy.${value}`),
+              }))}
+              onChange={(value) =>
+                saveSkill({
+                  defaultStrategy: value as OrchestrationSkillSettings['defaultStrategy'],
+                })
+              }
+            />
+          </label>
+          <label className={controls.field}>
+            <span className={controls.label}>{t('prefs.orchestrationSkillConserve')}</span>
+            <Dropdown
+              value={settings.skill.conserveProvider ?? ''}
+              ariaLabel={t('prefs.orchestrationSkillConserve')}
+              options={[
+                { value: '', label: t('prefs.orchestrationSkillProviderNone') },
+                ...SKILL_PROVIDERS.map((provider) => ({
+                  value: provider.value ?? '',
+                  label: provider.label,
+                })),
+              ]}
+              onChange={(value) =>
+                saveSkill({
+                  conserveProvider: (value ||
+                    null) as OrchestrationSkillSettings['conserveProvider'],
+                })
+              }
+            />
+          </label>
+          <label className={controls.field}>
+            <span className={controls.label}>{t('prefs.orchestrationSkillSwitch')}</span>
+            <Dropdown
+              value={settings.skill.providerSwitch}
+              ariaLabel={t('prefs.orchestrationSkillSwitch')}
+              options={(['ask', 'automatic', 'never'] as const).map((value) => ({
+                value,
+                label: t(`prefs.orchestrationSkillSwitch.${value}`),
+              }))}
+              onChange={(value) =>
+                saveSkill({
+                  providerSwitch: value as OrchestrationSkillSettings['providerSwitch'],
+                })
+              }
+            />
+          </label>
+          <label className={controls.field}>
+            <span className={controls.label}>{t('prefs.orchestrationSkillPreferred')}</span>
+            <Dropdown
+              value={settings.skill.preferredProvider ?? ''}
+              ariaLabel={t('prefs.orchestrationSkillPreferred')}
+              options={[
+                { value: '', label: t('prefs.orchestrationSkillProviderAuto') },
+                ...SKILL_PROVIDERS.map((provider) => ({
+                  value: provider.value ?? '',
+                  label: provider.label,
+                })),
+              ]}
+              onChange={(value) =>
+                saveSkill({
+                  preferredProvider: (value ||
+                    null) as OrchestrationSkillSettings['preferredProvider'],
+                })
+              }
+            />
+          </label>
+          <p className={`${controls.hint} ${styles.skillHint}`}>
+            {t('prefs.orchestrationSkillHint')}
+          </p>
+        </div>
+      </SettingsSection>
+
       <SettingsSection
         id="orchestration-limits"
         title={t('prefs.orchestrationLimits')}

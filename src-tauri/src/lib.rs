@@ -622,6 +622,8 @@ pub fn run() {
             skills::skills_scan,
             skills::skills_detail,
             skills::skills_uninstall,
+            skills::skills_catalog,
+            skills::skills_install_bundled,
             opencode_sessions::snapshot_opencode_sessions,
             opencode_sessions::opencode_export_session,
             ping,

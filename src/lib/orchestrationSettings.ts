@@ -5,6 +5,7 @@ import {
   type EffortClass,
   type OrchestrationRole,
   type OrchestrationSettings,
+  type OrchestrationSkillSettings,
   type QuotaGate,
   type RoutingRule,
   type RoutingSettings,
@@ -42,6 +43,40 @@ const wholeSeconds = (value: unknown): value is number =>
 
 /** A row's orchestrator: absent or null serves any planner. */
 const ORCHESTRATORS: readonly unknown[] = [undefined, null, 'claude', 'codex']
+const SKILL_BACKENDS: readonly unknown[] = ['auto', 'skill', 'mcp']
+const SKILL_STRATEGIES: readonly unknown[] = [
+  'auto',
+  'economy',
+  'balanced',
+  'quality',
+  'research',
+  'parallel',
+  'rescue',
+]
+const SKILL_PROVIDER_SWITCHES: readonly unknown[] = ['ask', 'automatic', 'never']
+const SKILL_PROVIDERS: readonly unknown[] = ['codex', 'claude', 'agy', 'kimi']
+
+function normalizeSkillSettings(raw: unknown): OrchestrationSkillSettings {
+  const source = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+  const defaults = DEFAULTS.skill
+  return {
+    backend: SKILL_BACKENDS.includes(source.backend)
+      ? (source.backend as OrchestrationSkillSettings['backend'])
+      : defaults.backend,
+    defaultStrategy: SKILL_STRATEGIES.includes(source.defaultStrategy)
+      ? (source.defaultStrategy as OrchestrationSkillSettings['defaultStrategy'])
+      : defaults.defaultStrategy,
+    providerSwitch: SKILL_PROVIDER_SWITCHES.includes(source.providerSwitch)
+      ? (source.providerSwitch as OrchestrationSkillSettings['providerSwitch'])
+      : defaults.providerSwitch,
+    conserveProvider: SKILL_PROVIDERS.includes(source.conserveProvider)
+      ? (source.conserveProvider as OrchestrationSkillSettings['conserveProvider'])
+      : null,
+    preferredProvider: SKILL_PROVIDERS.includes(source.preferredProvider)
+      ? (source.preferredProvider as OrchestrationSkillSettings['preferredProvider'])
+      : null,
+  }
+}
 
 /** Whether the orchestrator would run this role as it is written. */
 export function isValidRole(role: unknown): role is OrchestrationRole {
@@ -97,10 +132,18 @@ export function normalizeOrchestrationSettings(raw: unknown): OrchestrationSetti
       Array.isArray(source.workerDisabledPlugins) ? source.workerDisabledPlugins : [],
     ),
     routing: normalizeRoutingSettings(source.routing),
+    skill: normalizeSkillSettings(source.skill),
   }
 }
 
-const DELEGATE_KINDS: readonly unknown[] = ['research', 'code', 'review', 'command', 'scrap', 'docs']
+const DELEGATE_KINDS: readonly unknown[] = [
+  'research',
+  'code',
+  'review',
+  'command',
+  'scrap',
+  'docs',
+]
 const EFFORT_CLASSES: readonly unknown[] = ['light', 'standard', 'deep']
 const GATE_AGENTS: readonly unknown[] = ['claude', 'codex']
 const GATE_WINDOWS: readonly unknown[] = ['short', 'week', 'opus']
@@ -156,7 +199,10 @@ export function normalizeRoutingSettings(raw: unknown): RoutingSettings {
       : DEFAULT_ROUTING_SETTINGS.preset,
     rules,
     criticalThreshold:
-      typeof threshold === 'number' && Number.isInteger(threshold) && threshold >= 10 && threshold <= 99
+      typeof threshold === 'number' &&
+      Number.isInteger(threshold) &&
+      threshold >= 10 &&
+      threshold <= 99
         ? threshold
         : DEFAULT_ROUTING_SETTINGS.criticalThreshold,
     allowOpusOnDeep:

@@ -15,6 +15,11 @@
   grid-column: 1 / -1;
 }
 
+.skillHint {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
 .pluginList textarea {
   min-height: 72px;
   resize: vertical;

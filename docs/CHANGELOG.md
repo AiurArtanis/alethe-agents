@@ -96,6 +96,49 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   these panes. The whole integration sits behind **Preferences → Features → WSL integration**, on
   by default; turning it off treats every folder as a Windows one again.
 
+- **The orchestration skill routes work to cheaper models within one provider.** Workers can
+  declare `tier: cheap` or `tier: strong` instead of pinning a model; the saved policy maps each
+  tier to a concrete model or effort per provider (`policy set --cheap-model claude=haiku`), so
+  tiers compose with `provider: auto` and work in single-provider setups where cross-provider
+  routing does nothing. The `economy` strategy now defaults its worker to the cheap tier, and
+  `dry-run` shows the resolved model or says when no mapping exists.
+- **The orchestration skill checks its own setup and scaffolds plans.** A new `doctor` command in
+  `alethe-orchestrate` reports the Python version, installed providers, and whether the saved
+  policy exists and is valid, with plain-language hints; on a fresh setup the skill now offers a
+  short configuration interview in chat (providers to prefer or conserve, default strategy, hard
+  budget) and persists only confirmed choices. Loose requests like "save provider X" or "at most
+  $2 per run" are mapped to the right persistent policy change — always confirmed — or to the
+  current run's budget when they are one-off. A new `scaffold` command prints a valid starter
+  plan for any strategy so plans are never written from memory.
+- **The orchestration skill previews a run and enforces hard budgets.** A new `dry-run` command in
+  `alethe-orchestrate` explains what a plan would do before anything starts: the resolved strategy
+  and why it was chosen, the effective provider per worker (including automatic conservation
+  switches), concurrency, per-worker prompt size as an estimated token count, and the budget that
+  would apply. Plans (and optionally the saved policy) can now carry a `budget` with hard limits
+  for worker calls, batch wall time, estimated prompt tokens — rejected at validation time before
+  anything runs — and reported cost, which gates later workers on what earlier workers actually
+  reported. Workers stopped by a budget gate end as `skipped`, and `state.json` records the
+  effective budget and its usage. Worker invocation and result/usage extraction for all four
+  built-in providers (Codex, Claude, Agy, Kimi) are now verified against the real CLIs: Agy
+  receives the task attached to `--print`, Kimi read-only workers no longer pass the incompatible
+  `--plan` flag, and reported token totals are summed from per-provider usage shapes without
+  double-counting cached input.
+- **An orchestration skill ships with Alethe, one click away in the Skills tab.** MCP & Skills now
+  lists skills that come with the app under **From Alethe**, with the full `SKILL.md` readable
+  before installing. The first one, `alethe-orchestrate`, teaches Claude Code and Codex to split a
+  task across Codex, Claude Code, Agy/Antigravity, Kimi, or a custom CLI. Its cross-platform runner
+  executes argument-safe batches with seven strategies, deadlines, structured outcomes, resumable
+  session IDs, compact token/cost metadata when providers emit it, and isolated git worktrees that
+  can receive selected uncommitted paths. **Orchestration** preferences select the default strategy,
+  local or MCP backend, preferred provider, a provider to conserve, and whether it may be replaced
+  automatically. A skill-only policy file carries those choices to `provider: auto` without
+  requiring MCP.
+  Supporting references stay out of the agent's context until needed. Workers started this way are
+  plain CLI processes, so they do not appear on the orchestration board and have no live steering or
+  automatic live-quota readings. Installed copies carry an **Alethe** badge, can be removed like any
+  other skill, and offer **Update** when a newer version ships; a skill of the same name that Alethe
+  did not install is never overwritten. Updates replace or remove only files recorded as
+  Alethe-managed and preserve extra files in the skill folder.
 - **Routing rules pick the role a delegated worker runs as.** The orchestration settings now carry
   ordered rules over the task kind (`research`, `code`, `review`, `command`, `scrap`, `docs`), a
   coarse effort class (`light`, `standard`, `deep`) and live quota gates per provider window. A

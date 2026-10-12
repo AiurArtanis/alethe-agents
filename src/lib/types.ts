@@ -647,6 +647,22 @@ export type OrchestrationRole = {
   orchestrator?: 'claude' | 'codex'
 }
 
+export type OrchestrationStrategy =
+  'auto' | 'economy' | 'balanced' | 'quality' | 'research' | 'parallel' | 'rescue'
+
+export type OrchestrationSkillProvider = 'codex' | 'claude' | 'agy' | 'kimi'
+
+/** Preferences consumed by the bundled local skill even when its MCP backend is unavailable. */
+export type OrchestrationSkillSettings = {
+  backend: 'auto' | 'skill' | 'mcp'
+  defaultStrategy: OrchestrationStrategy
+  providerSwitch: 'ask' | 'automatic' | 'never'
+  /** Provider whose allowance the user wants to preserve. */
+  conserveProvider: OrchestrationSkillProvider | null
+  /** First provider considered for provider: auto; null keeps the built-in order. */
+  preferredProvider: OrchestrationSkillProvider | null
+}
+
 export type OrchestrationSettings = {
   roles: OrchestrationRole[]
   /** Workers running at the same time. */
@@ -657,6 +673,8 @@ export type OrchestrationSettings = {
   workerDisabledPlugins: string[]
   /** Kind/effort/quota rules that pick a role when the planner leaves the choice to Alethe. */
   routing: RoutingSettings
+  /** Portable preferences exported for the bundled MCP-free orchestration skill. */
+  skill: OrchestrationSkillSettings
 }
 
 /** Task category the planner reports on a delegate call; drives routing rules. */
@@ -1007,6 +1025,13 @@ export const DEFAULT_PREFERENCES: Preferences = {
     defaultTimeoutSeconds: 900,
     workerDisabledPlugins: [],
     routing: DEFAULT_ROUTING_SETTINGS,
+    skill: {
+      backend: 'auto',
+      defaultStrategy: 'auto',
+      providerSwitch: 'ask',
+      conserveProvider: null,
+      preferredProvider: null,
+    },
   },
   playwrightBrowserMode: 'shared',
   playwrightDedicatedHeadless: false,

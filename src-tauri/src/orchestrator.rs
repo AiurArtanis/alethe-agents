@@ -14,6 +14,7 @@ use crate::cli_resolver;
 use crate::orchestrator_core::{Core, Launcher, OrchestrationSettings, Planner};
 
 const JOBS_EVENT: &str = "orchestrator://jobs";
+const SKILL_POLICY_FILE: &str = "alethe-orchestrate.json";
 
 #[derive(Default)]
 pub struct OrchestratorState {
@@ -127,13 +128,104 @@ pub fn orchestrator_set_concurrency(state: tauri::State<'_, OrchestratorState>, 
     state.core.set_concurrency_limit(limit);
 }
 
+fn skill_policy_path() -> Result<PathBuf, String> {
+    #[cfg(windows)]
+    let base = std::env::var_os("APPDATA")
+        .map(PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("USERPROFILE")
+                .map(PathBuf::from)
+                .map(|path| path.join("AppData").join("Roaming"))
+        })
+        .ok_or_else(|| "orchestrator_skill_policy_home_missing".to_string())?
+        .join("Alethe");
+
+    #[cfg(not(windows))]
+    let base = std::env::var_os("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("HOME")
+                .map(PathBuf::from)
+                .map(|path| path.join(".config"))
+        })
+        .ok_or_else(|| "orchestrator_skill_policy_home_missing".to_string())?
+        .join("alethe");
+
+    Ok(base.join(SKILL_POLICY_FILE))
+}
+
+fn skill_policy_value(settings: &OrchestrationSettings) -> Value {
+    let mut provider_order = vec!["codex", "claude", "agy", "kimi"];
+    if let Some(preferred) = settings.skill.preferred_provider.as_deref() {
+        if let Some(index) = provider_order
+            .iter()
+            .position(|provider| *provider == preferred)
+        {
+            provider_order.remove(index);
+            provider_order.insert(0, preferred);
+        }
+    }
+    let conserve = settings
+        .skill
+        .conserve_provider
+        .as_ref()
+        .map(|provider| vec![provider.as_str()])
+        .unwrap_or_default();
+    json!({
+        "version": 1,
+        "backend": settings.skill.backend,
+        "defaultStrategy": settings.skill.default_strategy,
+        "providerSwitch": settings.skill.provider_switch,
+        "providerOrder": provider_order,
+        "conserveProviders": conserve,
+        "maxWorkers": 16,
+        "maxConcurrent": settings.max_concurrent.clamp(1, 16),
+    })
+}
+
+fn write_skill_policy(settings: &OrchestrationSettings) -> Result<(), String> {
+    if !matches!(settings.skill.backend.as_str(), "auto" | "skill" | "mcp")
+        || !matches!(
+            settings.skill.default_strategy.as_str(),
+            "auto" | "economy" | "balanced" | "quality" | "research" | "parallel" | "rescue"
+        )
+        || !matches!(
+            settings.skill.provider_switch.as_str(),
+            "ask" | "automatic" | "never"
+        )
+        || settings
+            .skill
+            .conserve_provider
+            .as_deref()
+            .is_some_and(|provider| !matches!(provider, "codex" | "claude" | "agy" | "kimi"))
+        || settings
+            .skill
+            .preferred_provider
+            .as_deref()
+            .is_some_and(|provider| !matches!(provider, "codex" | "claude" | "agy" | "kimi"))
+    {
+        return Err("invalid_orchestrator_skill_policy".to_string());
+    }
+    let path = skill_policy_path()?;
+    let parent = path
+        .parent()
+        .ok_or_else(|| "orchestrator_skill_policy_parent_missing".to_string())?;
+    std::fs::create_dir_all(parent).map_err(|error| format!("mkdir_failed:{error}"))?;
+
+    let policy = skill_policy_value(settings);
+    let body = serde_json::to_vec_pretty(&policy).map_err(|error| error.to_string())?;
+    std::fs::write(path, body).map_err(|error| format!("write_failed:{error}"))
+}
+
 /// The Orchestration settings from Preferences, sent when the app loads and whenever they change.
 #[tauri::command]
 pub fn orchestrator_apply_settings(
     state: tauri::State<'_, OrchestratorState>,
     settings: OrchestrationSettings,
-) {
+) -> Result<(), String> {
+    write_skill_policy(&settings)?;
     state.core.apply_settings(settings);
+    Ok(())
 }
 
 /// The Codex models and efforts the Orchestration settings offer for a role.
@@ -319,7 +411,10 @@ pub fn orchestrator_restart(
 
 #[cfg(test)]
 mod tests {
-    use super::orchestration_window_label;
+    use super::{
+        orchestration_window_label, skill_policy_value, write_skill_policy, OrchestrationSettings,
+    };
+    use serde_json::json;
 
     // One detached board window per orchestration pane, with a label the capability matches (#247).
     #[test]
@@ -331,6 +426,44 @@ mod tests {
         assert_eq!(
             orchestration_window_label("../pane id?"),
             "orchestration-___pane_id_"
+        );
+    }
+
+    #[test]
+    fn the_local_skill_policy_carries_preferences_without_mcp() {
+        let settings: OrchestrationSettings = serde_json::from_value(json!({
+            "maxConcurrent": 3,
+            "defaultTimeoutSeconds": 900,
+            "skill": {
+                "backend": "skill",
+                "defaultStrategy": "economy",
+                "providerSwitch": "automatic",
+                "conserveProvider": "claude",
+                "preferredProvider": "kimi"
+            }
+        }))
+        .expect("settings");
+
+        let policy = skill_policy_value(&settings);
+        assert_eq!(policy["backend"], json!("skill"));
+        assert_eq!(policy["defaultStrategy"], json!("economy"));
+        assert_eq!(policy["conserveProviders"], json!(["claude"]));
+        assert_eq!(policy["providerOrder"][0], json!("kimi"));
+        assert_eq!(policy["maxConcurrent"], json!(3));
+    }
+
+    #[test]
+    fn an_invalid_local_skill_policy_is_refused_before_writing() {
+        let settings: OrchestrationSettings = serde_json::from_value(json!({
+            "maxConcurrent": 3,
+            "defaultTimeoutSeconds": 900,
+            "skill": { "backend": "remote" }
+        }))
+        .expect("settings");
+
+        assert_eq!(
+            write_skill_policy(&settings).unwrap_err(),
+            "invalid_orchestrator_skill_policy"
         );
     }
 }
