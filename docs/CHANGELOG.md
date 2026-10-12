@@ -353,6 +353,9 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   desktop menu, Alethe does not inherit the PATH your shell sets up, so a CLI installed through
   fnm, or through Volta with `VOLTA_HOME` pointing somewhere other than `~/.volta`, was reported
   as missing.
+- Explorer rows in the left sidebar no longer stay on a transformed layer and render blurry after
+  opening. Their context menu now opens at the pointer, stays inside the window, and renders above
+  the workspace instead of being displaced or clipped by the sidebar.
 - The Linux AppImage no longer opens to an empty window on modern Wayland desktops (Ubuntu
   24.04+, Fedora 40+, Arch). It shipped its own copy of a system graphics library that clashed
   with the one your graphics driver loads, so the window died before drawing anything. It now
