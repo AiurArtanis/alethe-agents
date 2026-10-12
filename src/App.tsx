@@ -54,6 +54,7 @@ import { WorkspaceView } from './components/WorkspaceView'
 import { useAgentBrowserOffers } from './hooks/useAgentBrowserOffers'
 import { useAgentHookBridge } from './hooks/useAgentHookBridge'
 import { useAiMemoryAutoStart } from './hooks/useAiMemoryAutoStart'
+import { useAgentsSidebarAutoOpen } from './hooks/useAgentsSidebarAutoOpen'
 import { useCliOpenRequests } from './hooks/useCliOpenRequests'
 import { useCloseConfirmation } from './hooks/useCloseConfirmation'
 import { useDiscordPresence } from './hooks/useDiscordPresence'
@@ -173,8 +174,9 @@ export default function App() {
 
   const playwrightEnabled = useProjectsStore((s) => s.preferences.enabledFeatures.playwright)
   const mcpEnabled = useProjectsStore((s) => s.preferences.enabledFeatures.mcp)
+  const agentsPanelEnabled = useProjectsStore((s) => s.preferences.enabledFeatures.agentsPanel)
   const rightSidebarTabs = useSidebarViews('right')
-  const rightPanelEnabled = mcpEnabled || rightSidebarTabs.length > 0
+  const rightPanelEnabled = mcpEnabled || agentsPanelEnabled || rightSidebarTabs.length > 0
   const wslEnabled = useProjectsStore((s) => s.preferences.enabledFeatures.wsl)
   const setPreferences = useProjectsStore((s) => s.setPreferences)
   // Keep panel defaults stable while dragging. Updating defaultSize on every
@@ -210,6 +212,7 @@ export default function App() {
   useResourceSupervisor(hydrated)
   useAgentBrowserOffers(playwrightEnabled)
   useAgentHookBridge()
+  useAgentsSidebarAutoOpen()
   useCliOpenRequests(hydrated)
 
   useEffect(() => {

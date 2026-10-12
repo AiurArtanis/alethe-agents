@@ -121,6 +121,8 @@ export function normalizeEnabledFeatures(
       gsdSync: raw.enabledFeatures.gsdSync ?? false,
       prs: raw.enabledFeatures.prs ?? true,
       wsl: raw.enabledFeatures.wsl ?? true,
+      // Read-only sidebar view; on by default, backfilled for profiles saved before it existed.
+      agentsPanel: raw.enabledFeatures.agentsPanel ?? true,
     }
   }
   return {
@@ -133,5 +135,6 @@ export function normalizeEnabledFeatures(
     gsdSync: false,
     prs: true,
     wsl: true,
+    agentsPanel: true,
   }
 }

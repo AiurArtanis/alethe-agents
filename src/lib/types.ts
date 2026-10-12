@@ -181,6 +181,7 @@ export type FeatureId =
   | 'prs'
   | 'gsdSync'
   | 'wsl'
+  | 'agentsPanel'
 
 export type TodoItem = {
   id: string
@@ -998,6 +999,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
     orchestrator: false,
     prs: true,
     wsl: true,
+    agentsPanel: true,
   },
   orchestration: {
     roles: [],

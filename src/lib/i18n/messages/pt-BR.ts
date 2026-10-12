@@ -1496,6 +1496,7 @@ export const ptBR: Record<MessageKey, string> = {
   'rightSidebar.markdownTab': 'Markdown',
   'rightSidebar.gsdSyncTab': 'GSD Sync',
   'rightSidebar.prsTab': 'PRs',
+  'rightSidebar.agentsTab': 'Agentes',
   'rightSidebar.gsdSyncEmptyTitle': 'Nenhuma sessão GSD Sync ativa',
   'rightSidebar.gsdSyncEmptyDesc':
     'Ligue o monitoramento GSD de um projeto pra ver as sessões-filha aqui.',
@@ -1509,6 +1510,13 @@ export const ptBR: Record<MessageKey, string> = {
   'rightSidebar.commentPlaceholder': 'Escreva uma observação sobre este trecho...',
   'rightSidebar.commentSave': 'Salvar comentário',
   'rightSidebar.commentDelete': 'Excluir comentário',
+  'agentsPanel.title': 'Agentes',
+  'agentsPanel.scopeFocused': 'Planner em foco',
+  'agentsPanel.scopeAll': 'Todos os planners',
+  'agentsPanel.emptyTitle': 'Nenhum agente em uso',
+  'agentsPanel.emptyBody':
+    'Os workers que o planner delega, e seus subagentes, aparecem aqui enquanto rodam.',
+  'agentsPanel.expand': 'Abrir o board de orquestração completo',
 
   /* ---- home ---- */
   'home.agentHeroTitle': 'iniciar sessão de agents',

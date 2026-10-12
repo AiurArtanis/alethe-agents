@@ -1468,6 +1468,7 @@ export const en = {
   'rightSidebar.markdownTab': 'Markdown',
   'rightSidebar.gsdSyncTab': 'GSD Sync',
   'rightSidebar.prsTab': 'PRs',
+  'rightSidebar.agentsTab': 'Agents',
   'rightSidebar.gsdSyncEmptyTitle': 'No active GSD Sync session',
   'rightSidebar.gsdSyncEmptyDesc':
     'Turn on GSD monitoring for a project to see its child sessions here.',
@@ -1481,6 +1482,13 @@ export const en = {
   'rightSidebar.commentPlaceholder': 'Write a note about this passage...',
   'rightSidebar.commentSave': 'Save comment',
   'rightSidebar.commentDelete': 'Delete comment',
+  'agentsPanel.title': 'Agents',
+  'agentsPanel.scopeFocused': 'Focused planner',
+  'agentsPanel.scopeAll': 'All planners',
+  'agentsPanel.emptyTitle': 'No agents in use',
+  'agentsPanel.emptyBody':
+    'Workers the planner delegates, and its subagents, show up here while they run.',
+  'agentsPanel.expand': 'Open the full orchestration board',
 
   /* ---- home ---- */
   'home.agentHeroTitle': 'start an agents session',

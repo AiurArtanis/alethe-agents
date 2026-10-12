@@ -22,6 +22,7 @@ const GROUP_OF: Record<FeatureId, GroupId> = {
   gsdSync: 'agents',
   prs: 'workspace',
   wsl: 'workspace',
+  agentsPanel: 'agents',
 }
 
 const GROUPS: GroupId[] = ['workspace', 'agents', 'others']
