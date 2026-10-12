@@ -356,6 +356,9 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 - Explorer rows in the left sidebar no longer stay on a transformed layer and render blurry after
   opening. Their context menu now opens at the pointer, stays inside the window, and renders above
   the workspace instead of being displaced or clipped by the sidebar.
+- The AI usage details modal no longer squeezes every provider into three fixed columns. With
+  more than three providers visible, the modal widens to fit them side by side, and the cards
+  redistribute evenly for any count instead of leaving a lone narrow card on a new row.
 - The Linux AppImage no longer opens to an empty window on modern Wayland desktops (Ubuntu
   24.04+, Fedora 40+, Arch). It shipped its own copy of a system graphics library that clashed
   with the one your graphics driver loads, so the window died before drawing anything. It now
