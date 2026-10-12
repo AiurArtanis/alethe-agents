@@ -1,19 +1,21 @@
 #!/usr/bin/env node
 /**
- * Bump de versão + commit + tag + push. NÃO publica instaladores.
+ * Version bump + commit + tag + push. Does NOT publish installers.
  *
- * Mantém em sincronia as 3 (4) fontes da versão:
- *   package.json · src-tauri/tauri.conf.json · src-tauri/Cargo.toml · src-tauri/Cargo.lock (bloco alethe)
+ * Keeps the four sources of the version in sync:
+ *   package.json · src-tauri/tauri.conf.json · src-tauri/Cargo.toml · src-tauri/Cargo.lock (alethe entry)
  *
- * Uso:
- *   npm run release            # patch:  1.2.0 -> 1.2.1  (o "último ponto")
+ * Usage:
+ *   npm run release            # patch:  1.2.0 -> 1.2.1
  *   npm run release minor      #         1.2.0 -> 1.3.0
  *   npm run release major      #         1.2.0 -> 2.0.0
- *   npm run release 1.5.0      # versão explícita
- *   npm run release -- --dry-run   # mostra o que faria, sem escrever nem dar push
+ *   npm run release 1.5.0      # explicit version
+ *   npm run release -- --dry-run   # show what it would do, without writing or pushing
  *
- * O push da tag NÃO dispara build (o release.yml só roda via workflow_dispatch).
- * Para publicar os instaladores depois: npm run release:publish
+ * Refuses to run when the in-app What's New panel has no notes for the new version.
+ *
+ * Pushing the tag does NOT trigger a build (release.yml only runs through workflow_dispatch).
+ * To publish the installers afterwards: npm run release:publish
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { execSync } from 'node:child_process'
@@ -26,6 +28,7 @@ const PKG = 'package.json'
 const TAURI = 'src-tauri/tauri.conf.json'
 const CARGO = 'src-tauri/Cargo.toml'
 const LOCK = 'src-tauri/Cargo.lock'
+const WHATS_NEW = 'src/lib/changelogData.ts'
 
 function sh(cmd) {
   return execSync(cmd, { stdio: 'pipe', encoding: 'utf8' }).trim()
@@ -39,33 +42,47 @@ function fail(msg) {
   process.exit(1)
 }
 
-// 1) Árvore limpa — o commit de release só pode conter o bump.
+// 1) Clean tree — the release commit may contain the bump and nothing else.
 const dirty = sh('git status --porcelain')
-if (dirty) fail(`Working tree sujo. Commite ou descarte antes de releasar:\n${dirty}`)
+if (dirty) fail(`Working tree is dirty. Commit or discard before releasing:\n${dirty}`)
 
-// 2) Versão atual (fonte: package.json).
+// 2) Current version (source: package.json).
 const pkgRaw = readFileSync(PKG, 'utf8')
 const cur = pkgRaw.match(/"version":\s*"(\d+)\.(\d+)\.(\d+)"/)
-if (!cur) fail(`Não achei a versão em ${PKG}`)
+if (!cur) fail(`Version not found in ${PKG}`)
 const [major, minor, patch] = cur.slice(1).map(Number)
 const current = `${major}.${minor}.${patch}`
 
-// 3) Próxima versão.
+// 3) Next version.
 let next
 if (/^\d+\.\d+\.\d+$/.test(bumpArg)) next = bumpArg
 else if (bumpArg === 'major') next = `${major + 1}.0.0`
 else if (bumpArg === 'minor') next = `${major}.${minor + 1}.0`
 else if (bumpArg === 'patch') next = `${major}.${minor}.${patch + 1}`
-else fail(`Bump inválido: "${bumpArg}". Use: patch | minor | major | X.Y.Z`)
+else fail(`Invalid bump: "${bumpArg}". Use: patch | minor | major | X.Y.Z`)
 
 const tag = `v${next}`
 console.log(`\n  ${current}  →  ${next}   (tag ${tag})\n`)
 
-// 4) Reescreve a versão (primeira ocorrência) em cada arquivo.
+// 4) The What's New panel is curated by hand, so a version stamped without notes ships a panel
+//    that stops at the previous release (1.6.0 and 1.7.0 both did). Checked before anything is
+//    written; the notes land in their own commit ahead of the bump.
+const whatsNew = readFileSync(WHATS_NEW, 'utf8')
+const listed = [...whatsNew.matchAll(/version:\s*'(\d+\.\d+\.\d+)'/g)].map((m) => m[1])
+if (!listed.includes(next)) {
+  fail(
+    `What's New has no notes for ${next} (newest listed: ${listed[0] ?? 'none'}).\n` +
+      `  Add a { version: '${next}', ... } entry at the top of ${WHATS_NEW}, with its\n` +
+      `  whatsNew.v${next.replaceAll('.', '')}.note* keys in every locale under src/lib/i18n/messages/,\n` +
+      '  commit it, then run the release again.',
+  )
+}
+
+// 5) Rewrite the version (first occurrence) in each file.
 function bumpFile(path, regex, label = path) {
   const raw = readFileSync(path, 'utf8')
   const m = raw.match(regex)
-  if (!m) fail(`Versão não encontrada em ${path}`)
+  if (!m) fail(`Version not found in ${path}`)
   const updated = raw.replace(regex, (full) => full.replace(m[1], next))
   console.log(`  ~ ${label}  (${m[1]} → ${next})`)
   if (!dryRun) writeFileSync(path, updated)
@@ -74,14 +91,14 @@ bumpFile(PKG, /"version":\s*"(\d+\.\d+\.\d+)"/)
 bumpFile(TAURI, /"version":\s*"(\d+\.\d+\.\d+)"/)
 bumpFile(CARGO, /version\s*=\s*"(\d+\.\d+\.\d+)"/)
 
-// Cargo.lock: só o bloco do próprio crate (name = "alethe").
+// Cargo.lock: only the entry of the crate itself (name = "alethe").
 const toAdd = [PKG, TAURI, CARGO]
 if (existsSync(LOCK)) {
   bumpFile(LOCK, /name = "alethe"\r?\nversion = "(\d+\.\d+\.\d+)"/, LOCK)
   toAdd.push(LOCK)
 }
 
-// 5) Commit + tag anotada + push (commit e tag), sem disparar release.
+// 6) Commit + annotated tag + push (commit and tag), without triggering a release.
 const branch = sh('git rev-parse --abbrev-ref HEAD')
 run(`git add ${toAdd.join(' ')}`)
 run(`git commit -m "chore(release): ${tag}"`)
@@ -89,8 +106,8 @@ run(`git tag -a ${tag} -m "${tag}"`)
 run(`git push origin ${branch}`)
 run(`git push origin ${tag}`)
 
-console.log(`\n✓ ${tag} commitado, tagueado e enviado (branch ${branch}).`)
-console.log('  Isso NÃO publicou instaladores — só marcou a versão no git.')
-console.log('  Para publicar a release: npm run release:publish')
-if (dryRun) console.log('\n(dry-run: nada foi escrito nem enviado)')
+console.log(`\n✓ ${tag} committed, tagged and pushed (branch ${branch}).`)
+console.log('  This did NOT publish installers — it only stamped the version in git.')
+console.log('  To publish the release: npm run release:publish')
+if (dryRun) console.log('\n(dry-run: nothing was written or pushed)')
 console.log('')

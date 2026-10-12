@@ -475,9 +475,10 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   terminal's processes, depending on the process ID it got. Terminals are now stopped directly
   through the system call, so only their own processes are affected.
 - **What's New lists 1.6.0 and 1.7.0.** The in-app panel stopped at 1.5.0 and its title read
-  1.5.0. It now covers both releases, and the test suite fails when the list does not start at the
-  app version, so a release can no longer ship with stale notes. Release dates in the panel no
-  longer show the day before for anyone west of UTC
+  1.5.0. It now covers both releases, the title follows the installed version instead of the
+  list, and `npm run release` refuses to stamp a version that has no notes yet, so a release can
+  no longer ship with a stale panel. Release dates in the panel no longer show the day before for
+  anyone west of UTC
   ([#213](https://github.com/Kc1t/alethe-agents/issues/213)).
 - **Graphify MCP server starts for Claude, Codex, and opencode.** Alethe configured it as
   `graphify <repo> --mcp`, a flag Graphify does not have, so the agent timed out waiting for it;

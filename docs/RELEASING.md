@@ -30,6 +30,10 @@ npm run release -- --dry-run # show what it would do, write nothing
 It commits `chore(release): vX.Y.Z`, creates an annotated tag, and pushes both the branch and the
 tag. No installer is built and no GitHub Release appears yet.
 
+The script stops before writing anything when `src/lib/changelogData.ts` has no entry for the new
+version. That list feeds the in-app **What's New** panel and is curated by hand, so its notes are
+written and committed ahead of the bump (see below).
+
 ## Step 2 — publish the installers
 
 ```bash
@@ -66,6 +70,15 @@ verbatim, so write it for someone reading the release page, not for someone read
 `[Unreleased]` in the same task that makes it. At release time `[Unreleased]` becomes the dated
 version section and a fresh empty `[Unreleased]` goes back on top.
 
+### In-app What's New
+
+The panel behind the newspaper button reads `src/lib/changelogData.ts`: one entry per release,
+newest first, each a short list of `whatsNew.v<version>.note<n>` keys translated in every locale
+file. Add the entry for the version you are about to stamp in its own commit, before
+`npm run release`. The list may run one release ahead of `package.json` in that window — the panel
+title follows the build version, not the list — and `npm test` fails a build whose version has no
+entry.
+
 ## Signing
 
 The build **fails** without `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
@@ -77,6 +90,7 @@ in the repo secrets, because `bundle.createUpdaterArtifacts` is on. Generate the
 1. `npm test`, `npx tsc --noEmit` and `cd src-tauri && cargo test` are green.
 2. `docs/CHANGELOG.md` has the dated version section and an empty `[Unreleased]`.
 3. `docs/releases/v<version>.md` exists and reads well on its own.
-4. Working tree clean, on the branch you mean to release from.
-5. `npm run release <bump>` → `npm run release:publish` → watch the run.
-6. Open the published release and confirm the notes, the four installers and `latest.json`.
+4. `src/lib/changelogData.ts` has the entry for the version, translated in every locale.
+5. Working tree clean, on the branch you mean to release from.
+6. `npm run release <bump>` → `npm run release:publish` → watch the run.
+7. Open the published release and confirm the notes, the four installers and `latest.json`.

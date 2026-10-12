@@ -1,3 +1,4 @@
+import { version as appVersion } from '../../package.json'
 import type { MessageKey } from './i18n'
 
 export type ChangelogRelease = {
@@ -6,6 +7,8 @@ export type ChangelogRelease = {
   noteKeys: MessageKey[]
 }
 
+/** Curated by hand, newest first. `npm run release` refuses to stamp a version that has no entry
+ * here, so the notes for a release are written before it, not after. */
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
     version: '1.7.0',
@@ -87,7 +90,9 @@ export const CHANGELOG_RELEASES: ChangelogRelease[] = [
   },
 ]
 
-export const CURRENT_VERSION = CHANGELOG_RELEASES[0].version
+/** The version of the running build. Read from `package.json`, never from the list above: the
+ * list can lag or lead the build, and the panel title must not follow it. */
+export const CURRENT_VERSION = appVersion
 
 /** Release dates are calendar days (the changelog uses UTC). `new Date('YYYY-MM-DD')` is UTC midnight,
  * so formatting it in the viewer's time zone shows the previous day anywhere west of UTC. */
