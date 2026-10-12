@@ -269,6 +269,10 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   off, the setting is switched back, and a notice says why. Turning it off always wins over a
   pending turn-on, and no remote input reaches a terminal after it is off. A fresh backend also
   starts read-only until the app applies your settings.
+- Selectors now use the same themed dropdown pattern across preferences, voice controls and grid
+  actions. Their menus stay inside the window, contain their own scrolling, and support arrow,
+  Home, End and Enter keyboard navigation; the richer new-terminal selectors keep their layout
+  while gaining the same positioning and keyboard behavior.
 - Adding an MCP server from the registry now shows where it comes from, its version and
   repository, and asks you to confirm before it is saved. Packages are pinned to the exact
   version the registry lists, and options without one, along with Docker and NuGet options,

@@ -129,9 +129,10 @@
 
 .option:hover:not(:disabled),
 .option:focus-visible,
+.optionActive,
 .optionSelected {
   color: var(--fg);
-  background: var(--panel-hover, rgba(255, 255, 255, 0.08));
+  background: var(--panel-hover);
 }
 
 .optionSelected {

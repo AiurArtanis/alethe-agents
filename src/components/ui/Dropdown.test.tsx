@@ -108,4 +108,53 @@ describe('Dropdown', () => {
 
     expect(onChange).toHaveBeenCalledWith('ready')
   })
+
+  it('navigates options with the keyboard and skips disabled entries', () => {
+    const onChange = vi.fn()
+
+    render(
+      <Dropdown
+        value="first"
+        onChange={onChange}
+        ariaLabel="Choice"
+        options={[
+          { value: 'first', label: 'First' },
+          { value: 'blocked', label: 'Blocked', disabled: true },
+          { value: 'third', label: 'Third' },
+        ]}
+      />,
+    )
+
+    const trigger = screen.getByRole('button', { name: 'Choice' })
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+    fireEvent.keyDown(trigger, { key: 'Enter' })
+
+    expect(onChange).toHaveBeenCalledWith('third')
+  })
+
+  it('uses the active searchable result instead of always selecting the first one', () => {
+    const onChange = vi.fn()
+
+    render(
+      <Dropdown
+        value="alpha"
+        onChange={onChange}
+        ariaLabel="Model"
+        searchable
+        searchPlaceholder="Search models"
+        options={[
+          { value: 'alpha', label: 'Alpha' },
+          { value: 'beta', label: 'Beta' },
+        ]}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Model' }))
+    const search = screen.getByRole('textbox', { name: 'Search models' })
+    fireEvent.keyDown(search, { key: 'ArrowDown' })
+    fireEvent.keyDown(search, { key: 'Enter' })
+
+    expect(onChange).toHaveBeenCalledWith('beta')
+  })
 })

@@ -182,18 +182,16 @@
 }
 
 .micSelect {
-  flex: none;
-  max-width: 190px;
-  padding: 2px 4px;
-  color: var(--fg-faint);
-  background: transparent;
-  border: 0;
-  outline: none;
-  font-size: 10px;
+  width: min(190px, 42vw);
+  flex: 0 1 190px;
 }
 
-.micSelect:disabled {
-  opacity: 0.5;
+.micSelectTrigger {
+  height: 26px;
+  max-width: 190px;
+  padding: 0 7px 0 8px;
+  color: var(--fg-faint);
+  font-size: 10px;
 }
 
 .confirmRow {
