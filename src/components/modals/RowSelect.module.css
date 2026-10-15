@@ -110,7 +110,8 @@
 }
 
 .option:hover,
-.option:focus-visible {
+.option:focus-visible,
+.optionActive {
   background: var(--panel-hover);
 }
 

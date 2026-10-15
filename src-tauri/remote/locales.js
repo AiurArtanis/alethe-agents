@@ -273,7 +273,8 @@ export const messages = {
     'chat.liveTerminal': '实时终端',
     'chat.messagesEmpty': '此会话尚无消息。',
     'chat.messagesError': '无法读取此会话：{message}',
-    'chat.messagesUnsupported': '消息视图读取智能体对话记录，目前只有 Claude Code 与 Codex 会写入。请改用终端查看此会话。',
+    'chat.messagesUnsupported':
+      '消息视图读取智能体对话记录，目前只有 Claude Code 与 Codex 会写入。请改用终端查看此会话。',
     'chat.messageHint': 'Enter 发送 · Shift + Enter 换行',
     'chat.readOnly': '此设备为只读访问。Alethe 中已禁用发送消息。',
     'chat.send': '发送消息',
@@ -286,7 +287,8 @@ export const messages = {
     'chat.viewTerminal': '终端',
     'role.assistant': '智能体',
     'role.user': '你',
-    'state.connectionDescription': '无法在局域网上联系到 Alethe。请确认桌面应用与此设备仍连接到同一网络。',
+    'state.connectionDescription':
+      '无法在局域网上联系到 Alethe。请确认桌面应用与此设备仍连接到同一网络。',
     'state.connectionTitle': '连接不可用',
     'state.loadingDescription': '正在准备共享工作区…',
     'state.loadingTitle': '正在连接 Alethe',

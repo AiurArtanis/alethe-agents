@@ -1,3 +1,4 @@
+import { isWindows } from './platform'
 import type { AgentType } from './types'
 
 export type InstallToolchain = {
@@ -36,12 +37,20 @@ const METHOD_ORDER: InstallMethodId[] = ['native', 'npm', 'winget', 'scoop', 'ch
 
 // Commands are fixed literals, never user input: they are handed straight to a
 // shell PTY. Verified against each vendor's official install documentation.
+// The install log is read-only, so a command must never stop on a prompt: winget asks to accept
+// its source agreements on first use and choco asks before running a package script. The package
+// id stays last because the uninstall command is derived from it.
 export const AGENT_INSTALL_CATALOG: Partial<Record<AgentType, AgentInstallCatalogEntry>> = {
   claude: {
     docsUrl: 'https://code.claude.com/docs/en/setup',
     methods: [
       { id: 'native', command: 'irm https://claude.ai/install.ps1 | iex' },
-      { id: 'winget', command: 'winget install Anthropic.ClaudeCode', requires: 'winget' },
+      {
+        id: 'winget',
+        command:
+          'winget install --accept-source-agreements --accept-package-agreements Anthropic.ClaudeCode',
+        requires: 'winget',
+      },
       { id: 'npm', command: 'npm install -g @anthropic-ai/claude-code', requires: 'npm' },
     ],
   },
@@ -55,7 +64,12 @@ export const AGENT_INSTALL_CATALOG: Partial<Record<AgentType, AgentInstallCatalo
   copilot: {
     docsUrl: 'https://docs.github.com/en/copilot/how-tos/copilot-cli/cli-getting-started',
     methods: [
-      { id: 'winget', command: 'winget install GitHub.Copilot', requires: 'winget' },
+      {
+        id: 'winget',
+        command:
+          'winget install --accept-source-agreements --accept-package-agreements GitHub.Copilot',
+        requires: 'winget',
+      },
       { id: 'npm', command: 'npm install -g @github/copilot', requires: 'npm' },
     ],
   },
@@ -83,7 +97,7 @@ export const AGENT_INSTALL_CATALOG: Partial<Record<AgentType, AgentInstallCatalo
     methods: [
       { id: 'npm', command: 'npm install -g opencode-ai', requires: 'npm' },
       { id: 'scoop', command: 'scoop install opencode', requires: 'scoop' },
-      { id: 'choco', command: 'choco install opencode', requires: 'choco' },
+      { id: 'choco', command: 'choco install -y opencode', requires: 'choco' },
     ],
   },
   kiro: {
@@ -135,12 +149,13 @@ export function installMethodsFor(
 const NODE_INSTALL_METHODS: InstallMethod[] = [
   {
     id: 'winget',
-    command: 'winget install OpenJS.NodeJS.LTS',
+    command:
+      'winget install --accept-source-agreements --accept-package-agreements OpenJS.NodeJS.LTS',
     requires: 'winget',
     verifyCommand: 'npm',
   },
   { id: 'scoop', command: 'scoop install nodejs-lts', requires: 'scoop', verifyCommand: 'npm' },
-  { id: 'choco', command: 'choco install nodejs-lts', requires: 'choco', verifyCommand: 'npm' },
+  { id: 'choco', command: 'choco install -y nodejs-lts', requires: 'choco', verifyCommand: 'npm' },
 ]
 
 /**
@@ -162,11 +177,25 @@ export function nodeInstallMethods(toolchain: InstallToolchain | null): InstallM
   )
 }
 
+// PowerShell-only installer shapes: `irm`/`iwr` and their full cmdlet names, piped into `iex`.
+const POWERSHELL_INSTALLER =
+  /(^|[\s|])(irm|iwr|iex|invoke-restmethod|invoke-webrequest|invoke-expression)([\s|]|$)/i
+
+const WINDOWS_ONLY_METHODS: InstallMethodId[] = ['winget', 'scoop', 'choco']
+
+export function wslInstallMethodsFor(agent: AgentType): InstallMethod[] {
+  const methods = AGENT_INSTALL_CATALOG[agent]?.methods ?? []
+  return methods.filter((method) => {
+    if (WINDOWS_ONLY_METHODS.includes(method.id)) return false
+    return !POWERSHELL_INSTALLER.test(method.command)
+  })
+}
+
 // Every documented install command ends in the package or package id, so the uninstall counterpart
 // is derived from it rather than duplicated in the catalog.
 const UNINSTALL_TEMPLATE: Partial<Record<InstallMethodId, (target: string) => string>> = {
   npm: (target) => `npm uninstall -g ${target}`,
-  winget: (target) => `winget uninstall ${target}`,
+  winget: (target) => `winget uninstall --accept-source-agreements ${target}`,
   scoop: (target) => `scoop uninstall ${target}`,
   choco: (target) => `choco uninstall ${target} -y`,
 }
@@ -189,6 +218,25 @@ export function uninstallMethodsFor(
   })
 }
 
+/**
+ * The line the install PTY runs as its command, so the shell ends with the installer and the caller
+ * can trust `pty://exit`. It is NOT typed into an interactive shell: a pasted `exit` depends on the
+ * person's shell profile behaving, and when it does not the run never reports back and the install
+ * appears to hang forever. On Windows the exit code has to be forwarded explicitly, or PowerShell
+ * reports success for an installer that failed.
+ */
+export function installCommandLine(command: string): string {
+  return isWindows() ? `${command}; exit $LASTEXITCODE` : command
+}
+
+/**
+ * Environment for the hidden installer shell. Node ships `npm.ps1` next to `npm.cmd` and PowerShell
+ * picks the script, which the default `Restricted` policy of a fresh Windows refuses to run.
+ * PowerShell reads its process-scope policy from this variable; it only reaches this shell, and
+ * policies set through Group Policy still win.
+ */
+export const INSTALL_SHELL_ENV = { PSExecutionPolicyPreference: 'RemoteSigned' }
+
 /** Line handed to the shell PTY: run the installer, then close the shell. */
 export function installShellLine(command: string): string {
   return `${command}; exit\r`
@@ -201,4 +249,14 @@ const ANSI_PATTERN =
 /** Installer output is raw PTY bytes; strip the escape sequences before rendering it as text. */
 export function stripInstallLogAnsi(log: string): string {
   return log.replace(ANSI_PATTERN, '')
+}
+
+const SHELL_SYNTAX = /[|&;<>$`(){}'"\n\\]/
+
+export function installArgv(command: string): { program: string; args: string[] } | null {
+  if (SHELL_SYNTAX.test(command)) return null
+  const tokens = command.trim().split(/\s+/)
+  const [program, ...args] = tokens
+  if (!program) return null
+  return { program, args }
 }

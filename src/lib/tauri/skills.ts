@@ -9,6 +9,7 @@ export type SkillSummary = {
   linked: boolean
   shared: boolean
   bundled: boolean
+  fromAlethe: boolean
   entryCount: number
 }
 
@@ -50,6 +51,22 @@ export type SkillRemoveReport = {
   sharedCopyPath: string | null
 }
 
+export type BundledSkillState = 'available' | 'installed' | 'update' | 'conflict'
+
+export type BundledSkillAgent = {
+  agent: string
+  state: BundledSkillState
+  path: string | null
+}
+
+export type BundledSkill = {
+  name: string
+  description: string
+  version: number
+  body: string
+  agents: BundledSkillAgent[]
+}
+
 export async function skillsScan(): Promise<SkillAgentSnapshot[]> {
   return invoke<SkillAgentSnapshot[]>('skills_scan')
 }
@@ -60,4 +77,15 @@ export async function skillsDetail(agent: string, name: string): Promise<SkillDe
 
 export async function skillsUninstall(agent: string, name: string): Promise<SkillRemoveReport> {
   return invoke<SkillRemoveReport>('skills_uninstall', { agent, name })
+}
+
+export async function skillsCatalog(): Promise<BundledSkill[]> {
+  return invoke<BundledSkill[]>('skills_catalog')
+}
+
+export async function skillsInstallBundled(
+  name: string,
+  agents: string[],
+): Promise<BundledSkillAgent[]> {
+  return invoke<BundledSkillAgent[]>('skills_install_bundled', { name, agents })
 }

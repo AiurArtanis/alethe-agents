@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use serde::Serialize;
 use serde_json::Value;
@@ -11,6 +11,64 @@ const SKILL_FILE: &str = "SKILL.md";
 const CODEX_SYSTEM_MARKER: &str = ".codex-system-skills.marker";
 const MAX_TREE_DEPTH: usize = 4;
 const MAX_TREE_CHILDREN: usize = 100;
+/// Written next to an Alethe-installed `SKILL.md` so ownership and version survive without
+/// touching the skill's own frontmatter.
+const ALETHE_SIDECAR: &str = ".alethe-skill.json";
+
+struct BundledSkill {
+    name: &'static str,
+    version: u32,
+    agents: &'static [&'static str],
+    files: &'static [BundledSkillFile],
+}
+
+struct BundledSkillFile {
+    path: &'static str,
+    content: &'static str,
+}
+
+impl BundledSkill {
+    fn entrypoint(&self) -> &'static str {
+        self.files
+            .iter()
+            .find(|file| file.path == SKILL_FILE)
+            .map(|file| file.content)
+            .expect("a bundled skill must contain SKILL.md")
+    }
+}
+
+/// Skills that ship inside the app and are offered for a one-click install.
+const BUNDLED_SKILLS: [BundledSkill; 1] = [BundledSkill {
+    name: "alethe-orchestrate",
+    version: 7,
+    agents: &["claude", "codex"],
+    files: &[
+        BundledSkillFile {
+            path: SKILL_FILE,
+            content: include_str!("../assets/skills/alethe-orchestrate/SKILL.md"),
+        },
+        BundledSkillFile {
+            path: "scripts/orchestrate.py",
+            content: include_str!("../assets/skills/alethe-orchestrate/scripts/orchestrate.py"),
+        },
+        BundledSkillFile {
+            path: "references/routing.md",
+            content: include_str!("../assets/skills/alethe-orchestrate/references/routing.md"),
+        },
+        BundledSkillFile {
+            path: "references/providers.md",
+            content: include_str!("../assets/skills/alethe-orchestrate/references/providers.md"),
+        },
+        BundledSkillFile {
+            path: "references/operations.md",
+            content: include_str!("../assets/skills/alethe-orchestrate/references/operations.md"),
+        },
+        BundledSkillFile {
+            path: "schemas/plan.schema.json",
+            content: include_str!("../assets/skills/alethe-orchestrate/schemas/plan.schema.json"),
+        },
+    ],
+}];
 
 /// `shared` is the cross-agent store the other roots link into, not an agent of its own.
 const ROOTS: [(&str, &[&str]); 5] = [
@@ -32,7 +90,27 @@ pub struct SkillSummary {
     pub linked: bool,
     pub shared: bool,
     pub bundled: bool,
+    pub from_alethe: bool,
     pub entry_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BundledSkillAgent {
+    pub agent: String,
+    /// `available`, `installed`, `update` or `conflict`.
+    pub state: String,
+    pub path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BundledSkillEntry {
+    pub name: String,
+    pub description: String,
+    pub version: u32,
+    pub body: String,
+    pub agents: Vec<BundledSkillAgent>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -238,6 +316,7 @@ fn summarize(agent: &str, root: &Path, dir: &Path, bundled: bool) -> Option<Skil
         linked: is_link(dir),
         shared: shared && agent != "shared",
         bundled: bundled || has_bundled_marker(dir, root),
+        from_alethe: sidecar_version(dir).is_some(),
         entry_count: entry_count(dir),
     })
 }
@@ -434,6 +513,230 @@ fn uninstall_inner(agent: String, name: String) -> Result<SkillRemoveReport, Str
     })
 }
 
+fn sidecar_version(dir: &Path) -> Option<u32> {
+    let raw = fs::read_to_string(dir.join(ALETHE_SIDECAR)).ok()?;
+    let value: Value = serde_json::from_str(&raw).ok()?;
+    value
+        .get("version")
+        .and_then(Value::as_u64)
+        .and_then(|version| u32::try_from(version).ok())
+}
+
+fn sidecar_files(dir: &Path) -> Vec<String> {
+    let Ok(raw) = fs::read_to_string(dir.join(ALETHE_SIDECAR)) else {
+        return Vec::new();
+    };
+    let Ok(value) = serde_json::from_str::<Value>(&raw) else {
+        return Vec::new();
+    };
+    value
+        .get("files")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .map(str::to_string)
+        .collect()
+}
+
+fn bundled_relative_path(raw: &str) -> Result<PathBuf, String> {
+    let path = Path::new(raw);
+    if raw.is_empty()
+        || path.is_absolute()
+        || !path
+            .components()
+            .all(|component| matches!(component, Component::Normal(_)))
+    {
+        return Err(format!("invalid_bundled_path:{raw}"));
+    }
+    Ok(path.to_path_buf())
+}
+
+fn managed_file_target(
+    root: &Path,
+    relative: &Path,
+    create_parents: bool,
+) -> Result<PathBuf, String> {
+    let mut parent = root.to_path_buf();
+    if let Some(relative_parent) = relative.parent() {
+        for component in relative_parent.components() {
+            let Component::Normal(segment) = component else {
+                return Err(format!("invalid_bundled_path:{}", relative.display()));
+            };
+            parent.push(segment);
+            match fs::symlink_metadata(&parent) {
+                Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+                    return Err(format!("managed_path_conflict:{}", parent.display()));
+                }
+                Ok(_) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound && create_parents => {
+                    fs::create_dir(&parent).map_err(|error| format!("mkdir_failed:{error}"))?;
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    return Ok(root.join(relative))
+                }
+                Err(error) => return Err(format!("managed_path_failed:{error}")),
+            }
+        }
+    }
+    let target = root.join(relative);
+    if let Ok(metadata) = fs::symlink_metadata(&target) {
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            return Err(format!("managed_path_conflict:{}", target.display()));
+        }
+    }
+    Ok(target)
+}
+
+fn remove_empty_managed_parents(mut parent: Option<&Path>, root: &Path) {
+    while let Some(dir) = parent.filter(|dir| *dir != root && dir.starts_with(root)) {
+        match fs::remove_dir(dir) {
+            Ok(()) => parent = dir.parent(),
+            Err(_) => break,
+        }
+    }
+}
+
+/// A folder Alethe did not create, or a link into another store, is a conflict: installing
+/// must never overwrite a skill the user put there or write through a link.
+fn bundled_state(dir: &Path, version: u32) -> &'static str {
+    if fs::symlink_metadata(dir).is_err() {
+        return "available";
+    }
+    if is_link(dir) {
+        return "conflict";
+    }
+    match sidecar_version(dir) {
+        None => "conflict",
+        Some(installed) if installed < version => "update",
+        Some(_) => "installed",
+    }
+}
+
+fn bundled_agent(
+    skill: &BundledSkill,
+    agent: &str,
+    root_of: &dyn Fn(&str) -> Option<PathBuf>,
+) -> BundledSkillAgent {
+    let dir = root_of(agent).map(|root| root.join(skill.name));
+    BundledSkillAgent {
+        agent: agent.to_string(),
+        state: dir
+            .as_deref()
+            .map(|dir| bundled_state(dir, skill.version))
+            .unwrap_or("available")
+            .to_string(),
+        path: dir.as_deref().map(display_path),
+    }
+}
+
+fn catalog_inner(root_of: &dyn Fn(&str) -> Option<PathBuf>) -> Vec<BundledSkillEntry> {
+    BUNDLED_SKILLS
+        .iter()
+        .map(|skill| {
+            let (front, body) = split_frontmatter(skill.entrypoint());
+            BundledSkillEntry {
+                name: skill.name.to_string(),
+                description: parse_frontmatter(&front)
+                    .get("description")
+                    .cloned()
+                    .unwrap_or_default(),
+                version: skill.version,
+                body,
+                agents: skill
+                    .agents
+                    .iter()
+                    .map(|agent| bundled_agent(skill, agent, root_of))
+                    .collect(),
+            }
+        })
+        .collect()
+}
+
+/// Writes the skill for each requested agent and returns where each one ended up. A
+/// conflict or a newer installed version is reported back untouched instead of failing
+/// the whole call.
+fn install_bundled_inner(
+    name: &str,
+    agents: &[String],
+    root_of: &dyn Fn(&str) -> Option<PathBuf>,
+) -> Result<Vec<BundledSkillAgent>, String> {
+    let skill = BUNDLED_SKILLS
+        .iter()
+        .find(|skill| skill.name == name)
+        .ok_or_else(|| "not_found".to_string())?;
+    if let Some(unknown) = agents
+        .iter()
+        .find(|agent| !skill.agents.contains(&agent.as_str()))
+    {
+        return Err(format!("unknown_agent:{unknown}"));
+    }
+
+    let mut out = Vec::new();
+    for agent in agents {
+        let root = root_of(agent).ok_or_else(|| "unknown_agent".to_string())?;
+        let dir = root.join(skill.name);
+        let state = bundled_state(&dir, skill.version);
+        if state == "available" || state == "update" {
+            let files = skill
+                .files
+                .iter()
+                .map(|file| bundled_relative_path(file.path).map(|path| (file, path)))
+                .collect::<Result<Vec<_>, _>>()?;
+            let managed: Vec<&str> = skill.files.iter().map(|file| file.path).collect();
+            let stale = sidecar_files(&dir)
+                .into_iter()
+                .filter(|path| !managed.contains(&path.as_str()))
+                .filter_map(|path| bundled_relative_path(&path).ok())
+                .collect::<Vec<_>>();
+            fs::create_dir_all(&dir).map_err(|error| format!("mkdir_failed:{error}"))?;
+            let targets = files
+                .into_iter()
+                .map(|(file, relative)| {
+                    managed_file_target(&dir, &relative, true).map(|target| (file, target))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let stale_targets = stale
+                .into_iter()
+                .map(|relative| managed_file_target(&dir, &relative, false))
+                .collect::<Result<Vec<_>, _>>()?;
+            for (file, target) in targets {
+                fs::write(target, file.content).map_err(|error| format!("write_failed:{error}"))?;
+            }
+            for target in stale_targets {
+                if target.is_file() {
+                    fs::remove_file(&target).map_err(|error| format!("remove_failed:{error}"))?;
+                    remove_empty_managed_parents(target.parent(), &dir);
+                }
+            }
+            fs::write(
+                dir.join(ALETHE_SIDECAR),
+                serde_json::json!({ "version": skill.version, "files": managed }).to_string(),
+            )
+            .map_err(|error| format!("write_failed:{error}"))?;
+        }
+        out.push(bundled_agent(skill, agent, root_of));
+    }
+    Ok(out)
+}
+
+#[tauri::command]
+pub async fn skills_catalog() -> Result<Vec<BundledSkillEntry>, String> {
+    tokio::task::spawn_blocking(|| catalog_inner(&root_for))
+        .await
+        .map_err(|error| format!("skills_catalog:{error}"))
+}
+
+#[tauri::command]
+pub async fn skills_install_bundled(
+    name: String,
+    agents: Vec<String>,
+) -> Result<Vec<BundledSkillAgent>, String> {
+    tokio::task::spawn_blocking(move || install_bundled_inner(&name, &agents, &root_for))
+        .await
+        .map_err(|error| format!("skills_install_bundled:{error}"))?
+}
+
 #[tauri::command]
 pub async fn skills_scan() -> Result<Vec<SkillAgentSnapshot>, String> {
     tokio::task::spawn_blocking(scan_inner)
@@ -533,6 +836,209 @@ mod tests {
                 assert_eq!(skill.agent, snapshot.agent);
             }
         }
+    }
+
+    fn temp_home(label: &str) -> PathBuf {
+        let suffix = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let home = std::env::temp_dir().join(format!("alethe-skills-{label}-{suffix}"));
+        fs::create_dir_all(&home).unwrap();
+        home
+    }
+
+    fn both() -> Vec<String> {
+        vec!["claude".to_string(), "codex".to_string()]
+    }
+
+    fn states(agents: &[BundledSkillAgent]) -> Vec<&str> {
+        agents.iter().map(|agent| agent.state.as_str()).collect()
+    }
+
+    #[test]
+    fn every_bundled_skill_is_a_valid_skill_file() {
+        for skill in &BUNDLED_SKILLS {
+            assert!(validate_name(skill.name).is_ok());
+            let (front, body) = split_frontmatter(skill.entrypoint());
+            let fields = parse_frontmatter(&front);
+            assert_eq!(fields.get("name").map(String::as_str), Some(skill.name));
+            assert!(!fields.get("description").unwrap().is_empty());
+            assert!(!body.trim().is_empty());
+            let mut paths = std::collections::BTreeSet::new();
+            for file in skill.files {
+                assert!(bundled_relative_path(file.path).is_ok(), "{}", file.path);
+                assert!(paths.insert(file.path), "duplicate file {}", file.path);
+                assert!(!file.content.trim().is_empty(), "empty file {}", file.path);
+            }
+            for agent in skill.agents {
+                assert!(root_for(agent).is_some(), "{agent} has no root");
+            }
+        }
+    }
+
+    #[test]
+    fn a_bundled_skill_installs_for_each_agent_and_reinstalls_cleanly() {
+        let home = temp_home("install");
+        let root_of = |agent: &str| Some(home.join(agent));
+        let skill = &BUNDLED_SKILLS[0];
+
+        assert_eq!(
+            states(&catalog_inner(&root_of)[0].agents),
+            ["available", "available"]
+        );
+
+        let report = install_bundled_inner(skill.name, &both(), &root_of).unwrap();
+        assert_eq!(states(&report), ["installed", "installed"]);
+        for agent in ["claude", "codex"] {
+            let dir = home.join(agent).join(skill.name);
+            for file in skill.files {
+                assert_eq!(
+                    fs::read_to_string(dir.join(file.path)).unwrap(),
+                    file.content
+                );
+            }
+            assert_eq!(sidecar_version(&dir), Some(skill.version));
+            assert_eq!(sidecar_files(&dir).len(), skill.files.len());
+            let summary = summarize(agent, &home.join(agent), &dir, false).unwrap();
+            assert!(summary.from_alethe);
+            assert!(!summary.bundled);
+        }
+
+        let again = install_bundled_inner(skill.name, &both(), &root_of).unwrap();
+        assert_eq!(states(&again), ["installed", "installed"]);
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn an_older_install_updates_and_a_newer_one_is_left_alone() {
+        let home = temp_home("versions");
+        let root_of = |agent: &str| Some(home.join(agent));
+        let skill = &BUNDLED_SKILLS[0];
+
+        let old = home.join("claude").join(skill.name);
+        fs::create_dir_all(old.join("references")).unwrap();
+        fs::write(old.join(SKILL_FILE), "old body").unwrap();
+        fs::write(old.join("references/obsolete.md"), "old managed file").unwrap();
+        fs::write(old.join("personal-notes.md"), "user file").unwrap();
+        fs::write(
+            old.join(ALETHE_SIDECAR),
+            r#"{"version":0,"files":["SKILL.md","references/obsolete.md"]}"#,
+        )
+        .unwrap();
+
+        let future = home.join("codex").join(skill.name);
+        fs::create_dir_all(&future).unwrap();
+        fs::write(future.join(SKILL_FILE), "future body").unwrap();
+        fs::write(future.join(ALETHE_SIDECAR), r#"{"version":999}"#).unwrap();
+
+        assert_eq!(
+            states(&catalog_inner(&root_of)[0].agents),
+            ["update", "installed"]
+        );
+        install_bundled_inner(skill.name, &both(), &root_of).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(old.join(SKILL_FILE)).unwrap(),
+            skill.entrypoint()
+        );
+        assert!(!old.join("references/obsolete.md").exists());
+        assert_eq!(
+            fs::read_to_string(old.join("personal-notes.md")).unwrap(),
+            "user file"
+        );
+        assert_eq!(
+            fs::read_to_string(future.join(SKILL_FILE)).unwrap(),
+            "future body"
+        );
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn a_legacy_single_file_install_upgrades_to_the_full_package() {
+        let home = temp_home("legacy-package");
+        let root_of = |agent: &str| Some(home.join(agent));
+        let skill = &BUNDLED_SKILLS[0];
+        let installed = home.join("codex").join(skill.name);
+        fs::create_dir_all(&installed).unwrap();
+        fs::write(installed.join(SKILL_FILE), "version two").unwrap();
+        fs::write(installed.join(ALETHE_SIDECAR), r#"{"version":2}"#).unwrap();
+
+        let report = install_bundled_inner(skill.name, &["codex".to_string()], &root_of).unwrap();
+
+        assert_eq!(states(&report), ["installed"]);
+        for file in skill.files {
+            assert_eq!(
+                fs::read_to_string(installed.join(file.path)).unwrap(),
+                file.content
+            );
+        }
+        assert_eq!(sidecar_files(&installed).len(), skill.files.len());
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn a_skill_alethe_did_not_create_is_never_overwritten() {
+        let home = temp_home("conflict");
+        let root_of = |agent: &str| Some(home.join(agent));
+        let skill = &BUNDLED_SKILLS[0];
+
+        let theirs = home.join("claude").join(skill.name);
+        fs::create_dir_all(&theirs).unwrap();
+        fs::write(theirs.join(SKILL_FILE), "user skill").unwrap();
+
+        let report = install_bundled_inner(skill.name, &both(), &root_of).unwrap();
+        assert_eq!(states(&report), ["conflict", "installed"]);
+        assert_eq!(
+            fs::read_to_string(theirs.join(SKILL_FILE)).unwrap(),
+            "user skill"
+        );
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn an_update_never_writes_through_a_nested_link() {
+        use std::os::unix::fs::symlink;
+
+        let home = temp_home("nested-link");
+        let outside = temp_home("nested-link-outside");
+        let root_of = |agent: &str| Some(home.join(agent));
+        let skill = &BUNDLED_SKILLS[0];
+        let installed = home.join("claude").join(skill.name);
+        fs::create_dir_all(&installed).unwrap();
+        fs::write(installed.join(SKILL_FILE), "old body").unwrap();
+        fs::write(installed.join(ALETHE_SIDECAR), r#"{"version":0}"#).unwrap();
+        symlink(&outside, installed.join("references")).unwrap();
+
+        let error = install_bundled_inner(skill.name, &["claude".to_string()], &root_of)
+            .expect_err("the nested link must be refused");
+
+        assert!(error.starts_with("managed_path_conflict:"), "{error}");
+        assert_eq!(
+            fs::read_to_string(installed.join(SKILL_FILE)).unwrap(),
+            "old body"
+        );
+        assert!(fs::read_dir(&outside).unwrap().next().is_none());
+        fs::remove_dir_all(home).unwrap();
+        fs::remove_dir_all(outside).unwrap();
+    }
+
+    #[test]
+    fn installing_rejects_unknown_skills_and_agents() {
+        let home = temp_home("reject");
+        let root_of = |agent: &str| Some(home.join(agent));
+        assert_eq!(
+            install_bundled_inner("nope", &both(), &root_of).unwrap_err(),
+            "not_found"
+        );
+        assert_eq!(
+            install_bundled_inner(BUNDLED_SKILLS[0].name, &["opencode".to_string()], &root_of)
+                .unwrap_err(),
+            "unknown_agent:opencode"
+        );
+        assert!(fs::read_dir(&home).unwrap().next().is_none());
+        fs::remove_dir_all(home).unwrap();
     }
 
     #[test]

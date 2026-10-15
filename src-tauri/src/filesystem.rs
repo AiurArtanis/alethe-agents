@@ -40,7 +40,13 @@ pub struct DirectoryEntry {
 }
 
 #[tauri::command]
-pub fn list_directory(path: String) -> Result<Vec<DirectoryEntry>, String> {
+pub async fn list_directory(path: String) -> Result<Vec<DirectoryEntry>, String> {
+    tokio::task::spawn_blocking(move || list_directory_inner(path))
+        .await
+        .map_err(|error| format!("list_directory: blocking task failed: {error}"))?
+}
+
+fn list_directory_inner(path: String) -> Result<Vec<DirectoryEntry>, String> {
     let directory = PathBuf::from(path.trim());
     if !directory.is_dir() {
         return Err("directory not found".to_string());
@@ -95,6 +101,13 @@ pub struct DirectoryListing {
     pub entries: Vec<BrowseDirectoryEntry>,
 }
 
+/// The home folder, so the terminal can resolve the `~` in paths it prints. `None` rather than a
+/// guess when the platform reports none.
+#[tauri::command]
+pub fn home_directory() -> Option<String> {
+    dirs_next::home_dir().map(|home| home.to_string_lossy().into_owned())
+}
+
 fn get_home_dir() -> PathBuf {
     if let Ok(v) = std::env::var("USERPROFILE") {
         PathBuf::from(v)
@@ -114,6 +127,9 @@ fn get_system_roots() -> Vec<String> {
             if Path::new(&drive).exists() {
                 roots.push(drive);
             }
+        }
+        for distro in crate::wsl::installed_distros() {
+            roots.push(crate::wsl::distro_root_unc(&distro));
         }
     }
     #[cfg(not(target_os = "windows"))]
@@ -135,8 +151,21 @@ fn get_system_roots() -> Vec<String> {
     roots
 }
 
+pub fn strip_extended_prefix(path: &str) -> String {
+    path.strip_prefix(r"\\?\UNC\")
+        .map(|rest| format!(r"\\{rest}"))
+        .or_else(|| path.strip_prefix(r"\\?\").map(str::to_string))
+        .unwrap_or_else(|| path.to_string())
+}
+
 #[tauri::command]
-pub fn browse_directory(path: String) -> Result<DirectoryListing, String> {
+pub async fn browse_directory(path: String) -> Result<DirectoryListing, String> {
+    tokio::task::spawn_blocking(move || browse_directory_inner(path))
+        .await
+        .map_err(|error| format!("browse_directory: blocking task failed: {error}"))?
+}
+
+fn browse_directory_inner(path: String) -> Result<DirectoryListing, String> {
     let home = get_home_dir();
     let trimmed = path.trim();
     let directory = if trimmed.is_empty() || trimmed == "~" {
@@ -156,15 +185,11 @@ pub fn browse_directory(path: String) -> Result<DirectoryListing, String> {
 
     let canonical = directory.canonicalize().unwrap_or_else(|_| directory.clone());
     let current_path_str = canonical.to_string_lossy().into_owned();
-    let clean_current_path = current_path_str
-        .strip_prefix(r"\\?\")
-        .unwrap_or(&current_path_str)
-        .to_string();
+    let clean_current_path = strip_extended_prefix(&current_path_str);
 
-    let parent_path = canonical.parent().map(|p| {
-        let s = p.to_string_lossy().into_owned();
-        s.strip_prefix(r"\\?\").unwrap_or(&s).to_string()
-    });
+    let parent_path = canonical
+        .parent()
+        .map(|p| strip_extended_prefix(&p.to_string_lossy()));
 
     let mut entries = match fs::read_dir(&canonical) {
         Ok(read_dir) => read_dir
@@ -176,8 +201,7 @@ pub fn browse_directory(path: String) -> Result<DirectoryListing, String> {
                 if name.starts_with('$') || name == "System Volume Information" {
                     return None;
                 }
-                let full_path = entry.path().to_string_lossy().into_owned();
-                let clean_path = full_path.strip_prefix(r"\\?\").unwrap_or(&full_path).to_string();
+                let clean_path = strip_extended_prefix(&entry.path().to_string_lossy());
                 Some(BrowseDirectoryEntry {
                     name,
                     path: clean_path,
@@ -195,8 +219,7 @@ pub fn browse_directory(path: String) -> Result<DirectoryListing, String> {
             .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
     });
 
-    let clean_home = home.to_string_lossy().into_owned();
-    let home_path = clean_home.strip_prefix(r"\\?\").unwrap_or(&clean_home).to_string();
+    let home_path = strip_extended_prefix(&home.to_string_lossy());
 
     Ok(DirectoryListing {
         current_path: clean_current_path,
@@ -379,4 +402,167 @@ pub fn unwatch_file(state: tauri::State<'_, FileWatchers>, path: String) -> Resu
         }
     }
     Ok(())
+}
+
+/// Where a relative path printed in a terminal really is. Agents often write
+/// in another git worktree of the project while the pane stays in the main
+/// checkout, so when the path is not under `cwd` it is looked up under every
+/// worktree root, and under the worktree whose folder is the path's first
+/// segment (`repo-feature/docs/x.md`). The most recently modified match wins.
+#[tauri::command]
+pub async fn find_relative_path(cwd: String, path: String) -> Option<String> {
+    tokio::task::spawn_blocking(move || {
+        find_relative_path_inner(Path::new(cwd.trim()), path.trim())
+    })
+    .await
+    .ok()
+    .flatten()
+    .map(|found| found.to_string_lossy().into_owned())
+}
+
+fn find_relative_path_inner(cwd: &Path, relative: &str) -> Option<PathBuf> {
+    let relative = Path::new(relative);
+    if relative.as_os_str().is_empty() || relative.has_root() {
+        return None;
+    }
+    // Collecting the components turns git's `C:/...` into native separators.
+    let direct: PathBuf = cwd.join(relative).components().collect();
+    if direct.exists() {
+        return Some(direct);
+    }
+
+    let output = crate::git_control::git_command(cwd, &["worktree", "list", "--porcelain"]).ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let mut components = relative.components();
+    let first = components.next()?.as_os_str().to_owned();
+    let rest = components.as_path();
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|line| line.strip_prefix("worktree "))
+        .map(PathBuf::from)
+        .flat_map(|root| {
+            let named = (root.file_name() == Some(first.as_os_str())).then(|| root.join(rest));
+            [Some(root.join(relative)), named]
+        })
+        .flatten()
+        .filter_map(|candidate| {
+            let modified = fs::metadata(&candidate).ok()?.modified().ok()?;
+            Some((modified, candidate.components().collect::<PathBuf>()))
+        })
+        .max_by_key(|(modified, _)| *modified)
+        .map(|(_, candidate)| candidate)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::git_control::checked_output;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn finds_a_relative_path_in_a_sibling_worktree() {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let parent = std::env::temp_dir().join(format!("alethe-relative-path-{suffix}"));
+        let main = parent.join("repo");
+        fs::create_dir_all(&main).unwrap();
+        checked_output(&main, &["init", "-b", "main"]).unwrap();
+        checked_output(&main, &["config", "user.name", "Alethe Test"]).unwrap();
+        checked_output(&main, &["config", "user.email", "alethe@example.invalid"]).unwrap();
+        fs::write(main.join("a.txt"), "a\n").unwrap();
+        checked_output(&main, &["add", "-A"]).unwrap();
+        checked_output(&main, &["commit", "-m", "base"]).unwrap();
+        // Two sibling worktrees holding the same report, so the newest one has to be picked.
+        let add_report = |name: &str| {
+            let worktree = parent.join(name);
+            checked_output(
+                &main,
+                &[
+                    "worktree",
+                    "add",
+                    "-b",
+                    name,
+                    worktree.to_str().unwrap(),
+                    "HEAD",
+                ],
+            )
+            .unwrap();
+            fs::create_dir_all(worktree.join("docs")).unwrap();
+            let report = worktree.join("docs").join("report.md");
+            fs::write(&report, name).unwrap();
+            report
+        };
+        let feature = add_report("repo-feature");
+        let other = add_report("repo-other");
+        let touch = |path: &Path, hours_ago: u64| {
+            let at = SystemTime::now() - std::time::Duration::from_secs(hours_ago * 3600);
+            let file = fs::File::options().write(true).open(path).unwrap();
+            file.set_modified(at).unwrap();
+        };
+
+        // The temp folder has aliases git does not print (`/var` is `/private/var` on macOS, and
+        // Windows may hand out an 8.3 short name), so a match is compared by the file it names.
+        let found = |path: &str| {
+            find_relative_path_inner(&main, path).map(|found| fs::canonicalize(found).unwrap())
+        };
+        let resolved = |path: &Path| Some(fs::canonicalize(path).unwrap());
+
+        assert_eq!(found("a.txt"), resolved(&main.join("a.txt")));
+        assert_eq!(found("repo-feature/docs/report.md"), resolved(&feature));
+        assert_eq!(found("docs/missing.md"), None);
+        touch(&other, 2);
+        assert_eq!(found("docs/report.md"), resolved(&feature));
+        touch(&feature, 3);
+        assert_eq!(found("docs/report.md"), resolved(&other));
+
+        for name in ["repo-feature", "repo-other"] {
+            let worktree = parent.join(name);
+            let _ = checked_output(
+                &main,
+                &["worktree", "remove", "--force", worktree.to_str().unwrap()],
+            );
+        }
+        let _ = fs::remove_dir_all(&parent);
+    }
+
+    #[test]
+    fn strips_the_extended_length_prefix_from_a_drive_path() {
+        assert_eq!(
+            strip_extended_prefix(r"\\?\C:\projects\app"),
+            r"C:\projects\app"
+        );
+    }
+
+    #[test]
+    fn maps_an_extended_unc_path_back_to_its_double_backslash_form() {
+        assert_eq!(
+            strip_extended_prefix(r"\\?\UNC\wsl.localhost\Ubuntu\home\dev"),
+            r"\\wsl.localhost\Ubuntu\home\dev"
+        );
+    }
+
+    #[test]
+    fn a_cleaned_wsl_path_is_still_parsed_as_a_wsl_path() {
+        let cleaned = strip_extended_prefix(r"\\?\UNC\wsl.localhost\Ubuntu\home\dev");
+        assert_eq!(
+            crate::wsl::parse_wsl_unc(&cleaned).map(|target| target.distro),
+            Some("Ubuntu".to_string())
+        );
+    }
+
+    #[test]
+    fn leaves_an_ordinary_path_untouched() {
+        assert_eq!(
+            strip_extended_prefix(r"C:\projects\app"),
+            r"C:\projects\app"
+        );
+        assert_eq!(
+            strip_extended_prefix(r"\\wsl.localhost\Ubuntu"),
+            r"\\wsl.localhost\Ubuntu"
+        );
+    }
 }

@@ -31,11 +31,8 @@ import {
 import { useProjectsStore } from '../../stores/projectsStore'
 import { useUiStore } from '../../stores/uiStore'
 import { Modal } from '../modals/Modal'
-import {
-  buildGitExplorerIndex,
-  getGitEntryStatus,
-  type GitExplorerIndex,
-} from './fileExplorerGit'
+import { buildGitExplorerIndex, getGitEntryStatus, type GitExplorerIndex } from './fileExplorerGit'
+import { ContextMenu, type MenuItem } from './ContextMenu'
 import { FileIcon } from './FileIcon'
 import styles from './FileExplorer.module.css'
 
@@ -47,7 +44,7 @@ type FileExplorerProps = {
 }
 
 type Preview = DirectoryEntry & { content: string | null; error: string | null }
-type ContextMenu = { entry: DirectoryEntry; x: number; y: number }
+type FileContextMenuState = { entry: DirectoryEntry; x: number; y: number }
 
 const IMAGE_PATTERN = /\.(avif|bmp|gif|jpe?g|png|svg|webp)$/i
 const VIDEO_PATTERN = /\.(mp4|m4v|mov|webm|ogv)$/i
@@ -66,9 +63,8 @@ export function FileExplorer({ projectId, cwd, ptyId, terminalName }: FileExplor
   const [reloadKey, setReloadKey] = useState(0)
   const [liveCwd, setLiveCwd] = useState(cwd)
   const [preview, setPreview] = useState<Preview | null>(null)
-  const [menu, setMenu] = useState<ContextMenu | null>(null)
+  const [menu, setMenu] = useState<FileContextMenuState | null>(null)
   const [gitIndex, setGitIndex] = useState<GitExplorerIndex | null>(null)
-  const menuRef = useRef<HTMLDivElement | null>(null)
   const lastGitRefreshRef = useRef(0)
 
   const refreshGit = useCallback(
@@ -122,15 +118,6 @@ export function FileExplorer({ projectId, cwd, ptyId, terminalName }: FileExplor
     }
   }, [cwd, ptyId])
 
-  useEffect(() => {
-    if (!menu) return
-    const close = (event: PointerEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) setMenu(null)
-    }
-    window.addEventListener('pointerdown', close)
-    return () => window.removeEventListener('pointerdown', close)
-  }, [menu])
-
   const addToGrid = (entry: DirectoryEntry) => {
     if (entry.is_dir) return
     const pane = createFilePane(projectId, { filePath: entry.path })
@@ -150,7 +137,11 @@ export function FileExplorer({ projectId, cwd, ptyId, terminalName }: FileExplor
   const showPreview = async (entry: DirectoryEntry) => {
     if (entry.is_dir) return
     setMenu(null)
-    if (IMAGE_PATTERN.test(entry.path) || VIDEO_PATTERN.test(entry.path) || PDF_PATTERN.test(entry.path)) {
+    if (
+      IMAGE_PATTERN.test(entry.path) ||
+      VIDEO_PATTERN.test(entry.path) ||
+      PDF_PATTERN.test(entry.path)
+    ) {
       setPreview({ ...entry, content: null, error: null })
       return
     }
@@ -171,7 +162,9 @@ export function FileExplorer({ projectId, cwd, ptyId, terminalName }: FileExplor
 
   const renameEntry = async (entry: DirectoryEntry) => {
     setMenu(null)
-    const nextName = window.prompt(t('files.renamePrompt', { name: entry.name }), entry.name)?.trim()
+    const nextName = window
+      .prompt(t('files.renamePrompt', { name: entry.name }), entry.name)
+      ?.trim()
     if (!nextName || nextName === entry.name) return
     try {
       await renameFilesystemEntry(entry.path, nextName)
@@ -184,7 +177,14 @@ export function FileExplorer({ projectId, cwd, ptyId, terminalName }: FileExplor
 
   const deleteEntry = async (entry: DirectoryEntry) => {
     setMenu(null)
-    if (!window.confirm(t(entry.is_dir ? 'files.deleteFolderConfirm' : 'files.deleteFileConfirm', { name: entry.name }))) return
+    if (
+      !window.confirm(
+        t(entry.is_dir ? 'files.deleteFolderConfirm' : 'files.deleteFileConfirm', {
+          name: entry.name,
+        }),
+      )
+    )
+      return
     try {
       await deleteFilesystemEntry(entry.path)
       setReloadKey((value) => value + 1)
@@ -193,6 +193,56 @@ export function FileExplorer({ projectId, cwd, ptyId, terminalName }: FileExplor
       pushToast({ title: t('files.actionFailed'), body: readableError(error) })
     }
   }
+
+  const menuItems: MenuItem[] = menu
+    ? [
+        ...(!menu.entry.is_dir
+          ? ([
+              {
+                kind: 'item',
+                icon: <LayoutGrid size={13} />,
+                label: t('files.addToGrid'),
+                onClick: () => addToGrid(menu.entry),
+              },
+              {
+                kind: 'item',
+                icon: <Eye size={13} />,
+                label: t('files.preview'),
+                onClick: () => void showPreview(menu.entry),
+              },
+              ...(MARKDOWN_PATTERN.test(menu.entry.path)
+                ? [
+                    {
+                      kind: 'item' as const,
+                      icon: <PanelRightOpen size={13} />,
+                      label: t('files.openMarkdownSidebar'),
+                      onClick: () => openMarkdownInSidebar(menu.entry),
+                    },
+                  ]
+                : []),
+            ] satisfies MenuItem[])
+          : []),
+        {
+          kind: 'item',
+          icon: <FolderSearch size={13} />,
+          label: t('files.reveal'),
+          onClick: () => void openInFileExplorer(menu.entry.path),
+        },
+        {
+          kind: 'item',
+          icon: <Pencil size={13} />,
+          label: t('files.rename'),
+          onClick: () => void renameEntry(menu.entry),
+        },
+        {
+          kind: 'item',
+          danger: true,
+          icon: <Trash2 size={13} />,
+          label: t('files.delete'),
+          onClick: () => void deleteEntry(menu.entry),
+        },
+      ]
+    : []
 
   if (!liveCwd) {
     return <div className={styles.message}>{t('files.noActiveFolder')}</div>
@@ -241,29 +291,12 @@ export function FileExplorer({ projectId, cwd, ptyId, terminalName }: FileExplor
       />
 
       {menu ? (
-        <div
-          ref={menuRef}
-          className={styles.contextMenu}
-          style={{ left: menu.x, top: menu.y }}
-          role="menu"
-        >
-          {!menu.entry.is_dir ? (
-            <>
-              <MenuAction icon={<LayoutGrid size={13} />} label={t('files.addToGrid')} onClick={() => addToGrid(menu.entry)} />
-              <MenuAction icon={<Eye size={13} />} label={t('files.preview')} onClick={() => void showPreview(menu.entry)} />
-              {MARKDOWN_PATTERN.test(menu.entry.path) ? (
-                <MenuAction
-                  icon={<PanelRightOpen size={13} />}
-                  label={t('files.openMarkdownSidebar')}
-                  onClick={() => openMarkdownInSidebar(menu.entry)}
-                />
-              ) : null}
-            </>
-          ) : null}
-          <MenuAction icon={<FolderSearch size={13} />} label={t('files.reveal')} onClick={() => { setMenu(null); void openInFileExplorer(menu.entry.path) }} />
-          <MenuAction icon={<Pencil size={13} />} label={t('files.rename')} onClick={() => void renameEntry(menu.entry)} />
-          <MenuAction danger icon={<Trash2 size={13} />} label={t('files.delete')} onClick={() => void deleteEntry(menu.entry)} />
-        </div>
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          items={menuItems}
+          onClose={() => setMenu(null)}
+        />
       ) : null}
 
       <FilePreviewModal
@@ -469,10 +502,6 @@ function DirectoryNode({
   )
 }
 
-function MenuAction({ icon, label, onClick, danger = false }: { icon: React.ReactNode; label: string; onClick: () => void; danger?: boolean }) {
-  return <button type="button" role="menuitem" className={danger ? styles.dangerAction : undefined} onClick={onClick}>{icon}<span>{label}</span></button>
-}
-
 function FilePreviewModal({
   preview,
   onClose,
@@ -500,11 +529,7 @@ function FilePreviewModal({
               {t('files.addToGrid')}
             </button>
             {MARKDOWN_PATTERN.test(preview.path) ? (
-              <button
-                type="button"
-                className={styles.modalAction}
-                onClick={onOpenMarkdownSidebar}
-              >
+              <button type="button" className={styles.modalAction} onClick={onOpenMarkdownSidebar}>
                 <PanelRightOpen size={14} />
                 {t('files.openMarkdownSidebar')}
               </button>
@@ -515,12 +540,22 @@ function FilePreviewModal({
     >
       {preview ? (
         <div className={styles.previewBody}>
-          <div className={styles.previewPath} title={preview.path}>{preview.path}</div>
+          <div className={styles.previewPath} title={preview.path}>
+            {preview.path}
+          </div>
           {IMAGE_PATTERN.test(preview.path) ? <img src={source} alt={preview.name} /> : null}
           {VIDEO_PATTERN.test(preview.path) ? <video src={source} controls /> : null}
           {PDF_PATTERN.test(preview.path) ? <iframe src={source} title={preview.name} /> : null}
-          {!IMAGE_PATTERN.test(preview.path) && !VIDEO_PATTERN.test(preview.path) && !PDF_PATTERN.test(preview.path) ? (
-            preview.error ? <div className={styles.previewMessage}>{preview.error}</div> : preview.content === null ? <div className={styles.previewMessage}>{t('files.loadingPreview')}</div> : <pre>{preview.content}</pre>
+          {!IMAGE_PATTERN.test(preview.path) &&
+          !VIDEO_PATTERN.test(preview.path) &&
+          !PDF_PATTERN.test(preview.path) ? (
+            preview.error ? (
+              <div className={styles.previewMessage}>{preview.error}</div>
+            ) : preview.content === null ? (
+              <div className={styles.previewMessage}>{t('files.loadingPreview')}</div>
+            ) : (
+              <pre>{preview.content}</pre>
+            )
           ) : null}
         </div>
       ) : null}

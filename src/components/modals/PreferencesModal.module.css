@@ -283,8 +283,46 @@
 .section:focus .sectionHeading h2 {
   color: var(--accent);
 }
+.sectionToggle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.sectionToggle:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 4px;
+}
+.sectionToggle:hover {
+  color: var(--accent);
+}
+.sectionChevron {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-bottom: 2px;
+  border-right: 1.5px solid currentcolor;
+  border-bottom: 1.5px solid currentcolor;
+  opacity: 0.65;
+  transform: rotate(45deg);
+  transition: transform 120ms ease;
+}
+.sectionToggle[aria-expanded='false'] .sectionChevron {
+  margin-bottom: 0;
+  transform: rotate(-45deg);
+}
 .sectionHeading {
   margin-bottom: 18px;
+}
+.section[data-collapsed] .sectionHeading {
+  margin-bottom: 0;
 }
 .sectionHeading h2 {
   margin: 0;
@@ -717,24 +755,8 @@
   font-size: 10px;
 }
 
-.select {
+.dictationMicSelect {
   width: min(360px, 100%);
-  height: 32px;
-  min-height: 32px;
-  padding: 0 32px 0 12px;
-  color: var(--fg);
-  background: var(--bg-sunken);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  outline: none;
-  cursor: pointer;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='currentColor' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  background-size: 10px 6px;
-}
-.select:focus {
-  border-color: var(--accent);
 }
 
 .agentList {
@@ -967,7 +989,8 @@
 }
 
 /* Same shell as .agentList label, but a row of actions instead of a single toggle. */
-.cliPathRow {
+.cliPathRow,
+.shellPathRow {
   display: grid;
   grid-template-columns: 40px minmax(0, 1fr) auto;
   align-items: center;
@@ -976,6 +999,11 @@
   background: var(--bg-sunken);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
+}
+
+/* Same row, without the agent-icon column. */
+.shellPathRow {
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .cliPathValue,

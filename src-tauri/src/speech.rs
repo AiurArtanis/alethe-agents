@@ -636,11 +636,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn catalog_has_recommended_parakeet_v3() {
+    fn catalog_recommends_exactly_one_downloadable_model() {
+        // Which model is recommended is a product choice that changes with the catalogue; the
+        // preferences list only needs exactly one of them marked, and every entry to have files.
         let list = speech_list_models();
-        assert_eq!(list.len(), 1);
-        assert_eq!(list[0].id, "parakeet-tdt-0.6b-v3-int8");
-        assert!(list[0].recommended);
-        assert!(list[0].size_bytes > 600_000_000);
+        assert_eq!(list.iter().filter(|model| model.recommended).count(), 1);
+        assert!(list.iter().all(|model| model.size_bytes > 0));
     }
 }

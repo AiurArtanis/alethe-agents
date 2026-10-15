@@ -2,7 +2,7 @@ import { Download, ExternalLink, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { useAgentInstall, useAgentOperationBusy } from '../../hooks/useAgentInstall'
-import { type Router9InstallAction,useRouter9Install } from '../../hooks/useRouter9Install'
+import { type Router9InstallAction, useRouter9Install } from '../../hooks/useRouter9Install'
 import {
   type InstallToolchain,
   NODE_DOWNLOAD_URL,
@@ -54,7 +54,6 @@ export function Router9InstallModal({ action, open, onClose, onSettled, nested }
       .then(setToolchain)
       .catch(() => undefined)
       .finally(() => setProbing(false))
-     
   }, [nodeInstall.status])
 
   const running = status === 'running'
@@ -65,42 +64,49 @@ export function Router9InstallModal({ action, open, onClose, onSettled, nested }
   const cleanLog = stripInstallLogAnsi(log)
   const nodeLog = stripInstallLogAnsi(nodeInstall.log)
   const installing = action === 'install'
+  /** The run is over, one way or the other: the dialog now reports instead of offering. */
+  const settled = status === 'success' || status === 'failed'
+
+  // Closing kills a running installer: one stuck on a prompt the read-only log cannot answer would
+  // otherwise hold this modal and the app-wide install lock until the app restarts.
+  const cancel = () => {
+    if (running) reset()
+    if (nodeRunning) nodeInstall.reset()
+    onClose()
+  }
 
   return (
     <Modal
       open={open}
-      onClose={() => {
-        if (running) return
-        onClose()
-      }}
+      onClose={cancel}
       title={installing ? t('router9.installTitle') : t('router9.uninstallTitle')}
       width={480}
       nested={nested}
       footer={
         <>
-          <button
-            type="button"
-            className={controls.btn}
-            disabled={running || nodeRunning}
-            onClick={onClose}
-          >
-            {t('agentInstall.cancel')}
+          <button type="button" className={controls.btn} onClick={cancel}>
+            {settled ? t('common.close') : t('agentInstall.cancel')}
           </button>
-          <button
-            type="button"
-            className={`${controls.btn} ${installing ? controls.btnPrimary : controls.btnDanger}`}
-            disabled={running || blocked || (installing && missingNode)}
-            onClick={() => void run(action)}
-          >
-            {installing ? <Download size={13} /> : <Trash2 size={13} />}
-            {running
-              ? installing
-                ? t('agentInstall.installing')
-                : t('agentInstall.uninstalling')
-              : installing
-                ? t('agentInstall.install')
-                : t('agentInstall.uninstall')}
-          </button>
+          {/* The run is over and it worked: offering to do it again would undo what just happened. */}
+          {status !== 'success' ? (
+            <button
+              type="button"
+              className={`${controls.btn} ${installing ? controls.btnPrimary : controls.btnDanger}`}
+              disabled={running || blocked || (installing && missingNode)}
+              onClick={() => void run(action)}
+            >
+              {installing ? <Download size={13} /> : <Trash2 size={13} />}
+              {running
+                ? installing
+                  ? t('agentInstall.installing')
+                  : t('agentInstall.uninstalling')
+                : status === 'failed'
+                  ? t('router9.retry')
+                  : installing
+                    ? t('agentInstall.install')
+                    : t('agentInstall.uninstall')}
+            </button>
+          ) : null}
         </>
       }
     >
@@ -153,12 +159,18 @@ export function Router9InstallModal({ action, open, onClose, onSettled, nested }
         </div>
       ) : null}
 
+      {/* Uninstalling and installing fail and succeed differently, and "Installed" on a removal
+          reads as the opposite of what happened. */}
       {status === 'failed' ? (
-        <p className={`${styles.modalText} ${styles.statusFailed}`}>{t('agentInstall.failed')}</p>
+        <p className={`${styles.modalText} ${styles.statusFailed}`}>
+          {t(installing ? 'router9.installFailed' : 'router9.uninstallFailed')}
+        </p>
       ) : null}
 
       {status === 'success' ? (
-        <p className={`${styles.modalText} ${styles.statusSuccess}`}>{t('agentInstall.done')}</p>
+        <p className={`${styles.modalText} ${styles.statusSuccess}`}>
+          {t(installing ? 'router9.installDone' : 'router9.uninstallDone')}
+        </p>
       ) : null}
 
       {cleanLog.trim() ? <pre className={styles.log}>{cleanLog}</pre> : null}

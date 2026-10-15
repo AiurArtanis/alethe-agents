@@ -5,6 +5,7 @@ import { DEFAULT_GRID_ID, gridTerminals, projectGrids } from '../../lib/projectG
 import type { Project } from '../../lib/types'
 import { useProjectsStore } from '../../stores/projectsStore'
 import { useUiStore } from '../../stores/uiStore'
+import { Dropdown } from '../ui/Dropdown'
 import controls from './controls.module.css'
 import { Modal } from './Modal'
 import styles from './ProjectGridModal.module.css'
@@ -134,20 +135,15 @@ function GridForm({ project, context }: { project: Project; context: Context }) 
           })}
         </p>
       ) : context.action === 'move' ? (
-        <label className={controls.field}>
+        <div className={controls.field}>
           <span className={controls.label}>{t('projectGrid.destination')}</span>
-          <select
-            className={controls.input}
+          <Dropdown
             value={target}
-            onChange={(event) => setTarget(event.target.value)}
-          >
-            {targets.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-        </label>
+            onChange={setTarget}
+            ariaLabel={t('projectGrid.destination')}
+            options={targets.map((item) => ({ value: item.id, label: item.name }))}
+          />
+        </div>
       ) : (
         <label className={controls.field}>
           <span className={controls.label}>{t('projectGrid.name')}</span>

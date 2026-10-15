@@ -8,17 +8,6 @@ export type PtyVisibilitySets = {
   focused: Set<string>
 }
 
-   
-                                                                    
-                                                                            
-                                                                    
-                                                                                    
-  
-                                                                         
-                                                                           
-                                                                          
-                             
-   
 export function computeVisibleFocusedPtyIds(): PtyVisibilitySets {
   const projectsState = useProjectsStore.getState()
   const ui = useUiStore.getState()
@@ -31,12 +20,6 @@ export function computeVisibleFocusedPtyIds(): PtyVisibilitySets {
     ),
   )
 
-                                                                       
-                                                                         
-                                                                             
-                                                                             
-                                                                        
-                                                                            
   // de verdade.
   const isolatedPaneId = projectsState.preferences.isolatedPaneId
 
@@ -51,9 +34,7 @@ export function computeVisibleFocusedPtyIds(): PtyVisibilitySets {
     for (const terminal of project.terminals) {
       const activeTab = terminal.tabs.find((tab) => tab.id === terminal.activeTabId)
       const inNormalGrid =
-        container &&
-        !container.collapsed &&
-        container.paneIds.includes(terminal.id)
+        container && !container.collapsed && container.paneIds.includes(terminal.id)
       const isIsolatedPane = terminal.id === isolatedPaneId
       const isKeptAlive = keptAlivePaneIds.has(terminal.id)
       if (activeTab?.ptyId && workspaceVisible && (inNormalGrid || isIsolatedPane || isKeptAlive)) {
@@ -69,6 +50,16 @@ export function computeVisibleFocusedPtyIds(): PtyVisibilitySets {
   if (canvasId && ui.activeView === 'agentCanvas') {
     visible.add(canvasId)
     focused.add(canvasId)
+  }
+
+  // The orchestration board's inspector shows a shell's terminal in an overlay, which is no pane of
+  // any workspace tab. Without this the loop above never sees it: its PTY would be reported hidden,
+  // so it would get no scrollback replay and its output stream would be switched off while the
+  // overlay still accepts keystrokes. The overlay clears this the moment it closes.
+  const inspectorId = ui.inspectorPtyId
+  if (inspectorId) {
+    visible.add(inspectorId)
+    focused.add(inspectorId)
   }
 
   return { visible, focused }
@@ -89,11 +80,6 @@ function subscribePtyVisibility(callback: () => void): () => void {
   }
 }
 
-                                                                               
-                                                                              
-                                                                             
-                                                                               
-                                                 
 let cached: PtyVisibilitySets | null = null
 
 function visibilitySets(): PtyVisibilitySets {
@@ -101,13 +87,6 @@ function visibilitySets(): PtyVisibilitySets {
   return cached
 }
 
-   
-                                                                            
-                                                                            
-                                                                    
-                                                                         
-                                                                
-   
 export function usePtyPanelVisible(ptyId: string | undefined): boolean {
   return useSyncExternalStore(subscribePtyVisibility, () => {
     if (!ptyId) return false

@@ -5,14 +5,14 @@ import {
   costAtRate,
   durationLabel,
   estimateRoutingSavings,
-  execArgsFor,
   formatReset,
   tailSummary,
 } from './agentCanvasUtils'
 import type { ModelRate, SessionCost } from './tauri'
-import type { AgentType } from './types'
 
-function sessionCost(partial: Partial<SessionCost> & Pick<SessionCost, 'model' | 'cost_usd'>): SessionCost {
+function sessionCost(
+  partial: Partial<SessionCost> & Pick<SessionCost, 'model' | 'cost_usd'>,
+): SessionCost {
   return {
     session_id: 's1',
     agent: 'claude',
@@ -107,22 +107,6 @@ describe('tailSummary', () => {
 
   it('returns short output unprefixed', () => {
     expect(tailSummary('ok', 10)).toBe('ok')
-  })
-})
-
-describe('execArgsFor', () => {
-  it('returns documented argv per agent', () => {
-    expect(execArgsFor('codex', 'do it')).toEqual(['exec', '--skip-git-repo-check', 'do it'])
-    expect(execArgsFor('claude', 'do it')).toEqual([
-      '-p',
-      'do it',
-      '--dangerously-skip-permissions',
-    ])
-    expect(execArgsFor('opencode', 'do it')).toEqual(['run', 'do it'])
-  })
-
-  it('returns undefined for unsupported agent types', () => {
-    expect(execArgsFor('shell' as AgentType, 'x')).toBeUndefined()
   })
 })
 

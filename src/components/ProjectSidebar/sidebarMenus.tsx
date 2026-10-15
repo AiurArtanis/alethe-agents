@@ -19,22 +19,19 @@ import {
   Workflow,
 } from 'lucide-react'
 
-import { preparePtyRuntimeLaunch } from '../../lib/agentRuntimeAdapter'
+import { relaunchAgentPty } from '../../lib/agentRelaunch'
+import { graphifyRepoOf } from '../../lib/claudeMcpConfigs'
 import { pickFile, saveFile } from '../../lib/dialog'
 import { useT } from '../../lib/i18n'
-import { buildAgentLaunch } from '../../lib/sessionLaunch'
 import {
   getPtyCwd,
   openInFileExplorer,
   openInVscode,
   readTextFile,
-  restartPty,
   writeTextFile,
 } from '../../lib/tauri'
-import { resolveAgentCliCommand } from '../../lib/agentProviders'
 import type { Group, Project, Terminal } from '../../lib/types'
 import { useProjectsStore } from '../../stores/projectsStore'
-import { useTerminalsStore } from '../../stores/terminalsStore'
 import { useUiStore } from '../../stores/uiStore'
 import { type MenuItem } from './ContextMenu'
 import { collectDescendants } from './GroupNode'
@@ -42,7 +39,6 @@ import { collectDescendants } from './GroupNode'
 type ProjectsState = ReturnType<typeof useProjectsStore.getState>
 type UiState = ReturnType<typeof useUiStore.getState>
 
-                                                                                
 type MenuActions = Pick<
   ProjectsState,
   | 'openProjectWorkspace'
@@ -92,12 +88,10 @@ export type SidebarMenuDeps = {
   openMarkdownSidebar: UiState['openMarkdownSidebar']
 }
 
-                                                                                        
 function visibleProjectTerminals(project: Project): Terminal[] {
   return project.terminals.filter((term) => !term.gsdSyncViewer)
 }
 
-                                                                         
 export function createSidebarMenus(deps: SidebarMenuDeps) {
   const {
     t,
@@ -116,10 +110,15 @@ export function createSidebarMenus(deps: SidebarMenuDeps) {
   } = deps
 
   const projectMenu = (project: Project): MenuItem[] => [
-    ...(project.mode !== 'agentSandbox' ? [{
-      kind: 'item' as const, label: t('projectGrid.create'),
-      onClick: () => openModal('projectGrid', { projectId: project.id, action: 'create' }),
-    }] : []),
+    ...(project.mode !== 'agentSandbox'
+      ? [
+          {
+            kind: 'item' as const,
+            label: t('projectGrid.create'),
+            onClick: () => openModal('projectGrid', { projectId: project.id, action: 'create' }),
+          },
+        ]
+      : []),
     {
       kind: 'item',
       label: t('ui.workspace.openIndividually'),
@@ -472,22 +471,18 @@ export function createSidebarMenus(deps: SidebarMenuDeps) {
   const restartTerminal = async (term: Terminal) => {
     const activeTab = activeTerminalTab(term)
     if (!activeTab?.ptyId || term.disabled) return
-    const runtime = preparePtyRuntimeLaunch(
-      activeTab.type,
-      activeTab.runtimeProfile,
-      activeTab.extraArgs ?? [],
-    )
-    const launch = buildAgentLaunch(activeTab.type, runtime.args, activeTab.sessionId)
-    useTerminalsStore.getState().beginRestart(activeTab.ptyId)
     try {
-      await restartPty({
-        id: activeTab.ptyId,
-        cols: 80,
-        rows: 24,
-        command: resolveAgentCliCommand(activeTab.type),
-        cwd: activeTab.cwd || undefined,
-        extraArgs: launch.args,
-        env: runtime.env,
+      const project = useProjectsStore
+        .getState()
+        .projects.find((entry) => entry.terminals.some((item) => item.id === term.id))
+      await relaunchAgentPty({
+        ptyId: activeTab.ptyId,
+        agent: activeTab.type,
+        runtimeProfile: activeTab.runtimeProfile,
+        extraArgs: activeTab.extraArgs,
+        sessionId: activeTab.sessionId,
+        cwd: activeTab.cwd,
+        graphifyRepo: graphifyRepoOf(project, term.cwd),
       })
       window.dispatchEvent(
         new CustomEvent('alethe:terminal-resize-request', { detail: { ptyId: activeTab.ptyId } }),
@@ -512,10 +507,16 @@ export function createSidebarMenus(deps: SidebarMenuDeps) {
     const isTerminalPane = !term.kind || term.kind === 'terminal'
     const effectiveLaneVisible = term.tabs.length > 1 ? true : term.laneVisible === true
     return [
-      ...(project?.mode !== 'agentSandbox' && (project?.grids?.length ?? 0) > 0 ? [{
-        kind: 'item' as const, label: t('projectGrid.move'),
-        onClick: () => openModal('projectGrid', { projectId, terminalId: term.id, action: 'move' }),
-      }] : []),
+      ...(project?.mode !== 'agentSandbox' && (project?.grids?.length ?? 0) > 0
+        ? [
+            {
+              kind: 'item' as const,
+              label: t('projectGrid.move'),
+              onClick: () =>
+                openModal('projectGrid', { projectId, terminalId: term.id, action: 'move' }),
+            },
+          ]
+        : []),
       {
         kind: 'item',
         label: t('terminalInspector.reveal'),

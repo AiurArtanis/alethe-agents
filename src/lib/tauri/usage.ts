@@ -1,8 +1,16 @@
 import { invoke } from '@tauri-apps/api/core'
 
+import { withUsageAccess } from '../usageAccess'
 import type { ModelCost } from './sessions'
 
 export type ClaudeUsageWindow = {
+  utilization: number
+  resets_at: string
+}
+
+/** A weekly limit scoped to one model other than Opus, such as Fable. */
+export type ClaudeModelLimit = {
+  model: string
   utilization: number
   resets_at: string
 }
@@ -11,16 +19,17 @@ export type ClaudeUsage = {
   five_hour: ClaudeUsageWindow
   seven_day: ClaudeUsageWindow
   seven_day_opus: ClaudeUsageWindow
+  model_limits?: ClaudeModelLimit[]
 }
 
 export async function getClaudeUsage(): Promise<ClaudeUsage> {
-  return invoke<ClaudeUsage>('get_claude_usage')
+  return withUsageAccess('claude', () => invoke<ClaudeUsage>('get_claude_usage'))
 }
 
 export type CodexUsageWindow = {
   used_percent: number
   window_minutes: number
-  /** Epoch em milissegundos (0 = desconhecido). */
+  /** Epoch in milliseconds (0 = unknown). */
   resets_at_ms: number
 }
 
@@ -41,12 +50,24 @@ export type CodexResetCredit = {
   description: string
 }
 
+/** An all-zero window means the plan has no such limit (Pro Lite has no 5h window). */
+export function hasCodexWindow(window: CodexUsageWindow): boolean {
+  return window.window_minutes > 0 || window.resets_at_ms > 0 || window.used_percent > 0
+}
+
+/** The 5h window when the plan has one, otherwise the weekly window. */
+export function codexHeadlineWindow(usage: CodexUsage): CodexUsageWindow {
+  return hasCodexWindow(usage.primary) ? usage.primary : usage.secondary
+}
+
 export async function getCodexUsage(): Promise<CodexUsage> {
-  return invoke<CodexUsage>('get_codex_usage')
+  return withUsageAccess('codex', () => invoke<CodexUsage>('get_codex_usage'))
 }
 
 export async function consumeCodexResetCredit(creditId?: string): Promise<CodexUsage> {
-  return invoke<CodexUsage>('consume_codex_reset_credit', { creditId })
+  return withUsageAccess('codex', () =>
+    invoke<CodexUsage>('consume_codex_reset_credit', { creditId }),
+  )
 }
 
 export type AntigravityQuotaBucket = {
@@ -66,10 +87,9 @@ export type AntigravityUsage = {
 }
 
 export async function getAntigravityUsage(): Promise<AntigravityUsage> {
-  return invoke<AntigravityUsage>('get_antigravity_usage')
+  return withUsageAccess('antigravity', () => invoke<AntigravityUsage>('get_antigravity_usage'))
 }
 
-                                                                        
 export type ModelRate = {
   family: string
   input: number
@@ -79,14 +99,10 @@ export type ModelRate = {
   cache_read: number
 }
 
-                                                                                 
 export async function getModelPricing(): Promise<ModelRate[]> {
   return invoke<ModelRate[]>('get_model_pricing')
 }
 
-                                                                        
-                                                                       
-                                                                 
 export type OpenCodeUsageSummary = {
   cost_usd: number
   input_tokens: number
@@ -110,8 +126,6 @@ export async function getClaudeActivity(days = 91): Promise<ActivityDay[]> {
   return invoke<ActivityDay[]>('get_claude_activity', { days }).catch(() => [])
 }
 
-                                                             
-                                                                                  
 export async function getMultiAgentActivity(days: number): Promise<ActivityDay[]> {
   return invoke<ActivityDay[]>('get_multi_agent_activity', { days })
 }

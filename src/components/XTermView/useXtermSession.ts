@@ -11,11 +11,19 @@ import { recordAgentActivityInput } from '../../lib/activityTracker'
 import { cliPathMatchesAgent } from '../../lib/agentCliPath'
 import { AgentCompletionMonitor } from '../../lib/agentCompletionMonitor'
 import { deliverOpenCodePrompt } from '../../lib/agentPromptDelivery'
-import { resolveAgentCliCommand } from '../../lib/agentProviders'
+import { resolveAgentCliCommand, resolveCustomAgentArgs } from '../../lib/agentProviders'
 import { preparePtyRuntimeLaunch } from '../../lib/agentRuntimeAdapter'
+import {
+  type ClaudeLaunchExtras,
+  claudeLaunchExtras,
+  plannerLabelFor,
+  recordClaudeLaunch,
+} from '../../lib/claudeMcpConfigs'
 import { claudeSessionFromHook } from '../../lib/claudeSessionTracking'
 import { getLocale, translate } from '../../lib/i18n'
+import { isOrchestratorShellPty } from '../../lib/orchestratorShells'
 import { isWindows } from '../../lib/platform'
+import { ptyLaunchTarget } from '../../lib/ptyLaunchTarget'
 import { usePtyPanelVisible } from '../../lib/ptyVisibility'
 import { router9EnvFor } from '../../lib/router9'
 import {
@@ -35,10 +43,8 @@ import {
 import { waitForSessionHint } from '../../lib/sessionWatch'
 import { acquireSpawnSlot, releaseSpawnSlot } from '../../lib/spawnQueue'
 import {
-  agentHooksSettingsPath,
   aiMemoryCodexConfigWrite,
   aiMemoryDetect,
-  aiMemoryMcpConfigPath,
   aiMemoryOpenCodeConfigWrite,
   attachPty,
   clearPtyScrollback,
@@ -46,17 +52,15 @@ import {
   codexMcpConfigWrite,
   createCursorChat,
   findCliLauncher,
+  findWslCli,
   graphifyCodexConfigWrite,
   graphifyEnsureGraph,
-  graphifyMcpConfigPath,
   graphifyOpenCodeConfigWrite,
   gsdOpenCodePluginWrite,
   killPty,
   listenPtyActivity,
   listenPtyData,
   listenPtyExit,
-  orchestratorMcpConfigPath,
-  playwrightMcpConfigPath,
   ptyExists,
   readClipboardPayload,
   readGsdChildSession,
@@ -76,6 +80,7 @@ import {
   isShellAgentType,
   type Theme,
 } from '../../lib/types'
+import { wslTargetFor } from '../../lib/wsl'
 import type { AgentHookPayload } from '../../stores/agentCanvasStore'
 import { useProjectsStore } from '../../stores/projectsStore'
 import { useTerminalsStore } from '../../stores/terminalsStore'
@@ -118,14 +123,14 @@ function isBrowserInputPending(): boolean {
 
 let aiMemoryMissingWarned = false
 
-/** The terminal's own name is what the person recognises a planner by, not its pty id. */
-function plannerLabelFor(ptyId: string): string {
-  for (const project of useProjectsStore.getState().projects) {
-    for (const terminal of project.terminals) {
-      if (terminal.tabs.some((tab) => tab.ptyId === ptyId)) return terminal.name
-    }
-  }
-  return ptyId
+/** Warns once per session that AI memory is on but its CLI is not installed. */
+function warnAiMemoryMissing(): void {
+  if (aiMemoryMissingWarned) return
+  aiMemoryMissingWarned = true
+  useUiStore.getState().pushToast({
+    title: translate(getLocale(), 'aiMemory.notInstalledTitle'),
+    body: translate(getLocale(), 'aiMemory.notInstalledBody'),
+  })
 }
 
 type BootPhase = 'preparing' | 'queued' | 'spawning' | 'attaching' | 'ready'
@@ -167,7 +172,9 @@ export function useXtermSession(params: {
   onLaunchErrorRef: MutableRefObject<((error: unknown) => void) | undefined>
   onAgentCompleteRef: MutableRefObject<(() => void) | undefined>
   setBootPhase: Dispatch<SetStateAction<BootPhase>>
-  setMemoryWait?: Dispatch<SetStateAction<{ availableMb: number; waitedMs: number; thresholdMb: number } | null>>
+  setMemoryWait?: Dispatch<
+    SetStateAction<{ availableMb: number; waitedMs: number; thresholdMb: number } | null>
+  >
   setCommandNotFound: Dispatch<SetStateAction<string | null>>
   setLinkActions: Dispatch<SetStateAction<LinkActionState | null>>
   setRetryKey: Dispatch<SetStateAction<number>>
@@ -259,16 +266,17 @@ export function useXtermSession(params: {
       command,
       cwd,
     )
-    const memoryWaitListener = listen<{ available_mb: number; waited_ms: number; threshold_mb: number }>(
-      `pty://spawn-wait/${ptyId}`,
-      (event) => {
-        setMemoryWait?.({
-          availableMb: event.payload.available_mb,
-          waitedMs: event.payload.waited_ms,
-          thresholdMb: event.payload.threshold_mb,
-        })
-      },
-    )
+    const memoryWaitListener = listen<{
+      available_mb: number
+      waited_ms: number
+      threshold_mb: number
+    }>(`pty://spawn-wait/${ptyId}`, (event) => {
+      setMemoryWait?.({
+        availableMb: event.payload.available_mb,
+        waitedMs: event.payload.waited_ms,
+        thresholdMb: event.payload.threshold_mb,
+      })
+    })
     void memoryWaitListener.then((off) => {
       if (disposed) off()
       else unlistenMemoryWait = off
@@ -329,7 +337,8 @@ export function useXtermSession(params: {
     // and loses the session it had just started.
     let initialInputInFlight = false
 
-    const resourcePolicy = useProjectsStore.getState().preferences.resourcePolicy
+    const preferences = useProjectsStore.getState().preferences
+    const resourcePolicy = preferences.resourcePolicy
     const terminal = new Terminal({
       cursorBlink: !readOnly,
 
@@ -344,7 +353,7 @@ export function useXtermSession(params: {
       // Match the Windows ConPTY backend when configuring terminal repaint behavior.
 
       ...(isWindows() ? { windowsPty: { backend: 'conpty' as const, buildNumber: 22000 } } : {}),
-      fontFamily: 'Cascadia Mono, Consolas, "Courier New", monospace',
+      fontFamily: preferences.terminalFontFamily,
       fontSize: 14,
       theme: getXtermTheme(terminalTheme),
     })
@@ -789,7 +798,13 @@ export function useXtermSession(params: {
       terminal.options.fontSize = currentFontSize
       scheduleResize(true)
     }
+    const onFontChanged = () => {
+      terminal.options.fontFamily = useProjectsStore.getState().preferences.terminalFontFamily
+      // Cell metrics come from the font, so the pane refits before the PTY hears a new size.
+      scheduleResize(true)
+    }
     window.addEventListener('alethe:zoom-changed', onZoomChanged)
+    window.addEventListener('alethe:terminal-font-changed', onFontChanged)
     window.addEventListener('alethe:terminal-resize-request', onResizeRequest)
 
     const initialFitTimer = window.setTimeout(() => {
@@ -989,8 +1004,37 @@ export function useXtermSession(params: {
           return
         }
 
+        // Only the board starts an orchestrator shell. A view that outlived it, such as one left
+        // open across an app restart, must not spawn an empty shell under its id.
+        if (isOrchestratorShellPty(ptyId)) {
+          terminal.write(`\r\n${translate(getLocale(), 'orchestrator.shell.viewGone')}\r\n`)
+          setBootPhase('ready')
+          return
+        }
+
         let launcherOverride: string | undefined
-        if (command && command !== 'shell') {
+        const wslTarget = wslTargetFor(
+          cwd,
+          useProjectsStore.getState().preferences.enabledFeatures.wsl,
+        )
+        // A plain WSL tab is a shell there too: the backend opens the distro's login shell.
+        if (command && !isShellAgentType(command) && wslTarget) {
+          const auto = await findWslCli(
+            wslTarget.distro,
+            resolveAgentCliCommand(command) ?? command,
+          )
+          console.info(
+            `[pty-launch] ${command} findWslCli(${wslTarget.distro}) → ${auto ?? 'null (NOT FOUND)'}`,
+          )
+          if (!auto) {
+            console.warn(
+              `[pty-launch] ${command} unresolved — showing the not-found overlay and staying offline`,
+            )
+            setCommandNotFound(command)
+            useTerminalsStore.getState().setStatus(ptyId, 'offline')
+            return
+          }
+        } else if (command && command !== 'shell') {
           if (cliPathOverride) {
             if (cliPathMatchesAgent(command, cliPathOverride)) {
               launcherOverride = cliPathOverride
@@ -1017,6 +1061,11 @@ export function useXtermSession(params: {
               useTerminalsStore.getState().setStatus(ptyId, 'offline')
               return
             }
+          }
+        } else {
+          launcherOverride = ptyLaunchTarget(command).launcherOverride
+          if (launcherOverride) {
+            console.info(`[pty-launch] shell using override: ${launcherOverride}`)
           }
         }
 
@@ -1108,8 +1157,14 @@ export function useXtermSession(params: {
           }
           if (disposed) return
         }
+        const customDefaultArgs = command ? resolveCustomAgentArgs(command) : []
         const preparedRuntime = command
-          ? preparePtyRuntimeLaunch(command, runtimeProfile, extraArgs ?? [], env)
+          ? preparePtyRuntimeLaunch(
+              command,
+              runtimeProfile,
+              [...customDefaultArgs, ...(extraArgs ?? [])],
+              env,
+            )
           : { args: extraArgs ?? [], env }
 
         // Read at spawn time rather than through a selector: the PTY environment is fixed when the
@@ -1129,18 +1184,29 @@ export function useXtermSession(params: {
         // Prepare optional integrations before spawning.
         const mcpConfigPaths: string[] = []
         let hooksSettingsPath: string | undefined
+        let claudeExtras: ClaudeLaunchExtras | undefined
 
-        if (
-          graphifyRepo &&
-          (command === 'claude' || command === 'codex' || command === 'opencode')
-        ) {
+        // Claude takes its MCP servers and hooks as launch arguments; every relaunch of this pane
+        // rebuilds them the same way (see claudeMcpConfigs and agentRelaunch).
+        if (command === 'claude') {
+          claudeExtras = await claudeLaunchExtras({
+            ptyId,
+            cwd,
+            graphifyRepo,
+            onAiMemoryMissing: warnAiMemoryMissing,
+          })
+          mcpConfigPaths.push(...claudeExtras.mcpConfigPaths)
+          hooksSettingsPath = claudeExtras.hooksSettingsPath
+          if (disposed) return
+        }
+
+        // Codex and OpenCode read in-repo config files instead, written once here. Graphify and
+        // ai-memory run Windows-side binaries over Windows paths, so neither crosses into a distro.
+        if (graphifyRepo && !wslTarget && (command === 'codex' || command === 'opencode')) {
           void graphifyEnsureGraph(graphifyRepo).catch(() => undefined)
-          if (command === 'claude') {
-            const p = await graphifyMcpConfigPath(graphifyRepo).catch(() => undefined)
-            if (p) mcpConfigPaths.push(p)
-          } else if (command === 'opencode') {
+          if (command === 'opencode') {
             await graphifyOpenCodeConfigWrite(graphifyRepo).catch(() => {})
-          } else if (command === 'codex') {
+          } else {
             await graphifyCodexConfigWrite(graphifyRepo).catch(() => {})
           }
           if (disposed) return
@@ -1150,66 +1216,24 @@ export function useXtermSession(params: {
         if (
           aiMemoryEnabled &&
           cwd &&
-          (command === 'claude' || command === 'codex' || command === 'opencode')
+          !wslTarget &&
+          (command === 'codex' || command === 'opencode')
         ) {
           const status = await aiMemoryDetect().catch(() => undefined)
           if (status?.installed) {
-            if (command === 'claude') {
-              const p = await aiMemoryMcpConfigPath(cwd).catch(() => undefined)
-              if (p) mcpConfigPaths.push(p)
-            } else if (command === 'opencode') {
+            if (command === 'opencode') {
               await aiMemoryOpenCodeConfigWrite(cwd).catch(() => {})
-            } else if (command === 'codex') {
+            } else {
               await aiMemoryCodexConfigWrite(cwd).catch(() => {})
             }
-          } else if (!aiMemoryMissingWarned) {
-            aiMemoryMissingWarned = true
-            useUiStore.getState().pushToast({
-              title: translate(getLocale(), 'aiMemory.notInstalledTitle'),
-              body: translate(getLocale(), 'aiMemory.notInstalledBody'),
-            })
+          } else {
+            warnAiMemoryMissing()
           }
-          if (disposed) return
-        }
-
-        // Claude only: it takes an ephemeral --mcp-config, so nothing is left behind pointing at a
-        // dead endpoint. Codex and OpenCode need in-repo config writes.
-        //
-        // This must never start a browser. The config points at the shared browser when one is
-        // already running and otherwise leaves Playwright on its default, which opens a browser
-        // only once the agent reaches for one.
-        const playwrightEnabled = useProjectsStore.getState().preferences.enabledFeatures.playwright
-        if (playwrightEnabled && command === 'claude') {
-          const { playwrightBrowserMode, playwrightDedicatedHeadless } =
-            useProjectsStore.getState().preferences
-          const p = await playwrightMcpConfigPath({
-            dedicated: playwrightBrowserMode === 'dedicated',
-            headless: playwrightDedicatedHeadless,
-          }).catch(() => undefined)
-          if (p) mcpConfigPaths.push(p)
           if (disposed) return
         }
 
         const orchestratorEnabled =
           useProjectsStore.getState().preferences.enabledFeatures.orchestrator
-        if (orchestratorEnabled && command === 'claude') {
-          const p = await orchestratorMcpConfigPath(ptyId, plannerLabelFor(ptyId), command).catch(
-            () => undefined,
-          )
-          if (p) mcpConfigPaths.push(p)
-          if (disposed) return
-        }
-
-        // Tags every Claude pane's hooks with its ptyId. SessionStart/UserPromptSubmit report the
-        // conversation the CLI is actually on, which is what keeps the pane in sync after an in-CLI
-        // /clear or /resume; with the orchestrator on, the same file also carries its subagent and
-        // tool-call hooks so the canvas can hang them off this planner.
-        if (command === 'claude') {
-          hooksSettingsPath = await agentHooksSettingsPath(ptyId, orchestratorEnabled).catch(
-            () => undefined,
-          )
-          if (disposed) return
-        }
 
         if (orchestratorEnabled && command === 'codex' && cwd) {
           // Same idea for Codex: it has its own native subagents (SubagentStart/Stop), just no http
@@ -1218,7 +1242,7 @@ export function useXtermSession(params: {
           if (disposed) return
 
           // Registers this Codex terminal as a planner too, so it can call alethe_delegate.
-          await codexMcpConfigWrite(cwd, ptyId, plannerLabelFor(ptyId), command).catch(
+          await codexMcpConfigWrite(cwd, ptyId, plannerLabelFor(ptyId, command), command).catch(
             () => undefined,
           )
           if (disposed) return
@@ -1228,6 +1252,7 @@ export function useXtermSession(params: {
         if (
           command === 'opencode' &&
           cwd &&
+          !wslTarget &&
           gsdWatcherEnabled &&
           preferences.enabledFeatures.gsdSync
         ) {
@@ -1285,6 +1310,9 @@ export function useXtermSession(params: {
           return
         }
         setBootPhase('spawning')
+        // A pty that is still alive is reattached, not relaunched: its process keeps whatever it
+        // was launched with, so only a real launch is recorded.
+        const launchesClaude = claudeExtras ? !(await ptyExists(ptyId).catch(() => true)) : false
         let response: { id: string }
         try {
           response = await spawnPty({
@@ -1301,6 +1329,8 @@ export function useXtermSession(params: {
           releaseSpawnSlot()
         }
         console.info(`[pty-launch] ${command ?? 'shell'} spawn OK id=${response.id}`)
+        if (claudeExtras && launchesClaude)
+          recordClaudeLaunch(response.id, claudeExtras.orchestrator)
         spawnedAtRef.current = Date.now()
         usedResumeRef.current = Boolean(resumeId)
         if (disposed) return
@@ -1646,6 +1676,7 @@ export function useXtermSession(params: {
       document.removeEventListener('visibilitychange', restoreLastTerminalFocus)
       container.removeEventListener('contextmenu', onContextMenu)
       window.removeEventListener('alethe:zoom-changed', onZoomChanged)
+      window.removeEventListener('alethe:terminal-font-changed', onFontChanged)
       window.removeEventListener('alethe:terminal-resize-request', onResizeRequest)
       ro.disconnect()
       if (resizeTimer !== null) window.clearTimeout(resizeTimer)

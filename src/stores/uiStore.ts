@@ -59,7 +59,7 @@ type ModalKind =
 
 export type ActiveView = 'home' | 'workspace' | 'agentCanvas' | 'agentSandbox'
 /** Open on purpose: plugins contribute right-sidebar tabs at runtime. */
-export type RightSidebarMode = 'markdown' | 'gsdSync' | 'mcp' | 'prs' | 'plugins' | (string & {})
+export type RightSidebarMode = 'markdown' | 'gsdSync' | 'mcp' | 'prs' | 'plugins' | 'agents' | (string & {})
 export type MarkdownSidebarTab = { path: string; title: string }
 
 export type MemorySample = MemoryStats & {
@@ -95,6 +95,8 @@ type UiState = {
   runtimeSnapshot: RuntimeSnapshot | null
   memoryHistory: MemorySample[]
   claudeUsage: ClaudeUsage | null
+  /** Why the last Claude usage read failed; null after a successful one. */
+  claudeUsageError: 'no_token' | 'unavailable' | null
   codexUsage: CodexUsage | null
   antigravityUsage: AntigravityUsage | null
 
@@ -117,6 +119,11 @@ type UiState = {
   activeView: ActiveView
 
   rightSidebarMode: RightSidebarMode
+  /**
+   * Sidebar state from before focus mode auto-opened the Agents tab on a planner, so leaving the
+   * planner can put the panel back exactly as it was. Null while no auto-open is in effect.
+   */
+  agentsSidebarPrev: { mode: RightSidebarMode; visible: boolean } | null
   /** Active left-sidebar tab. Shared so both shells and commands address the same one. */
   leftSidebarTab: string
   /** Reveals projects marked as hidden; resets on every app start. */
@@ -125,6 +132,13 @@ type UiState = {
   rightSidebarMarkdownTabs: MarkdownSidebarTab[]
 
   agentCanvasSession: { folder: string; ptyId: string } | null
+
+  /**
+   * The shell PTY shown in the orchestration board's inspector overlay. It belongs to no workspace
+   * pane, so it has to be named here for `computeVisibleFocusedPtyIds` to report it visible —
+   * otherwise it gets no scrollback replay and its output stream is switched off. null = closed.
+   */
+  inspectorPtyId: string | null
 
   agentCanvasBudgetUsd: number | null
   /** Ephemeral in-app notifications. */
@@ -150,6 +164,7 @@ type UiState = {
   setRuntimeSnapshot: (value: RuntimeSnapshot | null) => void
   clearMemoryHistory: () => void
   setClaudeUsage: (value: ClaudeUsage | null) => void
+  setClaudeUsageError: (value: 'no_token' | 'unavailable' | null) => void
   setCodexUsage: (value: CodexUsage | null) => void
   setAntigravityUsage: (value: AntigravityUsage | null) => void
   setFocusedTerminal: (id: string | null) => void
@@ -170,7 +185,10 @@ type UiState = {
   showGsdSyncSidebar: () => void
   showMcpSidebar: () => void
   showPrsSidebar: () => void
+  showAgentsSidebar: () => void
+  setAgentsSidebarPrev: (prev: { mode: RightSidebarMode; visible: boolean } | null) => void
   setAgentCanvasSession: (session: { folder: string; ptyId: string } | null) => void
+  setInspectorPty: (ptyId: string | null) => void
   setAgentCanvasBudget: (usd: number | null) => void
   pushToast: (toast: {
     title: string
@@ -199,6 +217,7 @@ export const useUiStore = create<UiState>((set) => ({
   runtimeSnapshot: null,
   memoryHistory: [],
   claudeUsage: null,
+  claudeUsageError: null,
   codexUsage: null,
   antigravityUsage: null,
   focusedTerminalId: null,
@@ -209,11 +228,13 @@ export const useUiStore = create<UiState>((set) => ({
   selectedPanes: [],
   activeView: 'workspace',
   rightSidebarMode: TODOS_VIEW_ID,
+  agentsSidebarPrev: null,
   leftSidebarTab: 'projects',
   revealHiddenProjects: false,
   rightSidebarMarkdown: null,
   rightSidebarMarkdownTabs: [],
   agentCanvasSession: null,
+  inspectorPtyId: null,
   agentCanvasBudgetUsd: null,
   toasts: [],
   notifications: [],
@@ -250,6 +271,7 @@ export const useUiStore = create<UiState>((set) => ({
   setRuntimeSnapshot: (value) => set({ runtimeSnapshot: value }),
   clearMemoryHistory: () => set({ memoryHistory: [] }),
   setClaudeUsage: (value) => set({ claudeUsage: value }),
+  setClaudeUsageError: (value) => set({ claudeUsageError: value }),
   setCodexUsage: (value) => set({ codexUsage: value }),
   setAntigravityUsage: (value) => set({ antigravityUsage: value }),
   setFocusedTerminal: (id) => set({ focusedTerminalId: id }),
@@ -317,7 +339,10 @@ export const useUiStore = create<UiState>((set) => ({
   showGsdSyncSidebar: () => set({ rightSidebarMode: 'gsdSync' }),
   showMcpSidebar: () => set({ rightSidebarMode: 'mcp' }),
   showPrsSidebar: () => set({ rightSidebarMode: 'prs' }),
+  showAgentsSidebar: () => set({ rightSidebarMode: 'agents' }),
+  setAgentsSidebarPrev: (prev) => set({ agentsSidebarPrev: prev }),
   setAgentCanvasSession: (session) => set({ agentCanvasSession: session }),
+  setInspectorPty: (ptyId) => set({ inspectorPtyId: ptyId }),
   setAgentCanvasBudget: (usd) => set({ agentCanvasBudgetUsd: usd }),
   pushToast: ({ title, body, agent, actions, silent }) =>
     set((s) => {

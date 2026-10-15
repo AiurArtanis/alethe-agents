@@ -13,12 +13,14 @@ import {
   ShieldCheck,
   TerminalSquare,
   UserRound,
+  Workflow,
   X,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useT } from '../../lib/i18n'
 import { getProfileImageUrl, getProfileInitial } from '../../lib/profile'
+import { setSectionCollapsed } from '../../lib/settingsSections'
 import { useProjectsStore } from '../../stores/projectsStore'
 import { useUiStore } from '../../stores/uiStore'
 import { ErrorBoundary } from '../ErrorBoundary'
@@ -28,6 +30,7 @@ import { AppearancePage } from './preferences/AppearancePage'
 import { FeaturesPage } from './preferences/FeaturesPage'
 import { IntegrationsPage } from './preferences/IntegrationsPage'
 import { MultiagentPage } from './preferences/MultiagentPage'
+import { OrchestrationPage } from './preferences/OrchestrationPage'
 import { OrganizationPage } from './preferences/OrganizationPage'
 import { PluginsPage } from './preferences/PluginsPage'
 import { Avatar } from './preferences/primitives'
@@ -43,6 +46,7 @@ type CategoryId =
   | 'terminal'
   | 'integrations'
   | 'multiagent'
+  | 'orchestration'
   | 'organization'
   | 'about'
   | 'remoteControl'
@@ -125,6 +129,12 @@ export function PreferencesModal() {
         label: t('prefs.categoryIntegrations'),
         description: t('prefs.categoryIntegrationsDesc'),
         Icon: Plug,
+      },
+      {
+        id: 'orchestration',
+        label: t('prefs.categoryOrchestration'),
+        description: t('prefs.categoryOrchestrationDesc'),
+        Icon: Workflow,
       },
       {
         id: 'multiagent',
@@ -219,7 +229,8 @@ export function PreferencesModal() {
         target: 'optional-features',
         label: t('prefs.features'),
         description: t('prefs.featuresDesc'),
-        keywords: 'features recursos modules módulos todo task tarefa git source control sidebar 功能 模块 待办',
+        keywords:
+          'features recursos modules módulos todo task tarefa git source control sidebar 功能 模块 待办',
       },
       {
         category: 'plugins',
@@ -252,6 +263,37 @@ export function PreferencesModal() {
         keywords: 'memory ram performance budget limit lru suspend memória desempenho limite',
       },
       {
+        category: 'orchestration',
+        target: 'orchestration-roles',
+        label: t('prefs.orchestrationRoles'),
+        description: t('prefs.orchestrationRolesDesc'),
+        keywords:
+          'orchestration orquestração role papel model modelo effort esforço reviewer revisor read-only',
+      },
+      {
+        category: 'orchestration',
+        target: 'orchestration-limits',
+        label: t('prefs.orchestrationLimits'),
+        description: t('prefs.orchestrationLimitsDesc'),
+        keywords:
+          'orchestration orquestração workers concurrency paralelo timeout budget orçamento',
+      },
+      {
+        category: 'orchestration',
+        target: 'orchestration-routing',
+        label: t('prefs.orchestrationRouting'),
+        description: t('prefs.orchestrationRoutingDesc'),
+        keywords:
+          'orchestration routing roteamento preset regras rules delegate economy balanced performance custom 路由 规则 预设',
+      },
+      {
+        category: 'orchestration',
+        target: 'orchestration-routing',
+        label: t('prefs.routingCriticalThreshold'),
+        description: t('prefs.routingCriticalThresholdHint'),
+        keywords: 'quota cota critical crítico threshold limite opus gate 配额 阈值 临界',
+      },
+      {
         category: 'terminal',
         target: 'spawn-concurrency',
         label: t('prefs.spawnConcurrency'),
@@ -267,11 +309,27 @@ export function PreferencesModal() {
       },
       {
         category: 'terminal',
+        target: 'agent-canvas-permissions',
+        label: t('prefs.experimentalPermissions'),
+        description: t('prefs.experimentalPermissionsDesc'),
+        keywords:
+          'permission permissions ask bypass approval canvas sandbox worker skip dangerously permissão permissões aprovação 权限 审批',
+      },
+      {
+        category: 'terminal',
         target: 'reset-session',
         label: t('prefs.resetSession'),
         description: t('prefs.resetSessionDesc'),
         keywords:
           'reset session resume retomar resetar sessão última last recover recuperar resume crash boot',
+      },
+      {
+        category: 'integrations',
+        target: 'usage-access',
+        label: t('prefs.usageAccess'),
+        description: t('prefs.usageAccessDesc'),
+        keywords:
+          'usage quota limits consent privacy credentials claude codex antigravity uso limite privacidade credenciais',
       },
       {
         category: 'integrations',
@@ -354,7 +412,8 @@ export function PreferencesModal() {
     setCategory(initial)
     setQuery('')
     setResultCursor(0)
-    setPendingTarget(null)
+    // A caller can open the modal on one specific setting, the same way a search result does.
+    setPendingTarget(typeof modalContext?.target === 'string' ? modalContext.target : null)
   }, [open, modalContext])
 
   useEffect(() => {
@@ -363,6 +422,8 @@ export function PreferencesModal() {
 
   useEffect(() => {
     if (!pendingTarget) return
+    // Jumping to a folded section would land on a closed heading, so open it before scrolling.
+    setSectionCollapsed(pendingTarget, false)
     const frame = window.requestAnimationFrame(() => {
       const target = contentRef.current?.querySelector<HTMLElement>(
         `[data-setting-id="${pendingTarget}"]`,
@@ -512,22 +573,23 @@ export function PreferencesModal() {
             <div ref={contentRef} className={styles.content}>
               <div className={styles.contentInner}>
                 <ErrorBoundary label="preferences-page">
-                {category === 'account' ? (
-                  <AccountPage
-                    avatarUrl={avatarUrl}
-                    initial={initial}
-                    onManageAccounts={() => openModal('profiles')}
-                  />
-                ) : null}
-                {category === 'appearance' ? <AppearancePage /> : null}
-                {category === 'features' ? <FeaturesPage /> : null}
-                {category === 'plugins' ? <PluginsPage /> : null}
-                {category === 'terminal' ? <TerminalPage enabledCount={enabledCount} /> : null}
-                {category === 'integrations' ? <IntegrationsPage /> : null}
-                {category === 'multiagent' ? <MultiagentPage /> : null}
-                {category === 'organization' ? <OrganizationPage /> : null}
-                {category === 'about' ? <AboutPage /> : null}
-                {category === 'remoteControl' ? <RemoteControlPage /> : null}
+                  {category === 'account' ? (
+                    <AccountPage
+                      avatarUrl={avatarUrl}
+                      initial={initial}
+                      onManageAccounts={() => openModal('profiles')}
+                    />
+                  ) : null}
+                  {category === 'appearance' ? <AppearancePage /> : null}
+                  {category === 'features' ? <FeaturesPage /> : null}
+                  {category === 'plugins' ? <PluginsPage /> : null}
+                  {category === 'terminal' ? <TerminalPage enabledCount={enabledCount} /> : null}
+                  {category === 'integrations' ? <IntegrationsPage /> : null}
+                  {category === 'multiagent' ? <MultiagentPage /> : null}
+                  {category === 'orchestration' ? <OrchestrationPage /> : null}
+                  {category === 'organization' ? <OrganizationPage /> : null}
+                  {category === 'about' ? <AboutPage /> : null}
+                  {category === 'remoteControl' ? <RemoteControlPage /> : null}
                 </ErrorBoundary>
               </div>
             </div>

@@ -36,6 +36,7 @@ import {
 import { useTerminalsStore } from '../../stores/terminalsStore'
 import { useUiStore } from '../../stores/uiStore'
 import { useVoiceHistoryStore } from '../../stores/voiceHistoryStore'
+import { Dropdown } from '../ui/Dropdown'
 import styles from './VoiceCommand.module.css'
 
 const LEVEL_POLL_MS = 60
@@ -247,9 +248,7 @@ export function VoiceCommand() {
         if (entryId) {
           useVoiceHistoryStore.getState().settle(entryId, { status: 'failed', error: reason })
         }
-        useUiStore
-          .getState()
-          .pushToast({ title: t('voice.failedToast'), body: reason })
+        useUiStore.getState().pushToast({ title: t('voice.failedToast'), body: reason })
       }
     },
     [close, t],
@@ -383,9 +382,7 @@ export function VoiceCommand() {
           summary: t('voice.lifecycle.failed'),
           error: reason,
         })
-        useUiStore
-          .getState()
-          .pushToast({ title: t('voice.failedToast'), body: reason })
+        useUiStore.getState().pushToast({ title: t('voice.failedToast'), body: reason })
       }
     })()
   }, [close, modelId, route, t])
@@ -513,9 +510,7 @@ export function VoiceCommand() {
               disabled={busy}
               aria-pressed={recording}
               aria-label={recording ? t('voice.bar.stopRecording') : t('voice.bar.startRecording')}
-              title={
-                recording ? t('voice.bar.stopRecording') : t('voice.bar.startRecordingTitle')
-              }
+              title={recording ? t('voice.bar.stopRecording') : t('voice.bar.startRecordingTitle')}
             >
               {busy ? (
                 <Loader2 size={17} className={styles.spin} aria-hidden />
@@ -579,27 +574,27 @@ export function VoiceCommand() {
               ))}
             </div>
             {mics.length > 1 ? (
-              <select
-                className={styles.micSelect}
+              <Dropdown
+                rootClassName={styles.micSelect}
+                className={styles.micSelectTrigger}
                 value={micId ?? ''}
                 disabled={recording}
-                aria-label={t('voice.bar.micLabel')}
-                onChange={(event) => {
-                  const value = event.target.value
+                ariaLabel={t('voice.bar.micLabel')}
+                options={[
+                  { value: '', label: t('voice.bar.micDefault') },
+                  ...mics.map((device) => ({
+                    value: device.deviceId,
+                    label: device.label,
+                  })),
+                ]}
+                onChange={(value) => {
                   const device = mics.find((item) => item.deviceId === value)
                   setPreferences({
                     dictationMicrophoneId: value || null,
                     dictationMicrophoneLabel: device?.label ?? null,
                   })
                 }}
-              >
-                <option value="">{t('voice.bar.micDefault')}</option>
-                {mics.map((device) => (
-                  <option key={device.deviceId} value={device.deviceId}>
-                    {device.label}
-                  </option>
-                ))}
-              </select>
+              />
             ) : null}
           </div>
         ) : null}

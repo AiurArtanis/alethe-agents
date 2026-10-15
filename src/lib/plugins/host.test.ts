@@ -71,9 +71,7 @@ function declaringManifest(overrides: Partial<PluginManifest> = {}): PluginManif
     capabilities: ['ui.sidebarTab', 'ui.command'],
     activation: ['onView:test.view', 'onCommand:test.cmd'],
     contributes: {
-      views: [
-        { id: 'test.view', container: 'rightSidebar', title: 'Test View', icon: 'puzzle' },
-      ],
+      views: [{ id: 'test.view', container: 'rightSidebar', title: 'Test View', icon: 'puzzle' }],
       commands: [{ id: 'test.cmd', title: 'Test Command' }],
     },
     ...overrides,
@@ -260,6 +258,36 @@ describe('manifest validation', () => {
     expect(entryFor('test.plugin')?.error).toBe('undeclared_view:test.plugin:not.declared')
     expect(sidebarTabContributions.get('test.view')?.component).toBeNull()
   })
+
+  it('refuses to reveal a view the plugin does not own', async () => {
+    // The navigation surface exists so a local plugin can open its own tab. It must not become a
+    // way to drive someone else's: a plugin steering another's UI is worse than not steering at all.
+    bundled.push({
+      manifest: declaringManifest(),
+      load: async () => ({
+        activate: (ctx: PluginContext) => ctx.ui.revealView('someone.elses.view'),
+      }),
+    })
+
+    await initPluginHost()
+    await activateForView('test.view')
+
+    expect(entryFor('test.plugin')?.error).toBe('undeclared_view:test.plugin:someone.elses.view')
+  })
+
+  it('refuses to open a modal the plugin never contributed', async () => {
+    bundled.push({
+      manifest: declaringManifest(),
+      load: async () => ({
+        activate: (ctx: PluginContext) => ctx.ui.openModal('preferences'),
+      }),
+    })
+
+    await initPluginHost()
+    await activateForView('test.view')
+
+    expect(entryFor('test.plugin')?.error).toBe('undeclared_modal:test.plugin:preferences')
+  })
 })
 
 describe('imperative contributions', () => {
@@ -286,7 +314,11 @@ describe('imperative contributions', () => {
       manifest: manifest({ capabilities: ['agent.provider'] }),
       load: async () => ({
         activate: (ctx: PluginContext) =>
-          ctx.contributes.agentProvider({ id: 'cursor', label: 'Cursor CLI', cliCommand: 'cursor' }),
+          ctx.contributes.agentProvider({
+            id: 'cursor',
+            label: 'Cursor CLI',
+            cliCommand: 'cursor',
+          }),
       }),
     })
 
