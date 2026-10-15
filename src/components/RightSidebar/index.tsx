@@ -104,7 +104,15 @@ export function RightSidebar() {
       contributedTabs.some((tab) => tab.id === mode)
     if (modeStillEnabled) return
     openMarkdown()
-  }, [contributedTabs, gsdSyncAvailable, mcpEnabled, prsEnabled, agentsPanelEnabled, mode, openMarkdown])
+  }, [
+    contributedTabs,
+    gsdSyncAvailable,
+    mcpEnabled,
+    prsEnabled,
+    agentsPanelEnabled,
+    mode,
+    openMarkdown,
+  ])
 
   return (
     <aside className={styles.sidebar} aria-label={t('rightSidebar.navigation')}>

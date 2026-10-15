@@ -88,7 +88,9 @@
   "plugins": {
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDgyMEVERDg5QjdGOUY1MkQKUldRdDlmbTNpZDBPZ21pNjQyeVJNREx3REhlOEpPUzVDaWlZeUhuUm5acXpFQ1o1VUhrNlR2bWkK",
-      "endpoints": ["https://github.com/AiurArtanis/alethe-agents/releases/latest/download/latest.json"],
+      "endpoints": [
+        "https://github.com/AiurArtanis/alethe-agents/releases/latest/download/latest.json"
+      ],
       "windows": {
         "installMode": "passive"
       }
