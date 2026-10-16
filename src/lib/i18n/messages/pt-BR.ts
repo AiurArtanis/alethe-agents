@@ -716,6 +716,14 @@ export const ptBR: Record<MessageKey, string> = {
   'prefs.dictationModelDownload': 'Baixar',
   'prefs.dictationModelDelete': 'Remover',
   'prefs.dictationModelLoading': 'Carregando catálogo de modelos…',
+  'prefs.dictationProvider': 'Transcritor',
+  'prefs.dictationProviderDesc': 'Onde a fala vira texto: o modelo no dispositivo ou um modelo com entrada de áudio no OpenRouter.',
+  'prefs.dictationProviderLocal': 'No dispositivo',
+  'prefs.dictationProviderOpenRouter': 'OpenRouter',
+  'prefs.dictationCloudModel': 'Modelo do OpenRouter',
+  'prefs.dictationCloudModelDesc': 'GPT Audio Mini é o mais rápido (~1,2 s). Gemini Flash Lite é um pouco mais lento (~1,7 s), mas mais preciso com termos técnicos. Usa a chave de API acima.',
+  'prefs.dictationCloudModelGptAudioMini': 'GPT Audio Mini · mais rápido',
+  'prefs.dictationCloudModelGeminiFlashLite': 'Gemini 3.1 Flash Lite · mais preciso',
   'dictation.label': 'Ditado por voz',
   'dictation.start': 'Iniciar ditado',
   'dictation.stop': 'Parar ditado',
@@ -728,6 +736,7 @@ export const ptBR: Record<MessageKey, string> = {
   'dictation.emptyTranscript':
     'Áudio capturado, mas o modelo não devolveu texto. Fale um pouco mais claro.',
   'dictation.noActiveTerminal': 'Foque um painel de terminal antes de ditar.',
+  'dictation.missingCloudKey':
   'dictation.unsupported': 'Entrada de voz indisponível nesta versão.',
   'prefs.terminalTheme': 'Tema do terminal',
   'prefs.terminalThemeDesc':
@@ -1445,7 +1454,7 @@ export const ptBR: Record<MessageKey, string> = {
   'term.bootQueued': 'Aguardando uma vaga para iniciar…',
   'term.bootSpawning': 'Iniciando processo…',
   'term.bootAttaching': 'Conectando ao terminal…',
-  'term.bootMemoryWait': 'Aguardando memória ({available} MB livres; necessário {threshold} MB) · {seconds}s',
+  'term.bootMemoryWait':
   'term.chooseFolder': 'Escolher pasta',
   'term.nameOptional': 'Nome (opcional)',
   'term.folderCwd': 'Pasta (cwd)',
@@ -2999,9 +3008,13 @@ export const ptBR: Record<MessageKey, string> = {
   'voice.bar.transcribingHint': 'Transcrevendo seu áudio',
   'voice.bar.decidingHint': 'Perguntando ao Jev o que fazer',
   'voice.bar.runnableHint': 'Enter executa esse plano | Esc cancela',
-  'voice.bar.idleHint': 'Clique no microfone ou segure o F9 para falar | Enter decide | Esc cancela',
-  'voice.bar.noKeyHint':
     'A chave fica guardada nas preferências e esta barra para de pedir',
+  'voice.bar.idleHint':
+  'voice.bar.noKeyHint': 'Configure sua chave de API do Decisions em Preferências → Ditado por voz',
+  'voice.bar.keySettingsDesc': 'Chave de API usada pelo Jev para encaminhar comandos de voz do workspace.',
+  'voice.bar.voiceOnlyLabel': 'Jev',
+  'voice.bar.voiceOnlyHint': 'Clique no microfone ou segure F9 para falar | Esc cancela',
+  'voice.bar.enableVoiceHint': 'Ative o ditado por voz nas Preferências para usar o microfone',
   'voice.bar.micSilent': 'Sem sinal deste microfone.',
   'voice.bar.micLabel': 'Microfone',
   'voice.bar.micDefault': 'Padrão do sistema',
@@ -3039,8 +3052,8 @@ export const ptBR: Record<MessageKey, string> = {
   'voice.history.tabTitle': 'Histórico do Jev',
   'voice.history.clear': 'Limpar histórico',
   'voice.history.emptyTitle': 'Nenhum comando ainda',
-  'voice.history.emptyBody':
     'Aperte Ctrl+Shift+Espaço, diga o que você quer, e isso aparece aqui.',
+  'voice.history.emptyBody': 'Aperte Ctrl+Shift+Espaço, diga o que você quer, e isso aparece aqui.',
   'voice.history.silence': '(silêncio)',
   'voice.history.status.deciding': 'decidindo',
   'voice.history.status.ran': 'executado',
@@ -3052,4 +3065,9 @@ export const ptBR: Record<MessageKey, string> = {
   'voice.history.voiceMs': 'voz {ms} ms',
   'voice.confirm.run': 'Executar',
   'voice.confirm.cancel': 'Cancelar',
+  'voice.bar.handsFreeHint': 'Solte o F9, diga "send it", ou pause para enviar',
+  'voice.bar.escHint': 'Esc para cancelar',
+  'voice.bar.keepListening': 'Escuta contínua',
+  'voice.bar.keepListeningTitle': 'Manter o microfone ativo entre comandos',
+  'voice.successToastTitle': 'Comando de voz executado',
 }

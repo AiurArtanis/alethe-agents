@@ -15,10 +15,40 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 - **Administrator shell tabs.** New terminal and new tab dialogs offer a Windows administrator
   option when Shell is selected. Elevated shells stay in the Alethe tab and request UAC approval
   through gsudo or Windows Sudo configured in inline mode.
+- **OpenRouter transcriber.** Preferences → Voice now has a Transcriber option: keep the
+  on-device model, or send each recording to OpenRouter using the same API key as Jev. Pick
+  GPT Audio Mini (fastest, about 1.2 s per command) or Gemini 3.1 Flash Lite (about 1.7 s, more
+  precise with technical words). Requests route to the lowest-latency provider. Applies to both the voice pill and
+  Ctrl+E dictation; live partial transcripts are skipped in this mode to avoid a paid call every
+  poll.
+- **Compact voice pill.** The voice command bar is now a small floating pill at the bottom of
+  the screen instead of a large centered modal: mic, waveform and status share one rounded bar,
+  confirmation details sit in a compact card above it, and a small hint reads "Esc to cancel".
+  The pill now has a smaller footprint, fully rounded controls, a gentle entrance and idle
+  animation, and animated processing dots. It fits its contents, with a travelling border highlight
+  and rounded confirmation card, and respects reduced motion.
+  Commands are voice-only; the API key is configured in voice dictation preferences.
+  Rounded voice surfaces are preserved in the Clean visual style.
+  Opening the voice pill no longer shows an automatic microphone focus ring.
+  Voice launch counts now honor the first-agent quantity for bare terminal requests, and
+  distinguish two terminals from three; speech recognition also biases common launch phrases.
+- **Voice focus flash and ordinals.** Focusing a pane by voice ("open terminal three", "show
+  agent one") now flashes the target pane so it is obvious what gained focus.
+- **Continuous listening mode.** A new toggle in the voice pill keeps the microphone live between
+  commands until the bar is closed; each finished command re-arms the mic automatically.
+- **Voice success toast.** Commands that run now confirm with an ephemeral toast, matching the
+  existing failure toast.
+
+- **Easier hands-free voice sending.** Short Portuguese send phrases such as “manda”, “envia” and
+  “pode mandar” now end recording without requiring the less reliable “thanks Jev” phrase.
 - Kimi Code is now an option in AI usage details, with independent panel and topbar visibility
   settings. Live five-hour, weekly, and monthly quotas are fetched using the CLI's existing login,
   with token renewal, manual refresh, and automatic polling; unavailable data is never shown as zero.
 
+- **Hands-free voice sending.** A command no longer waits for a keypress: end the
+  sentence with a send phrase such as "thanks Jev" or "send it" and it fires as soon as
+  the phrase is recognised, and a pause of about two seconds sends by itself. Releasing
+  F9 or clicking the stop button still works.
 - **Kimi Code is now a native agent.** Kimi Code (Moonshot AI) appears in every agent picker with
   its own icon and accent color, launches through the `kimi` CLI (unrestricted mode maps to
   `--yolo`), ships an install entry (`npm install -g @moonshot-ai/kimi-code`), and is part of the

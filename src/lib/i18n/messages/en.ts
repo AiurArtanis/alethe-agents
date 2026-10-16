@@ -705,6 +705,14 @@ export const en = {
   'prefs.dictationModelDownload': 'Download',
   'prefs.dictationModelDelete': 'Remove',
   'prefs.dictationModelLoading': 'Loading model catalog…',
+  'prefs.dictationProvider': 'Transcriber',
+  'prefs.dictationProviderDesc': 'Where speech becomes text: the on-device model, or an audio-capable model on OpenRouter.',
+  'prefs.dictationProviderLocal': 'On-device',
+  'prefs.dictationProviderOpenRouter': 'OpenRouter',
+  'prefs.dictationCloudModel': 'OpenRouter model',
+  'prefs.dictationCloudModelDesc': 'GPT Audio Mini is the fastest (~1.2 s). Gemini Flash Lite is a little slower (~1.7 s) but more precise with technical words. Uses the API key above.',
+  'prefs.dictationCloudModelGptAudioMini': 'GPT Audio Mini · fastest',
+  'prefs.dictationCloudModelGeminiFlashLite': 'Gemini 3.1 Flash Lite · most precise',
   'dictation.label': 'Voice dictation',
   'dictation.start': 'Start dictation',
   'dictation.stop': 'Stop dictation',
@@ -717,6 +725,7 @@ export const en = {
   'dictation.emptyTranscript':
     'Heard audio, but the model returned no text. Try speaking more clearly.',
   'dictation.noActiveTerminal': 'Focus a terminal pane before dictating.',
+  'dictation.missingCloudKey':
   'dictation.unsupported': 'Voice input is not available in this build.',
   'prefs.terminalTheme': 'Terminal theme',
   'prefs.terminalThemeDesc': 'Follow the interface theme or choose a dedicated terminal palette.',
@@ -1425,7 +1434,7 @@ export const en = {
   'term.bootQueued': 'Waiting for a spawn slot…',
   'term.bootSpawning': 'Starting process…',
   'term.bootAttaching': 'Connecting to terminal…',
-  'term.bootMemoryWait': 'Waiting for memory ({available} MB free; {threshold} MB needed) · {seconds}s',
+  'term.bootMemoryWait':
   'term.chooseFolder': 'Choose folder',
   'term.nameOptional': 'Name (optional)',
   'term.folderCwd': 'Folder (cwd)',
@@ -2973,8 +2982,12 @@ export const en = {
   'voice.bar.decidingHint': 'Asking Jev what to do',
   'voice.bar.runnableHint': 'Enter runs this plan | Esc cancels',
   'voice.bar.idleHint': 'Click the mic or hold F9 to speak | Enter decides | Esc cancels',
-  'voice.bar.noKeyHint':
     'The key is stored in preferences and this bar stops asking',
+  'voice.bar.noKeyHint': 'Set your Decisions API key in Preferences → Voice dictation',
+  'voice.bar.keySettingsDesc': 'API key used by Jev to route spoken workspace commands.',
+  'voice.bar.voiceOnlyLabel': 'Jev',
+  'voice.bar.voiceOnlyHint': 'Click the mic or hold F9 to speak | Esc cancels',
+  'voice.bar.enableVoiceHint': 'Enable voice dictation in Preferences to use the microphone',
   'voice.bar.micSilent': 'No signal from this microphone.',
   'voice.bar.micLabel': 'Microphone',
   'voice.bar.micDefault': 'System default',
@@ -3012,8 +3025,8 @@ export const en = {
   'voice.history.tabTitle': 'Jev history',
   'voice.history.clear': 'Clear history',
   'voice.history.emptyTitle': 'No commands yet',
-  'voice.history.emptyBody':
     'Press Ctrl+Shift+Space, say what you want, and it shows up here.',
+  'voice.history.emptyBody': 'Press Ctrl+Shift+Space, say what you want, and it shows up here.',
   'voice.history.silence': '(silence)',
   'voice.history.status.deciding': 'deciding',
   'voice.history.status.ran': 'ran',
@@ -3025,6 +3038,11 @@ export const en = {
   'voice.history.voiceMs': 'voice {ms} ms',
   'voice.confirm.run': 'Run',
   'voice.confirm.cancel': 'Cancel',
+  'voice.bar.handsFreeHint': 'Release F9, say "send it", or pause to send',
+  'voice.bar.escHint': 'Esc to cancel',
+  'voice.bar.keepListening': 'Continuous listening',
+  'voice.bar.keepListeningTitle': 'Keep the microphone live between commands',
+  'voice.successToastTitle': 'Voice command ran',
 } as const
 
 export type MessageKey = keyof typeof en

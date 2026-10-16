@@ -13,6 +13,7 @@ import { normalizeTodoTags, normalizeTodoTitle } from '../lib/todos'
 import {
   DEFAULT_PREFERENCES,
   DEFAULT_ROUTER9_PREFERENCES,
+  DICTATION_CLOUD_MODELS,
   EMPTY_PROJECTS_FILE,
   type Group,
   GROUP_COLORS,
@@ -155,6 +156,10 @@ export function normalizePreferences(raw: LegacyPreferences | undefined): Prefer
       typeof preferences.dictationModelId === 'string' && preferences.dictationModelId.trim()
         ? preferences.dictationModelId.trim()
         : DEFAULT_PREFERENCES.dictationModelId,
+    dictationProvider: preferences.dictationProvider === 'openrouter' ? 'openrouter' : 'local',
+    dictationCloudModel: DICTATION_CLOUD_MODELS.includes(preferences.dictationCloudModel)
+      ? preferences.dictationCloudModel
+      : DEFAULT_PREFERENCES.dictationCloudModel,
     dictationMicrophoneId:
       typeof preferences.dictationMicrophoneId === 'string' &&
       preferences.dictationMicrophoneId.trim()

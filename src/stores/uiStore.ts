@@ -113,6 +113,8 @@ type UiState = {
   mountedPaneIds: string[]
   /** Pulse that requests focus for a specific pane. */
   focusRequest: { terminalId: string; ts: number } | null
+  /** Pulse that flashes a specific pane so a voice-driven focus is visible. */
+  focusFlash: { terminalId: string; ts: number } | null
   activeTerminal: { projectId: string; terminalId: string } | null
   selectedPanes: { projectId: string; terminalId: string }[]
   /** View principal sendo exibida no main. */
@@ -157,6 +159,7 @@ type UiState = {
   setKimiUsage: (value: KimiUsage | null) => void
   setFocusedTerminal: (id: string | null) => void
   requestPaneFocus: (terminalId: string) => void
+  requestPaneFlash: (terminalId: string) => void
   setActiveTerminal: (projectId: string, terminalId: string) => void
   selectPane: (projectId: string, terminalId: string, extend: boolean) => void
   clearPaneSelection: () => void
@@ -209,6 +212,7 @@ export const useUiStore = create<UiState>((set) => ({
   keptAlivePaneIds: [],
   mountedPaneIds: [],
   focusRequest: null,
+  focusFlash: null,
   activeTerminal: null,
   selectedPanes: [],
   activeView: 'workspace',
@@ -259,6 +263,7 @@ export const useUiStore = create<UiState>((set) => ({
   setKimiUsage: (value) => set({ kimiUsage: value }),
   setFocusedTerminal: (id) => set({ focusedTerminalId: id }),
   requestPaneFocus: (terminalId) => set({ focusRequest: { terminalId, ts: Date.now() } }),
+  requestPaneFlash: (terminalId) => set({ focusFlash: { terminalId, ts: Date.now() } }),
   setActiveTerminal: (projectId, terminalId) => set({ activeTerminal: { projectId, terminalId } }),
   selectPane: (projectId, terminalId, extend) =>
     set((state) => {

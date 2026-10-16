@@ -544,6 +544,12 @@ export const DEFAULT_ROUTER9_PREFERENCES: Router9Preferences = {
   defaultForNewAgents: false,
 }
 
+export const DICTATION_CLOUD_MODELS = [
+  'openai/gpt-audio-mini',
+  'google/gemini-3.1-flash-lite',
+] as const
+export type DictationCloudModel = (typeof DICTATION_CLOUD_MODELS)[number]
+
 export type Preferences = {
   /** Idioma da UI. Default 'en'. */
   language: Locale
@@ -651,12 +657,16 @@ export type Preferences = {
   dictationMode: 'toggle' | 'hold'
   /** Selected on-device STT model id (Parakeet TDT v3 by default). */
   dictationModelId: string
+  dictationProvider: 'local' | 'openrouter'
+  dictationCloudModel: DictationCloudModel
   /** Preferred microphone deviceId, or null for the OS default. */
   dictationMicrophoneId: string | null
   /** Cached microphone label when the preferred device is unplugged. */
   dictationMicrophoneLabel: string | null
   /** Decisions API key for voice commands. Empty disables the command bar. */
   voiceCommandApiKey: string
+  /** Keep the microphone live between commands until the bar is closed. */
+  voiceKeepListening: boolean
   /** How many PTYs may spawn in parallel (global queue). Default 3. */
   spawnConcurrency: number
 
@@ -815,9 +825,12 @@ export const DEFAULT_PREFERENCES: Preferences = {
   dictationEnabled: false,
   dictationMode: 'toggle',
   dictationModelId: 'parakeet-tdt-0.6b-v3-int8',
+  dictationProvider: 'local',
+  dictationCloudModel: 'openai/gpt-audio-mini',
   dictationMicrophoneId: null,
   dictationMicrophoneLabel: null,
   voiceCommandApiKey: '',
+  voiceKeepListening: false,
   spawnConcurrency: 3,
   resourcePolicy: {
     mode: 'manual',

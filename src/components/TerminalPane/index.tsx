@@ -113,6 +113,21 @@ export const TerminalPane = memo(function TerminalPane({
     }
   }, [focusReq, terminal.id])
 
+  // Flash pulse from a voice-driven focus: draw attention without stealing focus.
+  const focusFlash = useUiStore((s) => s.focusFlash)
+  useEffect(() => {
+    if (!focusFlash || focusFlash.terminalId !== terminal.id) return
+    const node = paneRef.current
+    if (!node) return
+    node.animate(
+      [
+        { boxShadow: '0 0 0 2px var(--accent)' },
+        { boxShadow: '0 0 0 12px transparent' },
+      ],
+      { duration: 700, easing: 'ease-out' },
+    )
+  }, [focusFlash, terminal.id])
+
   const setActiveTab = useProjectsStore((s) => s.setActiveTab)
   const closeSubTab = useProjectsStore((s) => s.closeSubTab)
   const setLaneVisible = useProjectsStore((s) => s.setLaneVisible)

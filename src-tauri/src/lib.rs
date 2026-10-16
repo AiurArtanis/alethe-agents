@@ -72,6 +72,8 @@ mod session_watcher;
 mod skills;
 mod speech;
 mod speech_capture;
+mod speech_cloud;
+mod speech_vad;
 mod spotify;
 mod stats;
 mod supervisor;
@@ -458,10 +460,14 @@ pub fn run() {
             speech::speech_delete_model,
             speech::speech_start_capture,
             speech::speech_capture_level,
+            speech::speech_vad_status,
+            speech::speech_prepare_vad,
             speech::speech_stop_capture,
             speech::speech_prepare,
             speech::speech_stop_and_transcribe,
+            speech::speech_transcribe_partial,
             speech::speech_transcribe,
+            speech_cloud::speech_stop_and_transcribe_cloud,
             quit_app,
             worktrees::worktree_provision,
             worktrees::worktree_list,
