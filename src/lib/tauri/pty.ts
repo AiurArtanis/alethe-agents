@@ -61,13 +61,13 @@ export async function setPtyReadState(id: string, active: boolean): Promise<void
   await invoke('set_pty_read_state', { id, active })
 }
 
-                                                                        
-                                                                            
-                                                                             
-                                                              
 /** Resolves false when the PTY was not registered yet, so the output gate kept its old value. */
 export async function setPtyVisible(id: string, visible: boolean): Promise<boolean> {
   return invoke<boolean>('set_pty_visible', { id, visible })
+}
+
+export async function resumePtyOutput(id: string): Promise<string | null> {
+  return invoke<string | null>('resume_pty_output', { id })
 }
 
 export async function setPtyPriority(id: string, active: boolean): Promise<void> {
@@ -112,14 +112,13 @@ export type GhosttySurfaceResponse = {
   attached: boolean
 }
 
-                                                                          
 export type WebRect = { x: number; y: number; width: number; height: number }
 
 export type GhosttySpawnArgs = {
   id: string
-                                                                    
+
   cwd?: string
-                                                                                        
+
   command?: string
 }
 
@@ -143,7 +142,6 @@ export async function ghosttySetFocus(id: string, focused: boolean): Promise<voi
   await invoke('ghostty_set_focus', { id, focused })
 }
 
-                                                                                  
 export async function ghosttySurfaceExited(id: string): Promise<boolean> {
   return invoke<boolean>('ghostty_surface_exited', { id })
 }
@@ -152,7 +150,6 @@ export async function ghosttyKill(id: string): Promise<void> {
   await invoke('ghostty_kill', { id })
 }
 
-                                                                              
 export async function ghosttyKillAll(): Promise<void> {
   await invoke('ghostty_kill_all')
 }
@@ -176,10 +173,6 @@ export function listenPtyData(id: string, handler: (chunk: string) => void): Pro
   return listen<string>(`pty://data/${id}`, (event) => handler(event.payload))
 }
 
-                                                                           
-                                                                       
-                                                                          
-                               
 export function listenPtyActivity(
   id: string,
   handler: (chunk: string) => void,
@@ -194,7 +187,7 @@ export function listenPtyExit(
   return listen<PtyExitPayload>(`pty://exit/${id}`, (event) => handler(event.payload))
 }
 
-export type PtyExitReason = 'exited' | 'killed' | 'suspended' | 'restarted'
+export type PtyExitReason = 'exited' | 'killed' | 'suspended' | 'restarted' | 'shutdown'
 
 export type PtyExitPayload = {
   code: number | null

@@ -91,6 +91,22 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   the pane is not visible, when it was resumed, or when `codex exec` runs share the folder.
 - Restarting a Claude pane from the inspector or with "Reset last session" no longer stops it from
   tracking later conversation changes.
+- Terminal output from agents (Claude Code tables, `⏺`/`⎿` markers, box borders) no longer
+  misaligns or overlaps, especially on Linux. Terminals now use the bundled Caskaydia Cove font plus
+  a bundled symbols font (subset of JuliaMono, SIL OFL) instead of whatever the system falls back
+  to, and re-measure their cells once the fonts load and when the app zoom changes.
+- Agent history in a terminal no longer turns into unreadable fragments after the pane is hidden and
+  shown again (maximizing another pane, switching projects). Instead of wiping the terminal and
+  replaying the last 512 KB of raw output, which re-drew old frames at the wrong width, the pane now
+  receives only the output it missed while hidden; the full replay remains a fallback when that
+  backlog overflowed.
+- Resizing a pane (dragging a divider, maximizing, the pane animation) now sends the new size to the
+  running agent only once it has settled and the divider is released, so agents stop redrawing their
+  screen at every intermediate width.
+- Terminal clipboard events now use bounded paste writes instead of bypassing them through xterm's
+  keyboard input path. Failed or slow paste writes no longer automatically restart the live agent session,
+  and read-only terminals reject clipboard input.
+
 - Every coding agent reached the routing model described the same way, so a request that named no
   agent had nothing to choose on and the answer spread evenly across them, which showed up as a low
   confidence and a fallback. Agents now carry how many panes they have open and whether one of them

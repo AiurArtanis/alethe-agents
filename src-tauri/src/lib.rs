@@ -333,6 +333,7 @@ pub fn run() {
             pty::get_pty_cwd,
             pty::set_pty_read_state,
             pty::set_pty_visible,
+            pty::resume_pty_output,
             pty::set_pty_priority,
             ghostty_bridge::ghostty_spawn,
             ghostty_bridge::ghostty_sync_frame,

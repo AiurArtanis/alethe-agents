@@ -13,7 +13,12 @@ import { AgentCompletionMonitor } from '../../lib/agentCompletionMonitor'
 import { deliverOpenCodePrompt } from '../../lib/agentPromptDelivery'
 import { resolveAgentCliCommand } from '../../lib/agentProviders'
 import { preparePtyRuntimeLaunch } from '../../lib/agentRuntimeAdapter'
-import { claudeSessionFromHook } from '../../lib/claudeSessionTracking'
+import { claudeSessionFromHook, shortSessionId } from '../../lib/claudeSessionTracking'
+import {
+  forgetCodexPaneInput,
+  noteCodexPaneInput,
+  onCodexSessionAdopted,
+} from '../../lib/codexSessionTracking'
 import { getLocale, translate } from '../../lib/i18n'
 import { isWindows } from '../../lib/platform'
 import { usePtyPanelVisible } from '../../lib/ptyVisibility'
@@ -32,7 +37,6 @@ import {
   savedConversationIdFor,
   saveSession,
 } from '../../lib/sessionResume'
-import { waitForSessionHint } from '../../lib/sessionWatch'
 import { acquireSpawnSlot, releaseSpawnSlot } from '../../lib/spawnQueue'
 import {
   agentHooksSettingsPath,
@@ -41,6 +45,7 @@ import {
   aiMemoryMcpConfigPath,
   aiMemoryOpenCodeConfigWrite,
   attachPty,
+  claudeSessionExists,
   clearPtyScrollback,
   codexHooksConfigWrite,
   codexMcpConfigWrite,
@@ -60,10 +65,11 @@ import {
   ptyExists,
   readClipboardPayload,
   readGsdChildSession,
+  recordAppEvent,
   resizePty,
+  resumePtyOutput,
   setPtyVisible,
   snapshotAntigravitySessions,
-  snapshotClaudeSessions,
   snapshotCodexSessions,
   snapshotOpenCodeSessions,
   spawnPty,
@@ -80,6 +86,13 @@ import type { AgentHookPayload } from '../../stores/agentCanvasStore'
 import { useProjectsStore } from '../../stores/projectsStore'
 import { useTerminalsStore } from '../../stores/terminalsStore'
 import { useUiStore } from '../../stores/uiStore'
+import {
+  loadTerminalFonts,
+  remeasuredFontFamily,
+  TERMINAL_FONT_FAMILY,
+  TERMINAL_FONT_SIZE,
+  terminalFontsReady,
+} from './terminalFont'
 import {
   formatDroppedPaths,
   getTerminalScrollbackRows,
@@ -100,6 +113,7 @@ import {
   writePtyChunked,
   writePtyWithTimeout,
 } from './terminalWrite'
+import { captureTerminalPaste } from './terminalPaste'
 import { getXtermTheme, type LinkActionState } from './xtermThemes'
 
 // Early exits trigger a single fresh-session retry.
@@ -135,6 +149,7 @@ export function useXtermSession(params: {
   command?: AgentType | null
   cwd?: string | null
   extraArgs?: string[]
+  runAsAdmin?: boolean
   initialInput?: string
   sessionId?: string
   env?: Record<string, string>
@@ -167,7 +182,9 @@ export function useXtermSession(params: {
   onLaunchErrorRef: MutableRefObject<((error: unknown) => void) | undefined>
   onAgentCompleteRef: MutableRefObject<(() => void) | undefined>
   setBootPhase: Dispatch<SetStateAction<BootPhase>>
-  setMemoryWait?: Dispatch<SetStateAction<{ availableMb: number; waitedMs: number; thresholdMb: number } | null>>
+  setMemoryWait?: Dispatch<
+    SetStateAction<{ availableMb: number; waitedMs: number; thresholdMb: number } | null>
+  >
   setCommandNotFound: Dispatch<SetStateAction<string | null>>
   setLinkActions: Dispatch<SetStateAction<LinkActionState | null>>
   setRetryKey: Dispatch<SetStateAction<number>>
@@ -181,6 +198,7 @@ export function useXtermSession(params: {
     command,
     cwd,
     extraArgs,
+    runAsAdmin,
     initialInput,
     sessionId,
     env,
@@ -228,7 +246,10 @@ export function useXtermSession(params: {
   /** lastIoAt captured when the panel went hidden; null until it has been hidden once. */
   const lastIoWhenHiddenRef = useRef<number | null>(null)
 
-  const resyncTerminalRef = useRef<(() => Promise<void>) | null>(null)
+  const panelSyncRef = useRef<{
+    catchUp: () => Promise<boolean>
+    resync: () => Promise<void>
+  } | null>(null)
 
   useEffect(() => {
     const container = containerRef.current
@@ -259,16 +280,17 @@ export function useXtermSession(params: {
       command,
       cwd,
     )
-    const memoryWaitListener = listen<{ available_mb: number; waited_ms: number; threshold_mb: number }>(
-      `pty://spawn-wait/${ptyId}`,
-      (event) => {
-        setMemoryWait?.({
-          availableMb: event.payload.available_mb,
-          waitedMs: event.payload.waited_ms,
-          thresholdMb: event.payload.threshold_mb,
-        })
-      },
-    )
+    const memoryWaitListener = listen<{
+      available_mb: number
+      waited_ms: number
+      threshold_mb: number
+    }>(`pty://spawn-wait/${ptyId}`, (event) => {
+      setMemoryWait?.({
+        availableMb: event.payload.available_mb,
+        waitedMs: event.payload.waited_ms,
+        thresholdMb: event.payload.threshold_mb,
+      })
+    })
     void memoryWaitListener.then((off) => {
       if (disposed) off()
       else unlistenMemoryWait = off
@@ -302,6 +324,12 @@ export function useXtermSession(params: {
       persistAttachedSession()
       emitSessionId?.(nextSessionId)
     }
+    const recordSessionDrop = (reason: string, droppedSessionId: string | undefined) => {
+      void recordAppEvent(
+        'session.drop',
+        `agent=${command} reason=${reason} id=${shortSessionId(droppedSessionId)}`,
+      )
+    }
     let resizeTimer: number | null = null
     let writeFrame: number | null = null
     let writeFallback: number | null = null
@@ -311,6 +339,7 @@ export function useXtermSession(params: {
     let resumeErrorBuffer = ''
 
     let resyncCaptureRef: string[] | null = null
+    let heldLiveOutput: string[] | null = null
     let lastCols = 0
     let lastRows = 0
     let forceNextResize = false
@@ -344,8 +373,8 @@ export function useXtermSession(params: {
       // Match the Windows ConPTY backend when configuring terminal repaint behavior.
 
       ...(isWindows() ? { windowsPty: { backend: 'conpty' as const, buildNumber: 22000 } } : {}),
-      fontFamily: 'Cascadia Mono, Consolas, "Courier New", monospace',
-      fontSize: 14,
+      fontFamily: TERMINAL_FONT_FAMILY,
+      fontSize: TERMINAL_FONT_SIZE,
       theme: getXtermTheme(terminalTheme),
     })
     const fitAddon = new FitAddon()
@@ -501,6 +530,11 @@ export function useXtermSession(params: {
     container.addEventListener('wheel', onWheel, { passive: false, capture: true })
 
     const requestWriteRecovery = (id: string, source: 'input' | 'paste', error: unknown) => {
+      if (source === 'paste') {
+        // A timeout does not cancel the native write; restarting would destroy the live session.
+        console.warn(`[pty-paste] write failed for ${id}; preserving the live session`, error)
+        return
+      }
       console.warn(`[pty-${source}] write failed for ${id}; requesting recovery`, error)
       if (source === 'input' && initialInputInFlight) {
         // Restarting now would kill the process right in the middle of
@@ -524,7 +558,7 @@ export function useXtermSession(params: {
 
     const pasteText = (raw: string) => {
       try {
-        if (!raw) return
+        if (disposed || readOnly || !raw) return
         const id = ptyIdRef.current
         if (!id) return
         const text = normalizePastedText(raw)
@@ -674,9 +708,8 @@ export function useXtermSession(params: {
     document.addEventListener('visibilitychange', restoreLastTerminalFocus)
 
     const onPaste = (event: ClipboardEvent) => {
+      if (disposed || readOnly) return
       const raw = event.clipboardData?.getData('text/plain') ?? ''
-      event.preventDefault()
-      event.stopPropagation()
       if (raw) {
         pasteText(raw)
         return
@@ -688,7 +721,7 @@ export function useXtermSession(params: {
           terminal.focus()
         })
     }
-    container.addEventListener('paste', onPaste)
+    const releasePasteCapture = captureTerminalPaste(container, onPaste)
 
     const onContextMenu = (event: MouseEvent) => {
       event.preventDefault()
@@ -731,6 +764,8 @@ export function useXtermSession(params: {
       queueMicrotask(flushInput)
     }
 
+    let settlingSize: string | null = null
+    const isDividerDragging = () => document.querySelector('[data-resize-handle-active]') !== null
     const runResize = () => {
       resizeTimer = null
       const id = ptyIdRef.current
@@ -758,7 +793,17 @@ export function useXtermSession(params: {
       clampHorizontalScroll()
       const force = forceNextResize
       forceNextResize = false
-      if (!force && terminal.cols === lastCols && terminal.rows === lastRows) return
+      if (!force && terminal.cols === lastCols && terminal.rows === lastRows) {
+        settlingSize = null
+        return
+      }
+      const size = `${terminal.cols}x${terminal.rows}`
+      if (settlingSize !== size || isDividerDragging()) {
+        settlingSize = size
+        scheduleResize(force)
+        return
+      }
+      settlingSize = null
       lastCols = terminal.cols
       lastRows = terminal.rows
       if (import.meta.env.DEV) {
@@ -784,17 +829,22 @@ export function useXtermSession(params: {
     }
     const ro = new ResizeObserver(scheduleObservedResize)
     ro.observe(container)
-    const onZoomChanged = () => {
-      const currentFontSize = terminal.options.fontSize
-      terminal.options.fontSize = currentFontSize
+    const remeasureFont = () => {
+      terminal.options.fontFamily = remeasuredFontFamily(terminal.options.fontFamily)
       scheduleResize(true)
     }
+    const onZoomChanged = remeasureFont
     window.addEventListener('alethe:zoom-changed', onZoomChanged)
     window.addEventListener('alethe:terminal-resize-request', onResizeRequest)
 
     const initialFitTimer = window.setTimeout(() => {
       scheduleResize()
     }, 150)
+    if (!terminalFontsReady()) {
+      void loadTerminalFonts().then(() => {
+        if (!disposed) remeasureFont()
+      })
+    }
 
     // Rebuild the terminal screen from the backend replay.
 
@@ -817,7 +867,20 @@ export function useXtermSession(params: {
         resyncCaptureRef = null
       }
     }
-    resyncTerminalRef.current = doResync
+    const catchUpHiddenOutput = async (): Promise<boolean> => {
+      const id = ptyIdRef.current
+      if (!id || disposed) return true
+      const held: string[] = []
+      heldLiveOutput = held
+      const missed = await resumePtyOutput(id).catch(() => null)
+      heldLiveOutput = null
+      if (disposed) return true
+      if (missed) queueTerminalWrite(missed)
+      for (const chunk of held) queueTerminalWrite(chunk)
+      return missed !== null
+    }
+    const panelSync = { catchUp: catchUpHiddenOutput, resync: doResync }
+    panelSyncRef.current = panelSync
 
     // Separate rendered data from lightweight activity updates.
 
@@ -828,7 +891,8 @@ export function useXtermSession(params: {
       const dataUnlisten = await listenPtyData(id, (chunk) => {
         useTerminalsStore.getState().recordIo(id)
         if (resyncCaptureRef) resyncCaptureRef.push(chunk)
-        queueTerminalWrite(chunk)
+        if (heldLiveOutput) heldLiveOutput.push(chunk)
+        else queueTerminalWrite(chunk)
         completionMonitor?.handleOutput(chunk)
         inspectChunk?.(chunk)
       })
@@ -891,6 +955,7 @@ export function useXtermSession(params: {
         console.info(
           `[pty-launch] ${command ?? 'shell'} EXIT (attach) id=${existingId} code=${payload.code ?? '—'} reason=${payload.reason ?? '—'}`,
         )
+        if (payload.reason === 'shutdown') return
         if (payload.reason === 'restarted') {
           useTerminalsStore.getState().markExited(existingId)
           return
@@ -965,6 +1030,11 @@ export function useXtermSession(params: {
             return
           }
           unlistenSessionHook = off
+        }
+        if (command === 'codex' && !readOnly) {
+          unlistenSessionHook = onCodexSessionAdopted((adoptedPtyId, adoptedSessionId) => {
+            if (adoptedPtyId === attachedPtyId) adoptSession(adoptedSessionId)
+          })
         }
         // Skip zero-sized panes; the observer retries after layout settles.
         try {
@@ -1042,6 +1112,7 @@ export function useXtermSession(params: {
           console.warn(
             `[pty-launch] ${command} session ${resumeId} is already claimed; starting a fresh writer`,
           )
+          recordSessionDrop('claimed', resumeId)
           resumeId = undefined
           removeSession(sessionPersistenceKey)
           emitSessionId?.(undefined)
@@ -1064,18 +1135,20 @@ export function useXtermSession(params: {
           cwd
         ) {
           try {
-            const existing =
+            const knownId = resumeId
+            const listed =
               command === 'claude'
-                ? await snapshotClaudeSessions(cwd)
-                : command === 'codex'
-                  ? await snapshotCodexSessions(cwd)
-                  : command === 'antigravity'
-                    ? await snapshotAntigravitySessions(cwd)
-                    : await snapshotOpenCodeSessions(cwd)
-            const notListed = !existing.some((session) => session.id === resumeId)
+                ? await claudeSessionExists(cwd, knownId)
+                : (command === 'codex'
+                    ? await snapshotCodexSessions(cwd)
+                    : command === 'antigravity'
+                      ? await snapshotAntigravitySessions(cwd)
+                      : await snapshotOpenCodeSessions(cwd)
+                  ).some((session) => session.id === knownId)
 
-            if (notListed && command !== 'opencode') {
+            if (!listed && command !== 'opencode') {
               console.warn(`[pty-launch] ${command} ignoring orphaned session ${resumeId}`)
+              recordSessionDrop('orphaned', resumeId)
               resumeId = undefined
               removeSession(sessionPersistenceKey)
               emitSessionId?.(undefined)
@@ -1262,18 +1335,23 @@ export function useXtermSession(params: {
         if (command && cwd) {
           registerSessionClaim(command, cwd, launch.sessionId, sessionPersistenceKey)
         }
+        if (command && RESUMABLE_AGENTS.includes(command)) {
+          const source = !resumeId ? 'none' : resumeId === savedConversationId ? 'saved' : 'tab'
+          void recordAppEvent(
+            'session.resume',
+            `agent=${command} mode=${resumeId ? 'resume' : 'fresh'} source=${source} id=${shortSessionId(launch.sessionId)}`,
+          )
+        }
 
-        // Claude reports identity through its own hooks. Shared-directory timestamps
-        // cannot tell which pane created or resumed a conversation.
+        // Claude reports identity through its hooks and Codex through the session watcher.
+        // Shared-directory timestamps cannot tell which pane created or resumed a conversation.
         const discoveredSessionsBeforePromise =
           cwd && !launch.sessionId
-            ? command === 'codex'
-              ? snapshotCodexSessions(cwd).catch(() => [])
-              : command === 'antigravity'
-                ? snapshotAntigravitySessions(cwd).catch(() => [])
-                : command === 'opencode'
-                  ? snapshotOpenCodeSessions(cwd).catch(() => [])
-                  : null
+            ? command === 'antigravity'
+              ? snapshotAntigravitySessions(cwd).catch(() => [])
+              : command === 'opencode'
+                ? snapshotOpenCodeSessions(cwd).catch(() => [])
+                : null
             : null
 
         // Too many parallel PTY spawns can stall the app.
@@ -1294,6 +1372,7 @@ export function useXtermSession(params: {
             command: command ? resolveAgentCliCommand(command) : undefined,
             cwd: cwd ?? undefined,
             extraArgs: spawnArgs,
+            runAsAdmin: !command && runAsAdmin,
             launcherOverride,
             env: launchEnv,
           })
@@ -1307,6 +1386,7 @@ export function useXtermSession(params: {
         setBootPhase('attaching')
         attachedPtyId = response.id
         ptyIdRef.current = response.id
+        if (command === 'codex') forgetCodexPaneInput(response.id)
         useTerminalsStore.getState().registerPty(response.id)
         onSpawnedRef.current?.(response.id)
 
@@ -1337,7 +1417,7 @@ export function useXtermSession(params: {
           persistAttachedSession()
 
           if (
-            (command === 'codex' || command === 'antigravity' || command === 'opencode') &&
+            (command === 'antigravity' || command === 'opencode') &&
             cwd &&
             discoveredSessionsBeforePromise
           ) {
@@ -1348,21 +1428,12 @@ export function useXtermSession(params: {
               let attempt = 0
               while (!disposed) {
                 const delayMs = attempt < 10 ? 3000 : 15000
-                if (command === 'codex') {
-                  await Promise.race([
-                    new Promise((resolve) => setTimeout(resolve, delayMs)),
-                    waitForSessionHint('codex'),
-                  ])
-                } else {
-                  await new Promise((resolve) => setTimeout(resolve, delayMs))
-                }
+                await new Promise((resolve) => setTimeout(resolve, delayMs))
                 if (disposed) return
                 const sessions =
-                  command === 'codex'
-                    ? await snapshotCodexSessions(cwd).catch(() => [])
-                    : command === 'antigravity'
-                      ? await snapshotAntigravitySessions(cwd).catch(() => [])
-                      : await snapshotOpenCodeSessions(cwd).catch(() => [])
+                  command === 'antigravity'
+                    ? await snapshotAntigravitySessions(cwd).catch(() => [])
+                    : await snapshotOpenCodeSessions(cwd).catch(() => [])
 
                 // Same filtering as the resume block above.
                 let filteredSessions = sessions
@@ -1395,6 +1466,7 @@ export function useXtermSession(params: {
           resumeConflictHandled = true
           earlyExitRetriedRef.current = true
           forceFreshRef.current = true
+          recordSessionDrop('resume_conflict', attachedSessionId)
           removeSession(sessionPersistenceKey)
           emitSessionId?.(undefined)
           terminal.write(
@@ -1450,6 +1522,7 @@ export function useXtermSession(params: {
           console.info(
             `[pty-launch] ${command ?? 'shell'} EXIT id=${response.id} code=${payload.code ?? '—'} reason=${payload.reason ?? '—'}`,
           )
+          if (payload.reason === 'shutdown') return
           if (payload.reason === 'restarted') {
             useTerminalsStore.getState().markExited(response.id)
             return
@@ -1477,6 +1550,7 @@ export function useXtermSession(params: {
             useTerminalsStore.getState().markExited(response.id)
             completionMonitor?.dispose()
             completionMonitor = null
+            recordSessionDrop('early_exit', attachedSessionId)
             removeSession(sessionPersistenceKey)
             emitSessionId?.(undefined)
             terminal.write(
@@ -1590,6 +1664,7 @@ export function useXtermSession(params: {
               } else {
                 await writePtyChunked(response.id, prompt, terminal.modes.bracketedPasteMode)
                 await new Promise((resolve) => window.setTimeout(resolve, 150))
+                if (command === 'codex') noteCodexPaneInput(response.id)
                 await writePty(response.id, '\r')
                 // A CLI still drawing its first screen, or sitting on a trust prompt, swallows the
                 // first returns, so the text stays typed but unsent. Extra ones only submit empty.
@@ -1638,7 +1713,7 @@ export function useXtermSession(params: {
       container.removeEventListener('wheel', onWheel, true)
       container.removeEventListener('pointerdown', focusTerminal, true)
       container.removeEventListener('click', focusTerminal)
-      container.removeEventListener('paste', onPaste)
+      releasePasteCapture()
       container.removeEventListener('focusin', rememberTerminalFocus)
       container.removeEventListener('focusout', forgetTerminalFocus)
       document.removeEventListener('pointerdown', rememberPointerFocusIntent, true)
@@ -1668,7 +1743,7 @@ export function useXtermSession(params: {
       setLinkActions(null)
       if (terminalRef.current === terminal) terminalRef.current = null
       ptyIdRef.current = null
-      if (resyncTerminalRef.current === doResync) resyncTerminalRef.current = null
+      if (panelSyncRef.current === panelSync) panelSyncRef.current = null
       terminal.dispose()
     }
 
@@ -1694,22 +1769,28 @@ export function useXtermSession(params: {
     const ioAtNow = () => useTerminalsStore.getState().byPtyId[ptyId]?.lastIoAt ?? 0
     if (!isPanelVisible) lastIoWhenHiddenRef.current = ioAtNow()
 
-    void setPtyVisible(ptyId, isPanelVisible)
-      .catch(() => false)
-      .then((applied) => {
-        if (!applied && isPanelVisible) {
-          console.warn(
-            `[pty-visibility] ${ptyId} was not registered when the panel became visible; ` +
-              'the resource sampler will reconcile it',
-          )
-        }
-        if (cancelled || !isPanelVisible || wasVisible) return
+    const panelSync = panelSyncRef.current
+    if (isPanelVisible && !wasVisible && panelSync) {
+      void panelSync.catchUp().then((caughtUp) => {
+        if (caughtUp || cancelled) return
         if (lastIoWhenHiddenRef.current !== null && ioAtNow() === lastIoWhenHiddenRef.current)
           return
         resyncTimer = window.setTimeout(() => {
-          if (!cancelled) void resyncTerminalRef.current?.()
+          if (!cancelled) void panelSync.resync()
         }, PANEL_RESYNC_DEBOUNCE_MS)
       })
+    } else {
+      void setPtyVisible(ptyId, isPanelVisible)
+        .catch(() => false)
+        .then((applied) => {
+          if (!applied && isPanelVisible) {
+            console.warn(
+              `[pty-visibility] ${ptyId} was not registered when the panel became visible; ` +
+                'the resource sampler will reconcile it',
+            )
+          }
+        })
+    }
 
     return () => {
       cancelled = true

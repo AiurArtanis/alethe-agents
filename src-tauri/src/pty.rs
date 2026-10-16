@@ -28,6 +28,7 @@ const TEARDOWN_NORMAL: u8 = 0;
 const TEARDOWN_KILLED: u8 = 1;
 const TEARDOWN_SUSPENDED: u8 = 2;
 const TEARDOWN_RESTARTED: u8 = 3;
+const TEARDOWN_SHUTDOWN: u8 = 4;
 
 /// supervisor no modo manual.
 const SPAWN_MIN_AVAILABLE_MB: f64 = 400.0;
@@ -138,6 +139,7 @@ pub struct PtySession {
     pub read_active: Arc<(std::sync::Mutex<bool>, std::sync::Condvar)>,
 
     pub visible: Arc<AtomicBool>,
+    pub hidden_output: Arc<Mutex<HiddenOutput>>,
 
     /// OpenCode, disparado tanto no boot (primeiro output real do processo)
     /// quanto em `resize_pty`. Os dois gatilhos podem cair quase juntos —
@@ -148,6 +150,56 @@ pub struct PtySession {
 }
 
 const OPENCODE_NUDGE_COOLDOWN_MS: u64 = 400;
+const HIDDEN_OUTPUT_CAP: usize = 1024 * 1024;
+
+#[derive(Default)]
+pub struct HiddenOutput {
+    text: String,
+    complete: bool,
+}
+
+impl HiddenOutput {
+    fn record(&mut self, text: &str) {
+        if !self.complete {
+            return;
+        }
+        if self.text.len() + text.len() > HIDDEN_OUTPUT_CAP {
+            self.text.clear();
+            self.complete = false;
+            return;
+        }
+        self.text.push_str(text);
+    }
+}
+
+fn set_output_visible(visible: &AtomicBool, hidden: &Mutex<HiddenOutput>, next: bool) -> bool {
+    let mut hidden = hidden.lock().unwrap_or_else(|p| p.into_inner());
+    let was = visible.swap(next, Ordering::SeqCst);
+    if was != next {
+        hidden.text.clear();
+        hidden.complete = !next;
+    }
+    was
+}
+
+fn resume_hidden_output(visible: &AtomicBool, hidden: &Mutex<HiddenOutput>) -> Option<String> {
+    let mut hidden = hidden.lock().unwrap_or_else(|p| p.into_inner());
+    let was = visible.swap(true, Ordering::SeqCst);
+    let text = std::mem::take(&mut hidden.text);
+    let complete = !was && hidden.complete;
+    hidden.complete = false;
+    complete.then_some(text)
+}
+
+impl PtySession {
+    pub fn set_visible(&self, visible: bool) -> bool {
+        set_output_visible(&self.visible, &self.hidden_output, visible)
+    }
+
+    pub fn resume_output(&self) -> Option<String> {
+        resume_hidden_output(&self.visible, &self.hidden_output)
+    }
+}
 
 /// relaxar.
 fn try_claim_opencode_nudge(lock: &AtomicU64) -> bool {
@@ -416,6 +468,8 @@ pub async fn spawn_pty(
         let thread_read_active = Arc::clone(&read_active);
         let visible = Arc::new(AtomicBool::new(true));
         let thread_visible = Arc::clone(&visible);
+        let hidden_output = Arc::new(Mutex::new(HiddenOutput::default()));
+        let thread_hidden_output = Arc::clone(&hidden_output);
         let remote_pty_id = id.clone();
 
                                                                                  
@@ -483,12 +537,16 @@ pub async fn spawn_pty(
             remote_hub.publish(&remote_pty_id, || {
                 serde_json::json!({ "type": "pty_output", "ptyId": &remote_pty_id, "text": text })
             });
-            if thread_visible.load(Ordering::Relaxed) {
-                if !activity_pending.is_empty() {
-                    activity_pending.clear();
+            {
+                let mut hidden = thread_hidden_output.lock().unwrap_or_else(|p| p.into_inner());
+                if thread_visible.load(Ordering::SeqCst) {
+                    if !activity_pending.is_empty() {
+                        activity_pending.clear();
+                    }
+                    let _ = event_app.emit(&event_name, text);
+                    return;
                 }
-                let _ = event_app.emit(&event_name, text);
-                return;
+                hidden.record(text);
             }
             activity_pending.push_str(text);
             if activity_pending.len() > ACTIVITY_PENDING_CAP {
@@ -690,6 +748,7 @@ pub async fn spawn_pty(
             TEARDOWN_KILLED => "killed",
             TEARDOWN_SUSPENDED => "suspended",
             TEARDOWN_RESTARTED => "restarted",
+            TEARDOWN_SHUTDOWN => "shutdown",
             _ => "exited",
         };
         let _ = event_app.emit(&exit_event_name, PtyExitPayload { code, reason });
@@ -733,6 +792,7 @@ pub async fn spawn_pty(
             cwd,
             read_active,
             visible,
+            hidden_output,
             opencode_nudge_lock,
         };
 
@@ -1297,11 +1357,22 @@ pub fn set_pty_visible(
         .map_err(|_| "PTY sessions lock poisoned".to_string())?;
     match sessions.get(&id) {
         Some(session) => {
-            session.visible.store(visible, Ordering::Relaxed);
+            session.set_visible(visible);
             Ok(true)
         }
         None => Ok(false),
     }
+}
+
+#[tauri::command]
+pub fn resume_pty_output(
+    sessions: State<'_, PtySessions>,
+    id: String,
+) -> Result<Option<String>, String> {
+    let sessions = sessions
+        .lock()
+        .map_err(|_| "PTY sessions lock poisoned".to_string())?;
+    Ok(sessions.get(&id).and_then(PtySession::resume_output))
 }
 
 #[tauri::command]
@@ -1644,6 +1715,7 @@ pub fn kill_all_sessions_background(sessions: &PtySessions) {
     let total = drained.len();
     let (done, finished) = std::sync::mpsc::channel::<()>();
     for session in drained {
+        session.teardown.store(TEARDOWN_SHUTDOWN, Ordering::SeqCst);
         let done = done.clone();
         let _ = std::thread::Builder::new()
             .name("alethe-pty-shutdown".to_string())
@@ -1733,6 +1805,60 @@ pub fn install_kill_on_close_guard() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn output_gate() -> (AtomicBool, Mutex<HiddenOutput>) {
+        (AtomicBool::new(true), Mutex::new(HiddenOutput::default()))
+    }
+
+    fn record(hidden: &Mutex<HiddenOutput>, text: &str) {
+        hidden.lock().unwrap().record(text);
+    }
+
+    #[test]
+    fn resume_returns_exactly_what_was_missed_while_hidden() {
+        let (visible, hidden) = output_gate();
+        set_output_visible(&visible, &hidden, false);
+        record(&hidden, "one ");
+        record(&hidden, "two");
+        assert_eq!(
+            resume_hidden_output(&visible, &hidden).as_deref(),
+            Some("one two")
+        );
+        assert!(visible.load(Ordering::SeqCst));
+        assert_eq!(resume_hidden_output(&visible, &hidden), None);
+    }
+
+    #[test]
+    fn resume_gives_up_when_another_path_showed_the_pane_first() {
+        let (visible, hidden) = output_gate();
+        set_output_visible(&visible, &hidden, false);
+        record(&hidden, "missed");
+        set_output_visible(&visible, &hidden, true);
+        assert_eq!(resume_hidden_output(&visible, &hidden), None);
+    }
+
+    #[test]
+    fn resume_gives_up_when_the_backlog_overflowed() {
+        let (visible, hidden) = output_gate();
+        set_output_visible(&visible, &hidden, false);
+        record(&hidden, &"x".repeat(HIDDEN_OUTPUT_CAP));
+        record(&hidden, "y");
+        assert_eq!(resume_hidden_output(&visible, &hidden), None);
+    }
+
+    #[test]
+    fn hiding_again_starts_a_fresh_backlog() {
+        let (visible, hidden) = output_gate();
+        set_output_visible(&visible, &hidden, false);
+        record(&hidden, "old");
+        set_output_visible(&visible, &hidden, true);
+        set_output_visible(&visible, &hidden, false);
+        record(&hidden, "new");
+        assert_eq!(
+            resume_hidden_output(&visible, &hidden).as_deref(),
+            Some("new")
+        );
+    }
 
     /// Guards the invariant that made every terminal stop accepting keystrokes at once:
     /// `kill_process_tree` runs `taskkill` and waits for it, and holding the child lock across
