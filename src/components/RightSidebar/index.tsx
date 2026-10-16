@@ -368,6 +368,7 @@ function MarkdownSidebarViewer() {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const markdownRef = useRef<HTMLDivElement | null>(null)
   const [plans, setPlans] = useState<Array<{ path: string; title: string }>>([])
+  const markdownLoadRequestRef = useRef(0)
 
   useEffect(() => {
     const project = projects.find((item) => item.id === activeProjectId)
@@ -406,23 +407,30 @@ function MarkdownSidebarViewer() {
     readmeTabs.find((tab) => tab.path === selectedPath) ??
     (markdown ? { path: markdown.path, title: markdown.title } : null)
 
-  const load = async () => {
-    if (!selected?.path) return
+  const load = useCallback(async (path = selected?.path) => {
+    const requestId = ++markdownLoadRequestRef.current
+    if (!path) {
+      setContent(null)
+      setError(null)
+      return
+    }
     try {
-      setContent(await readTextFile(selected.path))
+      const nextContent = await readTextFile(path)
+      if (requestId !== markdownLoadRequestRef.current) return
+      setContent(nextContent)
       setError(null)
     } catch (err) {
+      if (requestId !== markdownLoadRequestRef.current) return
       setError(String(err))
       setContent(null)
     }
-  }
+  }, [selected?.path])
 
   useEffect(() => {
     setContent(null)
     setError(null)
     void load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [markdown?.path, selectedPath])
+  }, [load])
 
   useEffect(() => {
     if (!selected?.path || content === null) return

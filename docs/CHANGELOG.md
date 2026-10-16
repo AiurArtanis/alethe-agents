@@ -11,7 +11,6 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 ## [Unreleased]
 
 ### Added
-
 - **Administrator shell tabs.** New terminal and new tab dialogs offer a Windows administrator
   option when Shell is selected. Elevated shells stay in the Alethe tab and request UAC approval
   through gsudo or Windows Sudo configured in inline mode.
@@ -39,6 +38,8 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 - **Voice success toast.** Commands that run now confirm with an ephemeral toast, matching the
   existing failure toast.
 
+- **Cleaner Markdown viewer tabs.** The right-sidebar document tabs now use a compact strip with a
+  clearer active state, hidden scrollbar chrome, and a less prominent file path row.
 - **Easier hands-free voice sending.** Short Portuguese send phrases such as “manda”, “envia” and
   “pode mandar” now end recording without requiring the less reliable “thanks Jev” phrase.
 - Kimi Code is now an option in AI usage details, with independent panel and topbar visibility
