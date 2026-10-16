@@ -487,6 +487,7 @@ export function createSidebarMenus(deps: SidebarMenuDeps) {
         command: resolveAgentCliCommand(activeTab.type),
         cwd: activeTab.cwd || undefined,
         extraArgs: launch.args,
+        runAsAdmin: activeTab.type === 'shell' && activeTab.runAsAdmin,
         env: runtime.env,
       })
       window.dispatchEvent(

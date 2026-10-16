@@ -565,6 +565,7 @@ export function createProjectsSlice({ set, get, update, updateProject }: SliceCt
               command: resolveAgentCliCommand(tab.type),
               cwd: info.path,
               extraArgs: launch.args,
+              runAsAdmin: tab.type === 'shell' && tab.runAsAdmin,
               env: runtime.env,
             })
             window.dispatchEvent(
@@ -710,6 +711,7 @@ export function createProjectsSlice({ set, get, update, updateProject }: SliceCt
                   command: resolveAgentCliCommand(tab.type),
                   cwd: info.path,
                   extraArgs: launch.args,
+                  runAsAdmin: tab.type === 'shell' && tab.runAsAdmin,
                   env: runtime.env,
                 })
                 window.dispatchEvent(

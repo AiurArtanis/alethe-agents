@@ -12,6 +12,9 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Added
 
+- **Administrator shell tabs.** New terminal and new tab dialogs offer a Windows administrator
+  option when Shell is selected. Elevated shells stay in the Alethe tab and request UAC approval
+  through gsudo or Windows Sudo configured in inline mode.
 - **Kimi Code is now a native agent.** Kimi Code (Moonshot AI) appears in every agent picker with
   its own icon and accent color, launches through the `kimi` CLI (unrestricted mode maps to
   `--yolo`), ships an install entry (`npm install -g @moonshot-ai/kimi-code`), and is part of the

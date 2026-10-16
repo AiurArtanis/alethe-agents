@@ -8,9 +8,10 @@ export type SpawnPtyArgs = {
   command?: string
   cwd?: string
   extraArgs?: string[]
+  runAsAdmin?: boolean
   /** Path absoluto pro launcher (override do auto-detect). */
   launcherOverride?: string
-                                                                
+
   env?: Record<string, string>
 }
 
@@ -22,6 +23,7 @@ export async function spawnPty(args: SpawnPtyArgs): Promise<{ id: string }> {
     command: args.command,
     cwd: args.cwd,
     extraArgs: args.extraArgs,
+    runAsAdmin: args.runAsAdmin,
     launcherOverride: args.launcherOverride,
     env: args.env,
   })
@@ -93,6 +95,7 @@ export async function restartPty(args: SpawnPtyArgs & { id: string }): Promise<{
     command: args.command,
     cwd: args.cwd,
     extraArgs: args.extraArgs,
+    runAsAdmin: args.runAsAdmin,
     launcherOverride: args.launcherOverride,
     env: args.env,
   })

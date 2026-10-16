@@ -254,6 +254,7 @@ pub async fn spawn_pty(
     command: Option<String>,
     cwd: Option<String>,
     extra_args: Option<Vec<String>>,
+    run_as_admin: Option<bool>,
     // launcher_override: path absoluto que supersede o auto-detect. Frontend
     launcher_override: Option<String>,
 
@@ -322,7 +323,8 @@ pub async fn spawn_pty(
             requested_command.as_deref(),
             resolved_launcher.as_deref(),
             &extras,
-        );
+            run_as_admin.unwrap_or(false),
+        )?;
         if let Some(extra_env) = env.as_ref() {
             for (key, value) in extra_env {
                 command.env(key, value);
@@ -801,6 +803,7 @@ pub async fn restart_pty(
     command: Option<String>,
     cwd: Option<String>,
     extra_args: Option<Vec<String>>,
+    run_as_admin: Option<bool>,
     launcher_override: Option<String>,
     env: Option<HashMap<String, String>>,
 ) -> Result<SpawnPtyResponse, String> {
@@ -838,6 +841,7 @@ pub async fn restart_pty(
         command,
         cwd,
         extra_args,
+        run_as_admin,
         launcher_override,
         env,
     )

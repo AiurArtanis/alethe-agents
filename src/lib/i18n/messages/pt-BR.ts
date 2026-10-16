@@ -1419,6 +1419,8 @@ export const ptBR: Record<MessageKey, string> = {
   'term.unrestrictedEnableSkip': 'Ativar modo irrestrito (skip permissions)',
   'term.unrestrictedEnable': 'Ativar modo irrestrito',
   'term.unrestricted': 'Modo irrestrito',
+  'term.runAsAdmin': 'Iniciar shell como administrador',
+  'term.runAsAdminDescription': 'O UAC do Windows pedirá confirmação. Requer gsudo ou Sudo do Windows no modo inline.',
   'term.unrestrictedDescription': 'Ignora confirmações de permissão ao iniciar este agente.',
   'term.unrestrictedOn': 'Ativado',
   'term.unrestrictedOff': 'Desativado',

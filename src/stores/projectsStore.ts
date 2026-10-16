@@ -193,6 +193,7 @@ export type ProjectsState = ProjectsFile & {
         type: AgentType
         cwd: string
         extraArgs?: string[]
+        runAsAdmin?: boolean
         initialInput?: string
         handoff?: AgentHandoffBootstrap
         runtimeProfile?: AgentRuntimeProfile
@@ -215,6 +216,7 @@ export type ProjectsState = ProjectsFile & {
         type: AgentType
         cwd: string
         extraArgs?: string[]
+        runAsAdmin?: boolean
         initialInput?: string
         handoff?: AgentHandoffBootstrap
         runtimeProfile?: AgentRuntimeProfile
@@ -286,6 +288,7 @@ export type ProjectsState = ProjectsFile & {
       cwd: string
       name?: string
       extraArgs?: string[]
+      runAsAdmin?: boolean
       handoff?: AgentHandoffBootstrap
       runtimeProfile?: AgentRuntimeProfile
     },

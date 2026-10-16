@@ -187,6 +187,8 @@ export type SubTab = {
   sessionId?: string
   /** Args extras passados pro launcher (ex: --dangerously-skip-permissions). */
   extraArgs?: string[]
+  /** Start a plain Windows shell with administrator privileges. */
+  runAsAdmin?: boolean
 
   initialInput?: string
   /** One-shot context packet used to bootstrap a cross-provider session. */
@@ -511,6 +513,7 @@ export type TerminalCreationPreset = {
     type: AgentType
     cwd: string
     extraArgs?: string[]
+    runAsAdmin?: boolean
     runtimeProfile?: AgentRuntimeProfile
     useRouter9?: boolean
   }

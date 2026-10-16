@@ -1399,6 +1399,8 @@ export const en = {
   'term.unrestrictedEnableSkip': 'enable unrestricted mode (skip permissions)',
   'term.unrestrictedEnable': 'enable unrestricted mode',
   'term.unrestricted': 'Unrestricted mode',
+  'term.runAsAdmin': 'Start shell as administrator',
+  'term.runAsAdminDescription': 'Windows UAC will ask for approval. Requires gsudo or Windows Sudo in inline mode.',
   'term.unrestrictedDescription': 'Skip permission confirmations when this agent starts.',
   'term.unrestrictedOn': 'On',
   'term.unrestrictedOff': 'Off',

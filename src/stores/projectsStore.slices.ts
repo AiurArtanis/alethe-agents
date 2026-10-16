@@ -51,6 +51,7 @@ export function createSubTabsSlice({ updateTerminal, updateSubTab }: SliceCtx): 
         lastUsedAt: now,
         ptyId: null,
         extraArgs: args.extraArgs,
+        runAsAdmin: args.runAsAdmin,
         handoff: args.handoff,
         runtimeProfile: args.runtimeProfile,
       }

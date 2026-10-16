@@ -40,6 +40,7 @@ export type XTermViewProps = {
   command?: AgentType | null
   cwd?: string | null
   extraArgs?: string[]
+  runAsAdmin?: boolean
 
   initialInput?: string
   /** Identidade persistida da conversa deste pane. */
@@ -78,6 +79,7 @@ export function XTermView({
   command,
   cwd,
   extraArgs,
+  runAsAdmin,
   initialInput,
   sessionId,
   sessionKey,
@@ -318,6 +320,7 @@ export function XTermView({
     command,
     cwd,
     extraArgs,
+    runAsAdmin,
     initialInput,
     sessionId,
     env,

@@ -33,7 +33,11 @@ pub fn command_builder_for_terminal(
     initial_command: Option<&str>,
     resolved_launcher: Option<&str>,
     extra_args: &[String],
-) -> CommandBuilder {
+    run_as_admin: bool,
+) -> Result<CommandBuilder, String> {
+    if run_as_admin && initial_command.is_some_and(|value| !value.trim().is_empty()) {
+        return Err("Administrator mode is available only for plain shell terminals".to_string());
+    }
     let trimmed = initial_command
         .map(str::trim)
         .filter(|value| !value.is_empty());
@@ -75,7 +79,36 @@ pub fn command_builder_for_terminal(
         }
         None => {
             let shell = default_shell();
-            let mut builder = CommandBuilder::new(&shell);
+            let mut builder = if run_as_admin {
+                #[cfg(windows)]
+                {
+                    let elevation_command = if let Ok(gsudo) = which::which("gsudo.exe") {
+                        gsudo
+                    } else {
+                        let sudo_mode = RegKey::predef(HKEY_LOCAL_MACHINE)
+                            .open_subkey(r"SOFTWARE\Microsoft\Windows\CurrentVersion\Sudo")
+                            .ok()
+                            .and_then(|key| key.get_value::<u32, _>("Enabled").ok());
+                        let policy_mode = RegKey::predef(HKEY_LOCAL_MACHINE)
+                            .open_subkey(r"SOFTWARE\Policies\Microsoft\Windows\Sudo")
+                            .ok()
+                            .and_then(|key| key.get_value::<u32, _>("Enabled").ok());
+                        if sudo_mode != Some(3) || policy_mode.is_some_and(|mode| mode != 3) {
+                            return Err("An integrated administrator shell requires gsudo or Windows Sudo enabled in inline mode".to_string());
+                        }
+                        which::which("sudo.exe").map_err(|_| "Windows Sudo is unavailable".to_string())?
+                    };
+                    let mut elevated = CommandBuilder::new(elevation_command);
+                    elevated.arg(&shell);
+                    elevated
+                }
+                #[cfg(not(windows))]
+                {
+                    return Err("Administrator shell mode is available only on Windows".to_string());
+                }
+            } else {
+                CommandBuilder::new(&shell)
+            };
             if shell.eq_ignore_ascii_case("pwsh.exe")
                 || shell.eq_ignore_ascii_case("powershell.exe")
             {
@@ -124,7 +157,7 @@ pub fn command_builder_for_terminal(
     builder.env_remove("CLAUDECODE");
     builder.env_remove("CLAUDE_CODE_ENTRYPOINT");
     builder.env_remove("CLAUDECODE_PARENT_PID");
-    builder
+    Ok(builder)
 }
 
 ///
@@ -1015,6 +1048,12 @@ pub async fn discover_provider_models(provider: String) -> Result<Vec<ModelOptio
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn administrator_mode_rejects_agent_commands() {
+        let result = command_builder_for_terminal(Some("codex"), None, &[], true);
+        assert!(result.is_err());
+    }
     use std::path::PathBuf;
 
     #[test]
