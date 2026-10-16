@@ -91,6 +91,7 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   the pane is not visible, when it was resumed, or when `codex exec` runs share the folder.
 - Restarting a Claude pane from the inspector or with "Reset last session" no longer stops it from
   tracking later conversation changes.
+- Installing an update saves the workspace first, so the last changes before the update are kept.
 - Terminal output from agents (Claude Code tables, `⏺`/`⎿` markers, box borders) no longer
   misaligns or overlaps, especially on Linux. Terminals now use the bundled Caskaydia Cove font plus
   a bundled symbols font (subset of JuliaMono, SIL OFL) instead of whatever the system falls back
