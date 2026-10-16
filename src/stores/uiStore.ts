@@ -11,6 +11,7 @@ import {
 import { basename } from '../lib/paths'
 import type {
   AntigravityUsage,
+  KimiUsage,
   ClaudeUsage,
   CodexUsage,
   MemoryStats,
@@ -97,6 +98,7 @@ type UiState = {
   claudeUsage: ClaudeUsage | null
   codexUsage: CodexUsage | null
   antigravityUsage: AntigravityUsage | null
+  kimiUsage: KimiUsage | null
 
   focusedTerminalId: string | null
   /**
@@ -152,6 +154,7 @@ type UiState = {
   setClaudeUsage: (value: ClaudeUsage | null) => void
   setCodexUsage: (value: CodexUsage | null) => void
   setAntigravityUsage: (value: AntigravityUsage | null) => void
+  setKimiUsage: (value: KimiUsage | null) => void
   setFocusedTerminal: (id: string | null) => void
   requestPaneFocus: (terminalId: string) => void
   setActiveTerminal: (projectId: string, terminalId: string) => void
@@ -201,6 +204,7 @@ export const useUiStore = create<UiState>((set) => ({
   claudeUsage: null,
   codexUsage: null,
   antigravityUsage: null,
+  kimiUsage: null,
   focusedTerminalId: null,
   keptAlivePaneIds: [],
   mountedPaneIds: [],
@@ -252,6 +256,7 @@ export const useUiStore = create<UiState>((set) => ({
   setClaudeUsage: (value) => set({ claudeUsage: value }),
   setCodexUsage: (value) => set({ codexUsage: value }),
   setAntigravityUsage: (value) => set({ antigravityUsage: value }),
+  setKimiUsage: (value) => set({ kimiUsage: value }),
   setFocusedTerminal: (id) => set({ focusedTerminalId: id }),
   requestPaneFocus: (terminalId) => set({ focusRequest: { terminalId, ts: Date.now() } }),
   setActiveTerminal: (projectId, terminalId) => set({ activeTerminal: { projectId, terminalId } }),

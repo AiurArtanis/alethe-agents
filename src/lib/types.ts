@@ -598,10 +598,12 @@ export type Preferences = {
   usageShowClaude: boolean
   usageShowCodex: boolean
   usageShowAntigravity: boolean
+  usageShowKimi: boolean
   /** Itens opcionais exibidos no canto direito da topbar. */
   topbarShowClaudeUsage: boolean
   topbarShowCodexUsage: boolean
   topbarShowAntigravityUsage: boolean
+  topbarShowKimiUsage: boolean
   topbarShowSync: boolean
   topbarShowProfile: boolean
   topbarShowMemory: boolean
@@ -773,9 +775,11 @@ export const DEFAULT_PREFERENCES: Preferences = {
   usageShowClaude: true,
   usageShowCodex: true,
   usageShowAntigravity: true,
+  usageShowKimi: true,
   topbarShowClaudeUsage: true,
   topbarShowCodexUsage: true,
   topbarShowAntigravityUsage: true,
+  topbarShowKimiUsage: false,
   topbarShowSync: true,
   topbarShowProfile: true,
   topbarShowMemory: true,

@@ -7,17 +7,20 @@ import type { BuiltinAgentType, Preferences } from './types'
  * provider only needs an entry here plus its card.
  */
 export interface UsageProviderDef {
-  id: 'claude' | 'codex' | 'antigravity'
+  id: 'claude' | 'codex' | 'antigravity' | 'kimi'
   agentType: BuiltinAgentType
   /** Preferences key controlling the usage panel card (modal + home strip). */
   usagePrefKey: keyof Pick<
     Preferences,
-    'usageShowClaude' | 'usageShowCodex' | 'usageShowAntigravity'
+    'usageShowClaude' | 'usageShowCodex' | 'usageShowAntigravity' | 'usageShowKimi'
   >
   /** Preferences key controlling the topbar pill. */
   topbarPrefKey: keyof Pick<
     Preferences,
-    'topbarShowClaudeUsage' | 'topbarShowCodexUsage' | 'topbarShowAntigravityUsage'
+    | 'topbarShowClaudeUsage'
+    | 'topbarShowCodexUsage'
+    | 'topbarShowAntigravityUsage'
+    | 'topbarShowKimiUsage'
   >
 }
 
@@ -39,5 +42,11 @@ export const USAGE_PROVIDERS: UsageProviderDef[] = [
     agentType: 'antigravity',
     usagePrefKey: 'usageShowAntigravity',
     topbarPrefKey: 'topbarShowAntigravityUsage',
+  },
+  {
+    id: 'kimi',
+    agentType: 'kimi',
+    usagePrefKey: 'usageShowKimi',
+    topbarPrefKey: 'topbarShowKimiUsage',
   },
 ]

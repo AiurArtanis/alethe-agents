@@ -37,6 +37,7 @@ mod graphify;
 mod handoff;
 mod health_probe;
 mod jev;
+mod kimi_usage;
 mod logging;
 mod mcp_agents;
 mod mcp_catalog;
@@ -441,6 +442,7 @@ pub fn run() {
             codex_usage::get_codex_usage,
             codex_usage::consume_codex_reset_credit,
             antigravity_usage::get_antigravity_usage,
+            kimi_usage::get_kimi_usage,
             agent_cost::get_session_cost,
             agent_cost::get_transcript_cost,
             agent_cost::get_model_pricing,
