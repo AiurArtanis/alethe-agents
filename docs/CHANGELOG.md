@@ -105,6 +105,11 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Changed
 
+- Plugin Market profiles now open in a modal without adding workspace panes or requiring a project.
+  The sidebar and preferences catalogue share status/source filters, sorting, result counts, and
+  accent-insensitive multiword search across names, authors, descriptions, repositories, and permissions.
+  Installed local plugins can be uninstalled from their profile; bundled plugins explain how to disable them.
+
 - The startup loading screen now opens in your selected theme and visual style instead of the
   default dark theme, and its card, backdrop and progress indicator follow the design system
   tokens used across the rest of the app.
