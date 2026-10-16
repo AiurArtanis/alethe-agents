@@ -53,6 +53,7 @@ import { VoiceCommand } from './components/VoiceCommand'
 import { WorkspaceView } from './components/WorkspaceView'
 import { useAgentBrowserOffers } from './hooks/useAgentBrowserOffers'
 import { useAgentHookBridge } from './hooks/useAgentHookBridge'
+import { useCodexSessionBridge } from './hooks/useCodexSessionBridge'
 import { useCliOpenRequests } from './hooks/useCliOpenRequests'
 import { useCloseConfirmation } from './hooks/useCloseConfirmation'
 import { useDiscordPresence } from './hooks/useDiscordPresence'
@@ -283,6 +284,7 @@ export default function App() {
   useResourceSupervisor(hydrated)
   useAgentBrowserOffers(playwrightEnabled)
   useAgentHookBridge()
+  useCodexSessionBridge()
   useCliOpenRequests(hydrated)
 
   useEffect(() => {

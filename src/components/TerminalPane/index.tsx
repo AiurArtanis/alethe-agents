@@ -15,11 +15,10 @@ import {
 } from 'lucide-react'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 
-import { preparePtyRuntimeLaunch } from '../../lib/agentRuntimeAdapter'
 import { buildGhosttyCommand } from '../../lib/ghosttyCommand'
 import { useT } from '../../lib/i18n'
 import { shouldUseNativeBackend } from '../../lib/platform'
-import { buildAgentLaunch } from '../../lib/sessionLaunch'
+import { prepareAgentRelaunch } from '../../lib/sessionRelaunch'
 import {
   conversationFields,
   getActiveSessions,
@@ -27,14 +26,12 @@ import {
   saveSession,
 } from '../../lib/sessionResume'
 import {
-  agentHooksSettingsPath,
   completeAgentHandoff,
   getClaudeSessionTitle,
   getCodexSessionTitle,
   getPtyCwd,
   openInVscode,
   restartPty,
-  snapshotCodexSessions,
 } from '../../lib/tauri'
 import { resolveAgentCliCommand } from '../../lib/agentProviders'
 import {
@@ -217,32 +214,15 @@ export const TerminalPane = memo(function TerminalPane({
     }
     const activeSessions = getActiveSessions()
     const savedSession = activeSessions[activeTab.id] ?? activeSessions[ptyId] ?? null
-    let resumeSessionId =
+    const resumeSessionId =
       activeTab.sessionId ?? savedConversationIdFor(savedSession, activeTab.type, restartCwd)
-
-    if (!resumeSessionId && activeTab.type === 'codex' && restartCwd) {
-      resumeSessionId = (await snapshotCodexSessions(restartCwd).catch(() => []))[0]?.id
-    }
-    const preparedRuntime = preparePtyRuntimeLaunch(
-      activeTab.type,
-      activeTab.runtimeProfile,
-      activeTab.extraArgs ?? [],
-    )
-    const hooksSettingsPath =
-      activeTab.type === 'claude'
-        ? await agentHooksSettingsPath(
-            ptyId,
-            useProjectsStore.getState().preferences.enabledFeatures.orchestrator,
-          ).catch(() => undefined)
-        : undefined
-    const launch = buildAgentLaunch(
-      activeTab.type,
-      preparedRuntime.args,
-      resumeSessionId,
-      undefined,
-      undefined,
-      hooksSettingsPath,
-    )
+    const launch = await prepareAgentRelaunch({
+      agent: activeTab.type,
+      ptyId,
+      baseArgs: activeTab.extraArgs,
+      runtimeProfile: activeTab.runtimeProfile,
+      sessionId: resumeSessionId,
+    })
     if (launch.sessionId && launch.sessionId !== activeTab.sessionId) {
       setSubTabSessionId(projectId, terminal.id, activeTab.id, launch.sessionId)
     }
@@ -256,7 +236,8 @@ export const TerminalPane = memo(function TerminalPane({
         command: resolveAgentCliCommand(activeTab.type),
         cwd: restartCwd || undefined,
         extraArgs: launch.args,
-        env: preparedRuntime.env,
+        runAsAdmin: activeTab.type === 'shell' && activeTab.runAsAdmin,
+        env: launch.env,
       })
       if (launch.sessionId) {
         saveSession(activeTab.id, {
@@ -668,6 +649,7 @@ export const TerminalPane = memo(function TerminalPane({
                   command={activeTab.type === 'shell' ? null : activeTab.type}
                   cwd={activeTab.cwd || null}
                   extraArgs={runtimeExtraArgs}
+                  runAsAdmin={activeTab.type === 'shell' && activeTab.runAsAdmin}
                   initialInput={activeTab.initialInput}
                   runtimeProfile={activeTab.runtimeProfile}
                   useRouter9={activeTab.useRouter9}
@@ -684,9 +666,7 @@ export const TerminalPane = memo(function TerminalPane({
                     }
                   }}
                   onSessionId={(sessionId) => {
-                    if (activeTab.sessionId !== sessionId) {
-                      setSubTabSessionId(projectId, terminal.id, activeTab.id, sessionId)
-                    }
+                    setSubTabSessionId(projectId, terminal.id, activeTab.id, sessionId)
                   }}
                   onInitialInputSent={() =>
                     setSubTabInitialInput(projectId, terminal.id, activeTab.id, undefined)

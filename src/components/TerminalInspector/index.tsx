@@ -15,8 +15,7 @@ import {
 } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
 
-import { preparePtyRuntimeLaunch } from '../../lib/agentRuntimeAdapter'
-import { buildAgentLaunch } from '../../lib/sessionLaunch'
+import { prepareAgentRelaunch } from '../../lib/sessionRelaunch'
 import { useT } from '../../lib/i18n'
 import { resolveAgentCliCommand } from '../../lib/agentProviders'
 import type { SubTab, Terminal } from '../../lib/types'
@@ -123,12 +122,13 @@ function InspectorBody({ projectId, terminal }: { projectId: string; terminal: T
 
   const onRestart = async () => {
     if (!activeTab?.ptyId || terminal.disabled) return
-    const preparedRuntime = preparePtyRuntimeLaunch(
-      activeTab.type,
-      activeTab.runtimeProfile,
-      activeTab.extraArgs ?? [],
-    )
-    const launch = buildAgentLaunch(activeTab.type, preparedRuntime.args, activeTab.sessionId)
+    const launch = await prepareAgentRelaunch({
+      agent: activeTab.type,
+      ptyId: activeTab.ptyId,
+      baseArgs: activeTab.extraArgs,
+      runtimeProfile: activeTab.runtimeProfile,
+      sessionId: activeTab.sessionId,
+    })
     if (launch.sessionId && launch.sessionId !== activeTab.sessionId) {
       setSubTabSessionId(projectId, terminal.id, activeTab.id, launch.sessionId)
     }
@@ -141,7 +141,8 @@ function InspectorBody({ projectId, terminal }: { projectId: string; terminal: T
         command: resolveAgentCliCommand(activeTab.type),
         cwd: activeTab.cwd || undefined,
         extraArgs: launch.args,
-        env: preparedRuntime.env,
+        runAsAdmin: activeTab.type === 'shell' && activeTab.runAsAdmin,
+        env: launch.env,
       })
       window.dispatchEvent(
         new CustomEvent('alethe:terminal-resize-request', { detail: { ptyId: activeTab.ptyId } }),

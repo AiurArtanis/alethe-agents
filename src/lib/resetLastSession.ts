@@ -9,6 +9,8 @@
                                                               
    
 
+import { isSessionClaimed } from './sessionDiscovery'
+import { claudeHooksSettingsPath } from './sessionRelaunch'
 import { conversationFields, getActiveSessions, saveSession } from './sessionResume'
 import { acquireSpawnSlot, releaseSpawnSlot } from './spawnQueue'
 import {
@@ -73,7 +75,12 @@ async function latestSessionId(
 ): Promise<string | null> {
   if (!cwd) return null
   try {
-    if (agent === 'codex') return pickSessionId(await snapshotCodexSessions(cwd), exclude)
+    if (agent === 'codex') {
+      const interactive = (await snapshotCodexSessions(cwd)).filter(
+        (session) => session.source === 'cli' && !isSessionClaimed('codex', cwd, session.id),
+      )
+      return pickSessionId(interactive, exclude)
+    }
     if (agent === 'claude') return pickSessionId(await snapshotClaudeSessions(cwd), exclude)
     if (agent === 'opencode') {
                                                                           
@@ -213,7 +220,12 @@ export async function resetLastSession(): Promise<ResetLastSessionResult> {
       }
       const savedOpenCodeId = target.agent === 'opencode' ? active?.opencodeSessionId : undefined
       const sessionId = await latestSessionId(target.agent, cwd, exclude, savedOpenCodeId)
-      const extraArgs = buildResumeArgs(target.agent, target.extraArgs, sessionId)
+      const resumeArgs = buildResumeArgs(target.agent, target.extraArgs, sessionId)
+      const hooksSettingsPath =
+        target.agent === 'claude' ? await claudeHooksSettingsPath(target.ptyId) : undefined
+      const extraArgs = hooksSettingsPath
+        ? ['--settings', hooksSettingsPath, ...resumeArgs]
+        : resumeArgs
 
                                                                         
       useTerminalsStore.getState().beginRestart(target.ptyId)
@@ -224,6 +236,7 @@ export async function resetLastSession(): Promise<ResetLastSessionResult> {
         command: target.agent,
         cwd: cwd || undefined,
         extraArgs,
+        env: { ALETHE_PLANNER: target.ptyId },
       })
       window.dispatchEvent(
         new CustomEvent('alethe:terminal-resize-request', { detail: { ptyId: target.ptyId } }),

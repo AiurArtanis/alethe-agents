@@ -424,6 +424,7 @@ pub fn run() {
             spotify::spotify_status,
             spotify::spotify_get_current,
             claude_sessions::snapshot_claude_sessions,
+            claude_sessions::claude_session_exists,
             claude_sessions::list_claude_sessions,
             claude_sessions::get_claude_session_title,
             claude_sessions::get_claude_activity,

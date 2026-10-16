@@ -80,6 +80,17 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Fixed
 
+- Claude panes reopen on the conversation they were on when the project folder has a space, an
+  underscore, an accent or other punctuation in its path. Alethe looked for the saved conversation
+  in the wrong directory, treated it as gone and started a new chat on every launch.
+- A Claude pane now follows `/clear` and an in-CLI `/resume` immediately, instead of only after the
+  next prompt, so closing the app right after switching conversations no longer brings back the
+  previous chat.
+- A Codex pane now follows the conversation started by `/new`: it moves to the new chat once its
+  first prompt is sent, and reopens on it. Codex panes also keep getting their conversation when
+  the pane is not visible, when it was resumed, or when `codex exec` runs share the folder.
+- Restarting a Claude pane from the inspector or with "Reset last session" no longer stops it from
+  tracking later conversation changes.
 - Every coding agent reached the routing model described the same way, so a request that named no
   agent had nothing to choose on and the answer spread evenly across them, which showed up as a low
   confidence and a fallback. Agents now carry how many panes they have open and whether one of them
