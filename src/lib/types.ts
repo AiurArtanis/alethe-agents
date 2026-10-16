@@ -12,6 +12,8 @@ export type BuiltinAgentType =
   | 'antigravity'
   | 'kiro'
   | 'kimi'
+  | 'grok'
+  | 'codewhale'
 
 /**
  * An agent type id. Open on purpose: plugins contribute agent providers at
@@ -20,6 +22,9 @@ export type BuiltinAgentType =
  * an id resolves.
  */
 export type AgentType = BuiltinAgentType | (string & {})
+
+/** Providers whose subscription usage Alethe can read. */
+export type UsageProviderId = 'claude' | 'codex' | 'antigravity' | 'kimi'
 
 export const AGENT_TYPE_LABELS: Record<BuiltinAgentType, string> = {
   claude: 'Claude Code',
@@ -32,6 +37,8 @@ export const AGENT_TYPE_LABELS: Record<BuiltinAgentType, string> = {
   freebuff: 'Freebuff',
   kiro: 'Kiro CLI',
   kimi: 'Kimi Code',
+  grok: 'Grok Build',
+  codewhale: 'Codewhale',
   shell: 'Shell',
   wsl: 'WSL',
 }
@@ -47,6 +54,8 @@ export const ALL_AGENT_TYPES: BuiltinAgentType[] = [
   'freebuff',
   'kiro',
   'kimi',
+  'grok',
+  'codewhale',
   'shell',
   'wsl',
 ]
@@ -73,7 +82,31 @@ export function agentCliCommand(agent: AgentType): string | undefined {
   return mapped ?? agent
 }
 
-export type Locale = 'en' | 'pt-BR'
+/** Where a custom agent icon comes from: a built-in preset, a local .ico asset, or a PNG link. */
+export type CustomAgentIconSpec =
+  | { kind: 'preset'; key: string }
+  | { kind: 'file'; assetId: string }
+  | { kind: 'url'; href: string }
+
+/** User-defined custom agent stored in preferences. Never a built-in. */
+export type CustomAgentDefinition = {
+  /** Slug: ^[a-z0-9-]{2,32}$, unique, never a BuiltinAgentType. */
+  id: string
+  /** Display label shown everywhere the built-ins appear. */
+  label: string
+  /** CLI invocation as typed by the user: binary plus optional default args. */
+  cliCommand: string
+  /** Optional flag that skips permission prompts (e.g. --allow-all). */
+  unrestrictedFlag?: string | null
+  /** An `--agent-*` CSS custom property, including the leading dashes. */
+  accentToken?: string
+  /** Legacy icon preset key. Prefer `iconSpec`; kept so older files still render. */
+  icon?: string
+  /** Discriminated icon spec. Absent means the legacy `icon` preset key. */
+  iconSpec?: CustomAgentIconSpec
+}
+
+export type Locale = 'en' | 'pt-BR' | 'zh-CN'
 
 export type LayoutMode = 'auto' | 'spotlight' | 'sidebar' | 'grid'
 
@@ -139,7 +172,16 @@ export type SetupWalkthroughStep = 'project' | 'appearance'
 export const SETUP_WALKTHROUGH_STEPS: SetupWalkthroughStep[] = ['project', 'appearance']
 
 export type FeatureId =
-  'browser' | 'graphify' | 'aiMemory' | 'mcp' | 'playwright' | 'orchestrator' | 'prs' | 'gsdSync'
+  | 'browser'
+  | 'graphify'
+  | 'aiMemory'
+  | 'mcp'
+  | 'playwright'
+  | 'orchestrator'
+  | 'prs'
+  | 'gsdSync'
+  | 'wsl'
+  | 'agentsPanel'
 
 export type TodoItem = {
   id: string
@@ -224,7 +266,17 @@ export const UNRESTRICTED_FLAG: Record<BuiltinAgentType, string | null> = {
   antigravity: '--dangerously-skip-permissions',
   kiro: '--trust-all-tools',
   kimi: '--yolo',
+  grok: '--yolo',
+  // Codewhale Full Access is a TUI posture (Shift+Tab / /config), not a launch flag.
+  codewhale: null,
 }
+
+/**
+ * How the experimental Agent Canvas and Agent Sandbox workers handle permissions: `ask` keeps the
+ * agent's own checks, `bypass` lets it run commands and edit files without asking. The arguments
+ * each mode maps to live in `experimentalAgentPolicy.ts`.
+ */
+export type ExperimentalAgentPermissionMode = 'ask' | 'bypass'
 
 export type PaneKind =
   | 'terminal'
@@ -278,6 +330,13 @@ export type Terminal = {
   laneVisible: boolean | null
   /** Keeps terminal controls in a fixed topbar instead of revealing them on hover. */
   topbarPinned?: boolean
+  /**
+   * Set once the user renames this pane through the sidebar's Rename action. Sidebar rows
+   * otherwise prefer a live auto-derived title (the Claude session title, or the active
+   * sub-tab's agent-type name) over `name` — this flag lets an explicit rename win instead of
+   * being silently shadowed by that.
+   */
+  customName?: boolean
 
   lastUsedAt?: number
 
@@ -331,6 +390,11 @@ export type PaneGroup = {
   paneIds: string[]
   /** Dedicated groups keep related panes together without changing the project's outer layout. */
   kind?: 'orchestration'
+  /**
+   * The terminal an orchestration board was opened for. A terminal that was already grouped brings
+   * its group along, so it is not always the first pane.
+   */
+  plannerId?: string
 }
 
 export type OrphanWorktree = {
@@ -521,6 +585,24 @@ export type TerminalCreationPreset = {
 
 export const ROUTER9_DEFAULT_PORT = 20128
 
+/** When a message shortcut shows on a worker. */
+export type ShortcutRule = 'any' | 'finished' | 'finishedIsolated'
+
+/** A one-click instruction for the planner, written into its terminal for the person to edit. */
+export type OrchestratorShortcut = {
+  id: string
+  name: string
+  text: string
+  rule: ShortcutRule
+}
+
+/** One named body of engineering rules handed to workers. `general` always applies. */
+export type RuleSet = {
+  id: string
+  name: string
+  text: string
+}
+
 /** Which 9router install Alethe runs: the one it manages, or one the user installed themselves. */
 export type Router9Source = 'managed' | 'external'
 
@@ -550,6 +632,110 @@ export const DICTATION_CLOUD_MODELS = [
 ] as const
 export type DictationCloudModel = (typeof DICTATION_CLOUD_MODELS)[number]
 
+/** A named preset for delegated workers. A delegate call that names it gets exactly these values. */
+export type OrchestrationRole = {
+  name: string
+  agent: 'codex' | 'claude'
+  /** null runs the CLI's default model. */
+  model: string | null
+  /** Reasoning effort, as the chosen CLI names it; null keeps the CLI's setting. */
+  effort: string | null
+  /** Codex read-only sandbox. Always false for Claude. */
+  readOnly: boolean
+  /** null uses the default budget; 0 lets the worker run without a limit. */
+  timeoutSeconds: number | null
+  /**
+   * Another role to run instead while this one's provider is past 80% of its quota. A read-only
+   * role only falls back to a read-only one.
+   */
+  fallback?: string | null
+  /**
+   * The planner agent this row is for; absent serves any planner. A row for the planner's own agent
+   * wins over the row for any with the same name.
+   */
+  orchestrator?: 'claude' | 'codex'
+}
+
+export type OrchestrationStrategy =
+  'auto' | 'economy' | 'balanced' | 'quality' | 'research' | 'parallel' | 'rescue'
+
+export type OrchestrationSkillProvider = 'codex' | 'claude' | 'agy' | 'kimi'
+
+/** Preferences consumed by the bundled local skill even when its MCP backend is unavailable. */
+export type OrchestrationSkillSettings = {
+  backend: 'auto' | 'skill' | 'mcp'
+  defaultStrategy: OrchestrationStrategy
+  providerSwitch: 'ask' | 'automatic' | 'never'
+  /** Provider whose allowance the user wants to preserve. */
+  conserveProvider: OrchestrationSkillProvider | null
+  /** First provider considered for provider: auto; null keeps the built-in order. */
+  preferredProvider: OrchestrationSkillProvider | null
+}
+
+export type OrchestrationSettings = {
+  roles: OrchestrationRole[]
+  /** Workers running at the same time. */
+  maxConcurrent: number
+  /** Budget per worker when a call names none; 0 means no limit. */
+  defaultTimeoutSeconds: number
+  /** Codex plugin ids (`name@marketplace`) turned off in worker threads. */
+  workerDisabledPlugins: string[]
+  /** Kind/effort/quota rules that pick a role when the planner leaves the choice to Alethe. */
+  routing: RoutingSettings
+  /** Portable preferences exported for the bundled MCP-free orchestration skill. */
+  skill: OrchestrationSkillSettings
+}
+
+/** Task category the planner reports on a delegate call; drives routing rules. */
+export type DelegateKind = 'research' | 'code' | 'review' | 'command' | 'scrap' | 'docs'
+
+/** Coarse effort the planner assigns to a delegated task; drives routing rules. */
+export type EffortClass = 'light' | 'standard' | 'deep'
+
+/** A quota condition: the named window must sit below `below` percent for the rule to fire. */
+export type QuotaGate = {
+  agent: 'claude' | 'codex'
+  /** Claude: 5h / 7d / 7d-Opus. Codex reads 'opus' as its secondary (weekly) window. */
+  window: 'short' | 'week' | 'opus'
+  below: number
+}
+
+/** First matching enabled rule wins; the delegate call runs as the named role. */
+export type RoutingRule = {
+  id: string
+  enabled: boolean
+  /** Kinds the rule matches; empty matches any kind. */
+  kinds: DelegateKind[]
+  /** Effort classes the rule matches; empty matches any effort. */
+  efforts: EffortClass[]
+  /** Every gate must pass for the rule to fire. */
+  gates: QuotaGate[]
+  /** Name of the OrchestrationRole the matching call runs as. */
+  role: string
+}
+
+export type RoutingPresetId = 'economy' | 'balanced' | 'performance' | 'custom'
+
+export type RoutingSettings = {
+  preset: RoutingPresetId
+  /** Evaluated in order; the first matching enabled rule wins. */
+  rules: RoutingRule[]
+  /** Quota percent past which a provider counts as critical. Default 80. */
+  criticalThreshold: number
+  /** Lets deep-effort calls route to Opus-class roles. Default true. */
+  allowOpusOnDeep: boolean
+  /** What a delegate call does when every provider sits past criticalThreshold. Default 'ask'. */
+  onBothCritical: 'ask' | 'run-cheapest' | 'block'
+}
+
+export const DEFAULT_ROUTING_SETTINGS: RoutingSettings = {
+  preset: 'balanced',
+  rules: [],
+  criticalThreshold: 80,
+  allowOpusOnDeep: true,
+  onBothCritical: 'ask',
+}
+
 export type Preferences = {
   /** Idioma da UI. Default 'en'. */
   language: Locale
@@ -566,6 +752,7 @@ export type Preferences = {
   windowOpacity: number
   terminalTheme: Theme | null
   enabledAgents: Record<AgentType, boolean>
+  customAgents: CustomAgentDefinition[]
   onboardingDone: boolean
 
   workspaceFlat: boolean
@@ -585,6 +772,13 @@ export type Preferences = {
   alwaysStartOnHome: boolean
 
   alwaysStartUnrestricted: boolean
+  /**
+   * Permission mode of the experimental Agent Canvas and Agent Sandbox workers. A per-machine
+   * choice: it is deliberately left out of cloud sync.
+   */
+  experimentalAgentPermissionMode: ExperimentalAgentPermissionMode
+  /** Last scope chosen in the handoff dialog. */
+  handoffScope: HandoffScope
   /** Last terminal configuration submitted through the creation modal. */
   lastTerminalCreation: TerminalCreationPreset | null
 
@@ -595,11 +789,17 @@ export type Preferences = {
   /** Sidebar a contributed view sits in, overriding the container its manifest declares. */
   viewPlacements: Record<string, 'left' | 'right'>
 
-  /** Credenciais locais do Spotify Developer Dashboard para Now Playing. */
+  /** Non-secret Spotify Developer Dashboard identifier for Now Playing. */
   spotifyClientId: string
+  /** Runtime-only input. Persistence strips it after the backend migrates legacy values. */
   spotifyClientSecret: string
   /** Exibe a atividade atual do Alethe no perfil do Discord. */
   discordRichPresenceEnabled: boolean
+  /**
+   * Consent to read each provider's usage: doing so uses the credentials of the installed CLI and
+   * contacts the provider. Off for a new profile; nothing reads a provider that is off.
+   */
+  usageAccess: Record<UsageProviderId, boolean>
   /** Usage cards shown in the AI usage details modal and the home usage strip. */
   usageShowClaude: boolean
   usageShowCodex: boolean
@@ -629,6 +829,8 @@ export type Preferences = {
   remoteUseTailscale: boolean
 
   enabledFeatures: Record<FeatureId, boolean>
+  /** Roles and limits for delegated workers, sent to the orchestrator. */
+  orchestration: OrchestrationSettings
   /** Playwright MCP: attach to the shared/pane browser, or launch its own. */
   playwrightBrowserMode: 'shared' | 'dedicated'
   /** Only used when playwrightBrowserMode is 'dedicated'. */
@@ -678,12 +880,25 @@ export type Preferences = {
 
   nativeTerminalMacos?: boolean
   /**
+   * Absolute path to the binary plain shell tabs spawn. Null keeps the per-platform auto-detect
+   * (`pwsh` → `powershell` on Windows, `$SHELL` elsewhere).
+   */
+  shellPath: string | null
+  /** Font stack for the terminal. A Nerd Font is required for prompts such as oh-my-posh. */
+  terminalFontFamily: string
+  /**
    * v3 — perfil de heap do Node.js para agentes (Claude, Codex, OpenCode).
    * Injeta --max-old-space-size e UV_THREADPOOL_SIZE no ambiente do PTY.
    */
   nodeHeapProfile?: 'conservative' | 'balanced' | 'performance'
 
   gsdSyncModelChain?: string[]
+
+  /** `null` means "use Alethe's built-ins"; any array — including an empty one — is the person's own list. */
+  orchestratorShortcuts: OrchestratorShortcut[] | null
+
+  /** null means "use Alethe's"; any array — empty included — is the person's own list. */
+  workerRuleSets: RuleSet[] | null
 
   router9?: Router9Preferences
 
@@ -743,6 +958,9 @@ export type ProjectsFile = {
   cliPaths: Partial<Record<AgentType, string>>
 }
 
+/** Ships with Windows and macOS; none of these carry Powerline or Nerd Font glyphs. */
+export const DEFAULT_TERMINAL_FONT_FAMILY = 'Cascadia Mono, Consolas, "Courier New", monospace'
+
 export const DEFAULT_PREFERENCES: Preferences = {
   language: 'en',
   uiTheme: 'elite-indigo',
@@ -765,7 +983,10 @@ export const DEFAULT_PREFERENCES: Preferences = {
     mimo: true,
     kiro: true,
     kimi: true,
+    grok: true,
+    codewhale: true,
   },
+  customAgents: [],
   onboardingDone: false,
   workspaceFlat: false,
   fullscreenContainerId: null,
@@ -776,12 +997,15 @@ export const DEFAULT_PREFERENCES: Preferences = {
   accountCreated: false,
   alwaysStartOnHome: false,
   alwaysStartUnrestricted: false,
+  experimentalAgentPermissionMode: 'ask',
+  handoffScope: 'full',
   lastTerminalCreation: null,
   topbarStyle: 'classic',
   viewPlacements: {},
   spotifyClientId: '',
   spotifyClientSecret: '',
   discordRichPresenceEnabled: false,
+  usageAccess: { claude: false, codex: false, antigravity: false, kimi: false },
   usageShowClaude: true,
   usageShowCodex: true,
   usageShowAntigravity: true,
@@ -809,6 +1033,22 @@ export const DEFAULT_PREFERENCES: Preferences = {
     playwright: false,
     orchestrator: false,
     prs: true,
+    wsl: true,
+    agentsPanel: true,
+  },
+  orchestration: {
+    roles: [],
+    maxConcurrent: 4,
+    defaultTimeoutSeconds: 900,
+    workerDisabledPlugins: [],
+    routing: DEFAULT_ROUTING_SETTINGS,
+    skill: {
+      backend: 'auto',
+      defaultStrategy: 'auto',
+      providerSwitch: 'ask',
+      conserveProvider: null,
+      preferredProvider: null,
+    },
   },
   playwrightBrowserMode: 'shared',
   playwrightDedicatedHeadless: false,
@@ -843,6 +1083,10 @@ export const DEFAULT_PREFERENCES: Preferences = {
     spawnGraceSeconds: 120,
   },
   nodeHeapProfile: 'balanced',
+  orchestratorShortcuts: null,
+  workerRuleSets: null,
+  shellPath: null,
+  terminalFontFamily: DEFAULT_TERMINAL_FONT_FAMILY,
   pomodoroWorkMinutes: 25,
   pomodoroShortBreakMinutes: 5,
   pomodoroLongBreakMinutes: 15,
@@ -925,11 +1169,20 @@ export const PROVIDER_MODELS: Record<BuiltinAgentType, { id: string; label: stri
   // Kimi Code uses the account default model established at login, so nothing is
   // hardcoded here — the same rationale as `cursor`.
   kimi: [],
+  // Grok Build and Codewhale expose live model lists via their CLIs; discovery fills the picker.
+  grok: [],
+  codewhale: [],
   shell: [{ id: 'default', label: 'Shell Padrão' }],
   wsl: [{ id: 'default', label: 'WSL' }],
 }
 
 export type McpScope = 'global' | 'project'
+
+/**
+ * How much of a conversation a handoff carries to the other agent: everything, or only the
+ * messages the user wrote. The backend treats any other value as `user-only`.
+ */
+export type HandoffScope = 'full' | 'user-only'
 
 export type McpAgent = Extract<
   BuiltinAgentType,

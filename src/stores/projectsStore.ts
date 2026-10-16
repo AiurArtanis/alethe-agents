@@ -1,7 +1,9 @@
 import { nanoid } from 'nanoid'
-import { DEFAULT_GRID_ID, normalizeProjectGrids, selectProjectGrid } from '../lib/projectGrids'
 import { create } from 'zustand'
 
+import { customAgentIconComponent } from '../components/icons/customAgentIcons'
+import { syncCustomAgentProviders } from '../lib/agentProviders'
+import { DEFAULT_GRID_ID, normalizeProjectGrids, selectProjectGrid } from '../lib/projectGrids'
 import { setStorageNamespace } from '../lib/storageNamespace'
 import {
   listProfiles,
@@ -13,12 +15,14 @@ import {
   saveProjectsFile,
 } from '../lib/tauri'
 import { getProjectDefaultCwd, getProjectRepoRoot } from '../lib/terminalFactory'
+import { clearAllTtlCaches } from '../lib/ttlCache'
 import {
   type AgentHandoffBootstrap,
   type AgentRuntimeProfile,
   type AgentType,
   type BrowserEngine,
   type BrowserPaneOptions,
+  type CustomAgentDefinition,
   EMPTY_PROJECTS_FILE,
   type GridLayout,
   type Group,
@@ -36,6 +40,7 @@ import {
   type WorkspaceTab,
   type WorkspaceViewSnapshot,
 } from '../lib/types'
+import { setUsageAccess } from '../lib/usageAccess'
 import {
   captureWorkspaceSnapshot,
   cloneWorkspaceSnapshot,
@@ -50,6 +55,7 @@ import { createGroupsSlice, createProjectsSlice } from './projectsStore.projectS
 import { createPreferencesSlice, createSubTabsSlice } from './projectsStore.slices'
 import { createContainersSlice, createTerminalsSlice } from './projectsStore.terminalSlices'
 import { createWorkspaceSlice } from './projectsStore.workspaceSlices'
+import { useUiStore } from './uiStore'
 
 export { getProjectDefaultCwd, getProjectRepoRoot }
 export {
@@ -198,6 +204,7 @@ export type ProjectsState = ProjectsFile & {
         handoff?: AgentHandoffBootstrap
         runtimeProfile?: AgentRuntimeProfile
         useRouter9?: boolean
+        ptyId?: string
       }
       worktreeAgentId?: string
       gsdSyncViewer?: boolean
@@ -271,7 +278,11 @@ export type ProjectsState = ProjectsFile & {
   closeOtherContainers: (keepProjectId: string) => void
   reorderContainers: (fromIndex: number, toIndex: number) => void
   reorderPaneInContainer: (projectId: string, fromIndex: number, toIndex: number) => void
-  groupPanes: (projectId: string, paneIds: string[], options?: { kind?: 'orchestration' }) => void
+  groupPanes: (
+    projectId: string,
+    paneIds: string[],
+    options?: { kind?: 'orchestration'; plannerId?: string },
+  ) => void
   ungroupPanes: (projectId: string, groupId: string) => void
   setContainerCollapsed: (projectId: string, collapsed: boolean) => void
   setContainerInternalLayout: (projectId: string, layout: LayoutMode) => void
@@ -337,11 +348,23 @@ export type ProjectsState = ProjectsFile & {
   setOnboardingDone: (done: boolean) => void
   setPreferences: (patch: Partial<Preferences>) => void
   setCliPath: (agent: AgentType, path: string | null) => void
+  addCustomAgent: (definition: CustomAgentDefinition) => void
+  updateCustomAgent: (id: string, patch: Partial<CustomAgentDefinition>) => void
+  removeCustomAgent: (id: string) => void
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 let pendingSave = false
 let lastSaveErrorLoggedAt = 0
+let readOnly = false
+
+/**
+ * Stops this window from ever writing projects.json. A detached orchestration board reads the
+ * state the main window owns; a second writer would overwrite the main window's saves.
+ */
+export function setProjectsReadOnly(value: boolean): void {
+  readOnly = value
+}
 
 let lastWriteSequence = Date.now()
 
@@ -351,6 +374,7 @@ function nextWriteSequence(): number {
 }
 
 function projectsPayload(state: ProjectsState): ProjectsFile {
+  const { spotifyClientSecret: _spotifyClientSecret, ...persistedPreferences } = state.preferences
   return {
     version: 9,
     groups: state.groups,
@@ -359,13 +383,13 @@ function projectsPayload(state: ProjectsState): ProjectsFile {
     todos: state.todos,
     activeProjectId: state.activeProjectId,
     workspace: state.workspace,
-    preferences: state.preferences,
+    preferences: persistedPreferences as Preferences,
     cliPaths: state.cliPaths,
   }
 }
 
 function scheduleSave(getState: () => ProjectsState) {
-  if (!getState().hydrated) return
+  if (readOnly || !getState().hydrated) return
   pendingSave = true
   if (saveTimer) clearTimeout(saveTimer)
   saveTimer = setTimeout(() => {
@@ -750,6 +774,9 @@ export const useProjectsStore = create<ProjectsState>((set, get) => {
           activeProfileId: profileState.active_profile_id,
           profiles: profileState.profiles,
         })
+        syncCustomAgentProviders(migrated.preferences.customAgents, (definition) =>
+          customAgentIconComponent(definition.iconSpec ?? definition.icon ?? 'bot'),
+        )
         void recordAppEvent(
           'projects.hydrate',
           `source=disk projects=${migrated.projects.length} groups=${migrated.groups.length} tabs=${migrated.workspace.tabs.length} active_tab=${Boolean(migrated.workspace.activeTabId)} left_sidebar=${migrated.preferences.leftSidebarVisible} right_sidebar=${migrated.preferences.rightSidebarVisible}`,
@@ -775,6 +802,22 @@ export const useProjectsStore = create<ProjectsState>((set, get) => {
   }
 })
 
+// Mirrors the usage consent into the gate every usage read goes through. A provider that was just
+// turned off loses its cached reading and whatever of it is on screen.
+useProjectsStore.subscribe((state, previous) => {
+  if (state.preferences.usageAccess === previous.preferences.usageAccess) return
+  const revoked = setUsageAccess(state.preferences.usageAccess)
+  if (revoked.length === 0) return
+  clearAllTtlCaches()
+  const ui = useUiStore.getState()
+  if (revoked.includes('claude')) {
+    ui.setClaudeUsage(null)
+    ui.setClaudeUsageError(null)
+  }
+  if (revoked.includes('codex')) ui.setCodexUsage(null)
+  if (revoked.includes('antigravity')) ui.setAntigravityUsage(null)
+})
+
 /** Flushes the debounced document before the native window is destroyed. */
 export async function flushProjectsState(): Promise<void> {
   if (saveTimer) {
@@ -783,7 +826,7 @@ export async function flushProjectsState(): Promise<void> {
   }
   pendingSave = false
   const state = useProjectsStore.getState()
-  if (!state.hydrated) return
+  if (readOnly || !state.hydrated) return
   await saveProjectsFile(JSON.stringify(projectsPayload(state), null, 2), nextWriteSequence())
 }
 

@@ -25,6 +25,8 @@ import { formatShortcut, isWindows } from '../../lib/platform'
 import { DEFAULT_GRID_ID } from '../../lib/projectGrids'
 import { router9SupportsAgent } from '../../lib/router9'
 import { isShellAgentType, type AgentRuntimeProfile, type AgentType } from '../../lib/types'
+import { wslTargetFor } from '../../lib/wsl'
+import { enableOrchestratorFeature } from '../../lib/orchestratorUsageAccess'
 import { getProjectDefaultCwd, useProjectsStore } from '../../stores/projectsStore'
 import { useUiStore } from '../../stores/uiStore'
 import { AgentIcon } from '../icons/AgentIcons'
@@ -32,6 +34,7 @@ import controls from './controls.module.css'
 import { Modal } from './Modal'
 import styles from './NewTerminalModal.module.css'
 import { RowSelect, type RowSelectOption } from './RowSelect'
+import { WslPathPicker } from './WslPathPicker'
 
 const PLANNER_AGENTS: AgentType[] = ['claude', 'codex']
 
@@ -63,13 +66,13 @@ export function NewTerminalModal() {
   const createOrchestratorPane = useProjectsStore((s) => s.createOrchestratorPane)
   const groupPanes = useProjectsStore((s) => s.groupPanes)
   const alwaysStartUnrestricted = useProjectsStore((s) => s.preferences.alwaysStartUnrestricted)
-  const enabledFeatures = useProjectsStore((s) => s.preferences.enabledFeatures)
   const setPreferences = useProjectsStore((s) => s.setPreferences)
   const project = useProjectsStore((s) =>
     context?.projectId ? (s.projects.find((p) => p.id === context.projectId) ?? null) : null,
   )
   const projects = useProjectsStore((s) => s.projects)
   const enabled = useProjectsStore((s) => s.preferences.enabledAgents)
+  const wslEnabled = useProjectsStore((s) => s.preferences.enabledFeatures.wsl)
   const terminalTheme = useProjectsStore(
     (s) => s.preferences.terminalTheme ?? s.preferences.uiTheme,
   )
@@ -142,6 +145,8 @@ export function NewTerminalModal() {
       mimo: alwaysStartUnrestricted,
       kiro: alwaysStartUnrestricted,
       kimi: alwaysStartUnrestricted,
+      grok: alwaysStartUnrestricted,
+      codewhale: alwaysStartUnrestricted,
     })
     setSelectedGridId(context?.gridId ?? UNGROUPED_GRID)
   }, [
@@ -173,6 +178,8 @@ export function NewTerminalModal() {
       mimo: false,
       kiro: false,
       kimi: false,
+      grok: false,
+      codewhale: false,
     })
     setRunAsAdmin(false)
     setSelectedGridId(UNGROUPED_GRID)
@@ -208,10 +215,8 @@ export function NewTerminalModal() {
     }
     // The planner must receive the orchestration MCP config on its first mount. Update the feature
     // before adding the terminal so no restart is needed.
-    setPreferences({
-      ...(orchestrating ? { enabledFeatures: { ...enabledFeatures, orchestrator: true } } : {}),
-      lastTerminalCreation: creation,
-    })
+    if (orchestrating) enableOrchestratorFeature()
+    setPreferences({ lastTerminalCreation: creation })
     const terminal = await createAgentTerminal(context.projectId, {
       ...creation,
       gridId: selectedGridId === UNGROUPED_GRID ? undefined : selectedGridId,
@@ -224,6 +229,8 @@ export function NewTerminalModal() {
     reset()
     closeModal()
   }
+
+  const wslTarget = wslTargetFor(cwd || inheritedCwd, wslEnabled)
 
   const browse = async () => {
     const dir = await pickDirectory({ defaultPath: cwd || inheritedCwd || undefined })
@@ -413,6 +420,7 @@ export function NewTerminalModal() {
               <button type="button" className={styles.fieldAction} onClick={() => void browse()}>
                 {t('term.chooseFolder')}
               </button>
+              <WslPathPicker onPick={setCwd} triggerClassName={styles.fieldAction} />
             </span>
             <RowSelect
               field="folder"
@@ -427,6 +435,11 @@ export function NewTerminalModal() {
               title={basename(cwd) || cwd || t('term.shellDefaultPlaceholder')}
               side={cwd ? shortenPath(cwd) : undefined}
             />
+            {wslTarget ? (
+              <span className={controls.wslHint}>
+                {t('crud.wslHint', { distro: wslTarget.distro })}
+              </span>
+            ) : null}
           </div>
 
           {orchestrating ? (

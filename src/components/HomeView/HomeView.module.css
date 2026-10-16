@@ -623,7 +623,7 @@
   place-items: center;
   font-size: 15px;
   font-weight: 600;
-  color: #fff;
+  color: var(--accent-on);
   background: var(--accent);
 }
 
@@ -851,7 +851,7 @@
   place-items: center;
   font-size: 15px;
   font-weight: 600;
-  color: #fff;
+  color: var(--accent-on);
   background: var(--accent);
 }
 
@@ -993,6 +993,16 @@
   background: color-mix(in srgb, var(--agent-kimi) 16%, transparent);
   border-color: color-mix(in srgb, var(--agent-kimi) 28%, transparent);
 }
+.notifGrok {
+  color: var(--agent-grok);
+  background: color-mix(in srgb, var(--agent-grok) 16%, transparent);
+  border-color: color-mix(in srgb, var(--agent-grok) 28%, transparent);
+}
+.notifCodewhale {
+  color: var(--agent-codewhale);
+  background: color-mix(in srgb, var(--agent-codewhale) 16%, transparent);
+  border-color: color-mix(in srgb, var(--agent-codewhale) 28%, transparent);
+}
 
 .notifBody {
   display: flex;
@@ -1043,7 +1053,9 @@
 }
 
 .usageStripTwo {
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  /* Auto-fit keeps any provider count balanced: cards stretch to fill the row and
+     wrap to a new row instead of leaving a dangling narrow card. */
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
 }
 
 .usageEmpty {
@@ -1471,6 +1483,10 @@
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--text-quaternary);
+}
+.usageEmptyAction {
+  composes: resetCreditButton;
+  margin-top: 6px;
 }
 
 /* ---- heatmap wrapper ---- */

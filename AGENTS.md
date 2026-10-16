@@ -20,7 +20,7 @@ npm install
 npm run app      # = tauri dev — runs the full app with hot reload (RECOMMENDED WAY)
 npm run dev      # Vite frontend only, at http://localhost:1422 (strictPort)
 npm run build    # tsc + vite build — tsc typechecks and VALIDATES i18n (see §3)
-npm test         # vitest run over tests/**/*.test.ts (test:node runs via node --test, separately)
+npm test         # vitest run over src/**/*.test.{ts,tsx}
 ```
 
 **Building the Windows installer (MSI/NSIS)** requires the MSVC environment (`vcvars64`):
@@ -28,6 +28,10 @@ npm test         # vitest run over tests/**/*.test.ts (test:node runs via node -
 ```powershell
 cmd /c '"C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat" >NUL && npm run tauri build'
 ```
+
+The folder depends on the Build Tools version: `2022\BuildTools` for Visual Studio 2022,
+`18\BuildTools` for Visual Studio 2026. `vswhere -products * -property installationPath` (in
+`C:\Program Files (x86)\Microsoft Visual Studio\Installer`) prints the installed one.
 
 When returning the path of a generated installer, always report the **full absolute path on the PC**
 (for example, `D:\project\src-tauri\target\release\bundle\nsis\Alethe_setup.exe`), never just the
@@ -49,9 +53,9 @@ path relative to the repository.
    `src/styles/theme.css`; **never** hardcode a color — use the variables (`--bg`, `--fg`,
    `--accent`, `--agent-*`, `--status-*`, etc.).
 4. **i18n is mandatory.** Every visible string goes through `t()`. When adding text, register the key
-   in `src/lib/i18n/messages/en.ts` (**source of truth**, default EN) **and** in
-   `src/lib/i18n/messages/pt-BR.ts`. `pt-BR.ts` is typed against the keys of `en.ts`, so
-   `npm run build` **fails** if a translation is missing.
+   in `src/lib/i18n/messages/en.ts` (**source of truth**, default EN) **and** in every other
+   locale: `src/lib/i18n/messages/pt-BR.ts` and `src/lib/i18n/messages/zh-CN.ts`. Each is typed
+   against the keys of `en.ts`, so `npm run build` **fails** if a translation is missing.
 5. **Changelog is mandatory for features.** Every feature addition, change, or removal must update
    [`docs/CHANGELOG.md`](docs/CHANGELOG.md) in the same task, under the **`[Unreleased]`** section
    (top of the file), with a short, objective, user-facing description. Never skip this step — the

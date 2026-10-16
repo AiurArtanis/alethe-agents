@@ -58,6 +58,10 @@ export const en = {
   'onboarding.agentsEnabledOf': '{active} of {total} enabled',
   'onboarding.agentChecking': 'Checking',
   'onboarding.agentReady': 'ready',
+  'onboarding.usageTitle': 'Show your usage limits?',
+  'onboarding.usageSubtitle':
+    'Alethe can show how much of each plan you have used. To read it, Alethe uses the credentials of the CLI already installed on this computer and contacts the provider. Everything is off until you turn it on.',
+  'onboarding.usageFooter': 'Nothing is read while a provider is off · change later in Preferences',
   'onboarding.featuresTitle': 'Choose your features',
   'onboarding.featuresSubtitle':
     'Start lean. Each module you enable shows up in the interface, and you can change them any time in Preferences.',
@@ -98,6 +102,8 @@ export const en = {
   'agent.antigravity.desc': 'Google Antigravity CLI',
   'agent.kiro.desc': 'AWS agentic CLI',
   'agent.kimi.desc': 'Moonshot AI coding CLI',
+  'agent.grok.desc': 'xAI Grok Build coding agent',
+  'agent.codewhale.desc': 'Open-source coding agent (any model)',
 
   /* ---- image input ---- */
   'image.placeholder': 'https://example.com/icon.png',
@@ -221,6 +227,23 @@ export const en = {
   'remote.statusOff': 'Off',
   'remote.enable': 'Enable remote control',
   'remote.disable': 'Turn off remote control',
+  'remote.confirmEnable':
+    'Enable Remote Control?\n\nAlethe will open HTTP and WebSocket listeners on your local network. Paired devices can view shared terminal output. Paired sessions expire after {expiry}.\n\n{access}',
+  'remote.confirmEnableTailscale':
+    'Enable Remote Control?\n\nAlethe will open HTTP and WebSocket listeners on your Tailscale network. Paired devices can view shared terminal output. Paired sessions expire after {expiry}.\n\n{access}',
+  'remote.confirmAccessReadOnly':
+    'Current access is read-only: agent messages and shell input are blocked.',
+  'remote.confirmAccessAgentInput': 'Current access allows agent messages; shell input is blocked.',
+  'remote.confirmAccessShellInput': 'Current access allows agent messages and shell input.',
+  'remote.sessionSeconds': '{seconds} seconds',
+  'remote.enableFailedTitle': 'Remote control could not start',
+  'remote.enableFailedBody': 'Alethe kept remote control off. {error}',
+  'remote.disableFailedTitle': 'Remote control could not stop',
+  'remote.disableFailedBody':
+    'Alethe could not confirm that remote access stopped. Restart Alethe before continuing. {error}',
+  'remote.rollbackFailedTitle': 'Remote control rollback needs attention',
+  'remote.rollbackFailedBody':
+    'Alethe could not fully save or enforce the disabled state. Restart Alethe and verify Remote Control is off. Startup error: {error}. Rollback error: {rollbackError}',
   'remote.modalReachEyebrow': 'Step 1 · Network',
   'remote.modalPairEyebrow': 'Step 2 · Pair a device',
   'remote.connectedDevices': 'Connected devices',
@@ -341,8 +364,11 @@ export const en = {
   'agentInstall.docs': 'Docs',
   'agentInstall.installTitle': 'Install {agent}',
   'agentInstall.chooseMethod': 'Choose how to install {agent} on this machine.',
+  'agentInstall.chooseMethodWsl': 'Choose how to install {agent} inside {distro}.',
   'agentInstall.probing': 'Checking what is available on this machine…',
   'agentInstall.noMethod': 'No automatic installer for this agent on this machine.',
+  'agentInstall.noMethodWsl':
+    'No installer for this agent works inside {distro}. Install it manually in the distro.',
   'agentInstall.uninstall': 'Uninstall',
   'agentInstall.uninstalling': 'Uninstalling…',
   'agentInstall.uninstallFailed': 'Uninstall did not complete',
@@ -389,6 +415,13 @@ export const en = {
   'handoff.included': '{count} events included',
   'handoff.omitted': '{count} omitted',
   'handoff.redacted': '{count} redacted',
+  'handoff.scopeLabel': 'What the other agent receives',
+  'handoff.scopeFull': 'Full conversation',
+  'handoff.scopeFullHint':
+    'Your messages, the assistant replies, tool activity and the names of changed files. File contents or secrets that appeared in the conversation may reach another vendor.',
+  'handoff.scopeUserOnly': 'Only my messages',
+  'handoff.scopeUserOnlyHint':
+    'Only what you typed, plus the branch and how many files changed. No assistant replies, no tool activity, no file names from Git.',
   'handoff.reviewLabel': 'Review and edit the context the destination agent will receive',
   'handoff.size': '{current} / {max} bytes',
   'handoff.unrestricted': 'Start {agent} in unrestricted mode',
@@ -399,6 +432,8 @@ export const en = {
   'handoff.fallbackNewest':
     'The pane had no session ID, so the newest conversation for this folder was selected.',
   'handoff.lossOmitted': '{count} older or duplicate events were omitted.',
+  'handoff.lossOmittedUserOnly':
+    '{count} events were left out: assistant replies, tool activity and anything over the size limit.',
   'handoff.lossRedacted': '{count} possible secret(s) were redacted.',
   'handoff.paneName': '{agent} handoff',
   'handoff.bootstrapPrompt':
@@ -626,6 +661,10 @@ export const en = {
   'features.prs.description':
     'Shows GitHub pull requests you are involved in as author or reviewer, across every repo, with a one-click way to send one to your TODO list.',
   'features.prs.keywords': 'pull request pr github review todo',
+  'features.wsl.title': 'WSL integration',
+  'features.wsl.description':
+    'On Windows, a folder inside a WSL distro opens the distro\u2019s own shell, runs the CLI installed there and resumes the sessions stored there. Turn it off to treat every folder as a Windows one.',
+  'features.wsl.keywords': 'wsl linux distro ubuntu windows subsystem unc',
   'features.mcp.title': 'MCP & Skills',
   'features.mcp.description':
     'Inspect and manage the MCP servers and skills of every coding agent from one panel.',
@@ -638,6 +677,37 @@ export const en = {
   'aiMemory.notInstalledTitle': 'AI Memory is on, but ai-memory was not found',
   'aiMemory.notInstalledBody':
     'Install the ai-memory server so agents can share long-term memory. Agents will start normally without it.',
+  // ai-memory's sub-panel, under its switch in Features.
+  'aiMemory.panelCaptures':
+    'Every prompt and tool call from agents Alethe launches is recorded, as markdown in a git repository plus a search index — both on this machine, both readable without Alethe.',
+  'aiMemory.checking': 'Checking…',
+  'aiMemory.install': 'Install ai-memory',
+  'aiMemory.installing': 'Installing…',
+  'aiMemory.installedManaged': 'Installed by Alethe',
+  'aiMemory.installedExternal': 'Using the copy you installed',
+  'aiMemory.at': 'at {path}',
+  'aiMemory.missing': 'Not installed yet — install it and the agents can start using it.',
+  'aiMemory.unsupported':
+    'ai-memory publishes no build for this platform yet, so Alethe cannot install it here.',
+  'aiMemory.openRepo': 'Open the project',
+  'aiMemory.start': 'Start',
+  'aiMemory.starting': 'Starting…',
+  'aiMemory.stop': 'Stop',
+  'aiMemory.stopping': 'Stopping…',
+  'aiMemory.running': 'Answering on {endpoint}',
+  'aiMemory.stopped': 'Not running',
+  'aiMemory.portBusy':
+    'Something already answers on {endpoint} and Alethe did not start it — most likely your own copy. Alethe will leave it alone.',
+  'aiMemory.counts': '{pages} pages · {sessions} sessions · {observations} observations',
+  'aiMemory.installError': 'ai-memory could not be installed.',
+  'aiMemory.startError': 'ai-memory could not be started.',
+  'aiMemory.stopError': 'ai-memory could not be stopped.',
+  'aiMemory.error.portInUse':
+    'Something else is already answering on that port — most likely your own copy of ai-memory. Leave it running and use that one instead.',
+  'aiMemory.error.unsupportedPlatform':
+    'ai-memory publishes no build for this platform, so there is nothing to install here.',
+  'aiMemory.error.binaryMissing':
+    'The download finished but no ai-memory binary was in it. Try installing again.',
 
   /* ---- global todo sidebar ---- */
   'todo.title': 'Todo',
@@ -682,6 +752,15 @@ export const en = {
     'Notify when a Claude or Codex usage window resets, showing which one.',
   'prefs.limitResetNotifyOn': 'On',
   'prefs.limitResetNotifyOff': 'Off',
+  'prefs.experimentalPermissions': 'Agent Canvas permissions',
+  'prefs.experimentalPermissionsDesc':
+    'How the worker agents started by the experimental Agent Canvas handle permissions. Applies to agents started from now on, and stays on this computer.',
+  'prefs.experimentalPermissionsAsk': 'Ask',
+  'prefs.experimentalPermissionsBypass': 'Bypass',
+  'prefs.experimentalPermissionsAskHint':
+    'Agents keep their own permission checks. A terminal you can type in asks you; a worker running in the background has nobody to ask, so an action that needs approval is refused and the worker says so.',
+  'prefs.experimentalPermissionsBypassHint':
+    'Agents run commands and edit files without asking: Claude starts with --dangerously-skip-permissions, Codex with approvals and its sandbox turned off. Use it only where you accept whatever the agent does.',
   'prefs.dictation': 'Voice dictation',
   'prefs.dictationDesc':
     'Local speech-to-text with on-device models. Press {shortcut} to dictate text into any focused pane.',
@@ -706,11 +785,13 @@ export const en = {
   'prefs.dictationModelDelete': 'Remove',
   'prefs.dictationModelLoading': 'Loading model catalog…',
   'prefs.dictationProvider': 'Transcriber',
-  'prefs.dictationProviderDesc': 'Where speech becomes text: the on-device model, or an audio-capable model on OpenRouter.',
+  'prefs.dictationProviderDesc':
+    'Where speech becomes text: the on-device model, or an audio-capable model on OpenRouter.',
   'prefs.dictationProviderLocal': 'On-device',
   'prefs.dictationProviderOpenRouter': 'OpenRouter',
   'prefs.dictationCloudModel': 'OpenRouter model',
-  'prefs.dictationCloudModelDesc': 'GPT Audio Mini is the fastest (~1.2 s). Gemini Flash Lite is a little slower (~1.7 s) but more precise with technical words. Uses the API key above.',
+  'prefs.dictationCloudModelDesc':
+    'GPT Audio Mini is the fastest (~1.2 s). Gemini Flash Lite is a little slower (~1.7 s) but more precise with technical words. Uses the API key above.',
   'prefs.dictationCloudModelGptAudioMini': 'GPT Audio Mini · fastest',
   'prefs.dictationCloudModelGeminiFlashLite': 'Gemini 3.1 Flash Lite · most precise',
   'dictation.label': 'Voice dictation',
@@ -766,6 +847,146 @@ export const en = {
   /* ---- PreferencesModal — Multi-Agent & Telemetry tab ---- */
   'prefs.categoryMultiagent': 'Multi-Agent & Telemetry',
   'prefs.categoryMultiagentDesc': 'Real-time metrics, event traces, and structured logs.',
+  'prefs.categoryOrchestration': 'Orchestration',
+  'prefs.categoryOrchestrationDesc': 'Roles and limits for delegated workers.',
+  'prefs.orchestrationSkill': 'Local orchestration skill',
+  'prefs.orchestrationSkillDesc':
+    'Choose how the bundled skill works when you orchestrate with or without MCP.',
+  'prefs.orchestrationSkillBackend': 'Preferred backend',
+  'prefs.orchestrationSkillBackend.auto': 'Automatic',
+  'prefs.orchestrationSkillBackend.skill': 'Local skill only',
+  'prefs.orchestrationSkillBackend.mcp': 'Alethe MCP when available',
+  'prefs.orchestrationSkillStrategy': 'Default strategy',
+  'prefs.orchestrationSkillStrategy.auto': 'Automatic',
+  'prefs.orchestrationSkillStrategy.economy': 'Economy',
+  'prefs.orchestrationSkillStrategy.balanced': 'Balanced',
+  'prefs.orchestrationSkillStrategy.quality': 'Quality',
+  'prefs.orchestrationSkillStrategy.research': 'Research',
+  'prefs.orchestrationSkillStrategy.parallel': 'Parallel',
+  'prefs.orchestrationSkillStrategy.rescue': 'Rescue',
+  'prefs.orchestrationSkillConserve': 'Provider to conserve',
+  'prefs.orchestrationSkillSwitch': 'When that provider is selected',
+  'prefs.orchestrationSkillSwitch.ask': 'Ask before switching',
+  'prefs.orchestrationSkillSwitch.automatic': 'Switch automatically',
+  'prefs.orchestrationSkillSwitch.never': 'Never switch',
+  'prefs.orchestrationSkillPreferred': 'Preferred local provider',
+  'prefs.orchestrationSkillProviderNone': 'None',
+  'prefs.orchestrationSkillProviderAuto': 'Automatic order',
+  'prefs.orchestrationSkillHint':
+    'Alethe exports these choices to the bundled skill’s local policy file. The skill runner reads it directly and does not require MCP. An explicit instruction in the current prompt always wins.',
+  'prefs.orchestrationLimits': 'Worker limits',
+  'prefs.orchestrationLimitsDesc': 'Apply to every delegation, from any planner.',
+  'prefs.orchestrationConcurrency': 'Workers at the same time',
+  'prefs.orchestrationConcurrencyDecrease': 'Fewer workers at the same time',
+  'prefs.orchestrationConcurrencyIncrease': 'More workers at the same time',
+  'prefs.orchestrationDefaultTimeout': 'Default budget per worker (seconds)',
+  'prefs.orchestrationTimeoutHint':
+    'Used when a planner names no budget. 0 lets a worker run without a limit.',
+  'prefs.orchestrationWorkerPlugins': 'Codex plugins off in workers',
+  'prefs.orchestrationWorkerPluginsHint':
+    'One plugin id per line or comma, such as ecc@ecc. Codex workers start without their hooks and context; your own hooks and MCP servers stay.',
+  'prefs.orchestrationRoles': 'Roles',
+  'prefs.orchestrationRolesDesc':
+    'A planner that delegates with a role gets exactly what the role sets: agent, model, effort, read-only and budget. It cannot change them in the call.',
+  'prefs.orchestrationRolesEmpty':
+    'No roles yet. Until you add one, planners pick the model and effort themselves.',
+  'prefs.orchestrationAddRole': 'Add role',
+  'prefs.orchestrationRemoveRole': 'Remove {name}',
+  'prefs.orchestrationRoleName': 'Name',
+  'prefs.orchestrationRoleNameFor': 'Name of role {name}',
+  'prefs.orchestrationRoleNameInvalid':
+    'Use a unique name without spaces that does not start with "-". Until then the role keeps its saved name, which is the one planners use.',
+  'prefs.orchestrationAgent': 'Agent',
+  'prefs.orchestrationModel': 'Model',
+  'prefs.orchestrationEffort': 'Effort',
+  'prefs.orchestrationReadOnly': 'Read-only',
+  'prefs.orchestrationBudget': 'Budget (s)',
+  'prefs.orchestrationAgentFor': 'Agent for {name}',
+  'prefs.orchestrationModelFor': 'Model for {name}',
+  'prefs.orchestrationEffortFor': 'Effort for {name}',
+  'prefs.orchestrationReadOnlyFor': 'Read-only for {name}',
+  'prefs.orchestrationTimeoutFor': 'Budget for {name} in seconds',
+  'prefs.orchestrationCliDefault': 'CLI default',
+  'prefs.orchestrationModelDefault': "Model's default",
+  'prefs.orchestrationBudgetDefault': 'Default',
+  'prefs.orchestrationFallback': 'Fallback',
+  'prefs.orchestrationFallbackFor': 'Fallback for {name}',
+  'prefs.orchestrationFallbackNone': 'None',
+  'prefs.orchestrationFallbackHint':
+    "When a role's provider passes 80% of its quota and the fallback's provider has room, the work runs as the fallback role. A read-only role only falls back to a read-only one.",
+  'prefs.orchestrationOrchestrator': 'Orchestrator',
+  'prefs.orchestrationOrchestratorFor': 'Orchestrator for {name}',
+  'prefs.orchestrationOrchestratorAny': 'Any',
+  'prefs.orchestrationRoleOnOrchestrator': '{name} ({agent})',
+  'prefs.orchestrationOrchestratorHint':
+    'A row for a specific orchestrator wins over the Any row of the same name, so the same role can send Claude and Codex sessions to different workers.',
+  'prefs.orchestrationModelsLoading': 'Reading the models Codex offers…',
+  'prefs.orchestrationModelsFailed':
+    'Could not list the Codex models ({error}). You can still type a model name.',
+  'prefs.orchestrationCustomModel': 'Use "{value}"',
+  'prefs.orchestrationCodexOnly': 'Codex workers only',
+  'prefs.orchestrationRouting': 'Routing',
+  'prefs.orchestrationRoutingDesc':
+    'Which role a delegated call runs as when the planner leaves the choice to Alethe.',
+  'prefs.orchestrationRoutingIntro':
+    'The planner classifies each delegated task by kind and effort; Alethe walks the rules in order and the first enabled match picks the role. A role or model named in the call always wins.',
+  'prefs.routingPresetEconomy': 'Economy',
+  'prefs.routingPresetEconomyDesc':
+    'Cheapest roles first: a Haiku scout, a read-only Codex, and a Codex builder for the rest.',
+  'prefs.routingPresetBalanced': 'Balanced',
+  'prefs.routingPresetBalancedDesc':
+    'Cheap roles for light work, Sonnet for the rest, Opus for deep tasks while its quota has room.',
+  'prefs.routingPresetPerformance': 'Performance',
+  'prefs.routingPresetPerformanceDesc':
+    'Sonnet by default and Opus for deep tasks; Codex backs up Claude.',
+  'prefs.routingPresetCustom': 'Custom',
+  'prefs.routingPresetCustomDesc': 'Your own rules, kept as they are.',
+  'prefs.routingCustomHint': 'Custom turns on by itself when you edit any rule.',
+  'prefs.routingAdvanced': 'Advanced rules ({count})',
+  'prefs.routingRulesHint': 'Rules run top to bottom; the first enabled match wins.',
+  'prefs.routingRuleEnabled': 'Enable rule {n}',
+  'prefs.routingRuleRole': 'Role for rule {n}',
+  'prefs.routingRuleRoleMissing': 'No role is named "{name}" — the router skips this rule.',
+  'prefs.routingRuleKinds': 'Kinds',
+  'prefs.routingRuleEfforts': 'Efforts',
+  'prefs.routingMatchAny': 'None selected matches any.',
+  'prefs.routingRuleGates': 'Quota gates',
+  'prefs.routingRuleGateAgent': 'Gate agent',
+  'prefs.routingRuleGateWindow': 'Gate window',
+  'prefs.routingRuleGateBelow': 'Gate below (%)',
+  'prefs.routingRuleGateAdd': 'Add gate',
+  'prefs.routingRuleGateRemove': 'Remove gate',
+  'prefs.routingRuleMoveUp': 'Move rule {n} up',
+  'prefs.routingRuleMoveDown': 'Move rule {n} down',
+  'prefs.routingRuleRemove': 'Remove rule {n}',
+  'prefs.routingRuleAdd': 'Add rule',
+  'prefs.routingRulesNeedRole': 'Add a role above before creating rules.',
+  'prefs.routingCriticalThreshold': 'Critical threshold (%)',
+  'prefs.routingCriticalThresholdHint':
+    'A provider past this percent of its quota counts as critical.',
+  'prefs.routingAllowOpusOnDeep': 'Allow Opus-class roles on deep tasks',
+  'prefs.routingAllowOpusOnDeepHint': 'Off keeps deep tasks on Sonnet-class roles.',
+  'prefs.routingOnBothCritical': 'When every provider is critical',
+  'prefs.routingOnBothCriticalAsk': 'Ask first',
+  'prefs.routingOnBothCriticalAskDesc': 'The planner is asked before spending past-critical quota.',
+  'prefs.routingOnBothCriticalRunCheapest': 'Run on the cheapest provider',
+  'prefs.routingOnBothCriticalRunCheapestDesc':
+    'Runs anyway, on the provider with the most quota left.',
+  'prefs.routingOnBothCriticalBlock': 'Block the call',
+  'prefs.routingOnBothCriticalBlockDesc':
+    'The delegate call fails until a provider has quota again.',
+  'prefs.routingKindResearch': 'Research',
+  'prefs.routingKindCode': 'Code',
+  'prefs.routingKindReview': 'Review',
+  'prefs.routingKindCommand': 'Command',
+  'prefs.routingKindScrap': 'Scrap',
+  'prefs.routingKindDocs': 'Docs',
+  'prefs.routingEffortLight': 'Light',
+  'prefs.routingEffortStandard': 'Standard',
+  'prefs.routingEffortDeep': 'Deep',
+  'prefs.routingWindowShort': 'Short (5h)',
+  'prefs.routingWindowWeek': 'Week (7d)',
+  'prefs.routingWindowOpus': 'Opus (7d)',
   'prefs.multiagentSchedulerTitle': 'Scheduler & task queue',
   'prefs.multiagentSchedulerDesc':
     'Manages execution waves from the real `.planning/task.md` backlog per project.',
@@ -800,6 +1021,39 @@ export const en = {
   'prefs.multiagentSelectProjectAuditHint': 'Select a project above to view the GSD audit history.',
   'prefs.multiagentAutocommitError': 'Failed to change autocommit setting.',
   'prefs.multiagentTraceTask': 'Task: {id}',
+  'prefs.orchestratorShortcuts': 'Orchestration shortcuts',
+  'prefs.orchestratorShortcutsDesc':
+    'One-click instructions for the lead agent. Clicking one on the board writes it into the lead’s terminal, where you edit it before sending.',
+  'prefs.shortcutName': 'Name',
+  'prefs.shortcutText': 'Message',
+  'prefs.shortcutRule': 'Shows on',
+  'prefs.shortcutRuleAny': 'Any worker',
+  'prefs.shortcutRuleFinished': 'A worker that finished',
+  'prefs.shortcutRuleIsolated': 'An isolated worker that finished',
+  'prefs.shortcutRestore': 'Restore default',
+  'prefs.shortcutDelete': 'Delete',
+  'prefs.shortcutAdd': 'Add shortcut',
+  'prefs.shortcutNewName': 'New shortcut',
+  'prefs.shortcutPlaceholders': 'Available: {jobId}, {agent}, {branch}, {worktree}, {project}.',
+  'prefs.shortcutsEmpty': 'You have no shortcuts. Restore defaults to bring Alethe’s back.',
+  'prefs.shortcutsRestoreDefaults': 'Restore defaults',
+  'prefs.workerRules': 'Rules for delegated work',
+  'prefs.workerRulesDesc':
+    'What Alethe tells the agents it delegates to. The general set goes with every task; the lead agent names the set that matches the work. A repository’s own conventions always win over these.',
+  'prefs.ruleSetName': 'Set name',
+  'prefs.ruleSetText': 'Rules',
+  'prefs.ruleSetSize': '{count} characters, sent with every task of this set',
+  'prefs.ruleSetDuplicate': 'Another set already uses this name.',
+  'prefs.ruleSetDuplicateRejected':
+    '“{name}” is already taken, so this set kept its previous name.',
+  'prefs.ruleSetAdd': 'Add set',
+  'prefs.ruleSetNewName': 'New set',
+  'prefs.ruleSetsEmpty': 'No rules are sent with delegated work.',
+  'prefs.ruleSetsLoading': 'Loading Alethe’s rules…',
+  'prefs.ruleSetsUnavailable':
+    'Alethe’s rule sets could not be loaded, so they cannot be edited right now. The rules the agents receive are unchanged.',
+  'prefs.ruleSetsRetry': 'Try again',
+  'prefs.ruleSetsRestoreAll': 'Restore Alethe’s sets',
   /* ---- plugins ---- */
   'prefs.categoryPlugins': 'Plugins',
   'prefs.categoryPluginsDesc': 'Extensions that add themes, panes, sidebar tabs and commands.',
@@ -836,6 +1090,53 @@ export const en = {
   'prefs.pluginsCatalogStale': 'Showing the last list saved on this computer',
   'prefs.pluginsCatalogLoading': 'Loading the plugin list…',
   'prefs.pluginsCatalogEmpty': 'No plugins are listed yet.',
+
+  // Plugin marketplace — its own window, because browsing and configuring are different tasks.
+  'prefs.pluginsMarketplaceDesc': 'Browse, search and install plugins in a window of its own.',
+  'prefs.pluginsMarketplaceOpen': 'Open the marketplace',
+  'market.title': 'Plugins',
+  'market.search': 'Search plugins',
+  'market.browse': 'Marketplace',
+  'market.installed': 'Installed',
+  'market.sort': 'Sort',
+  'market.sortName': 'Name',
+  'market.sortUpdated': 'Updates first',
+  'market.filterCapabilities': 'Can do',
+  'market.filterSource': 'Source',
+  'market.sourceBundled': 'Ships with Alethe',
+  'market.sourceLocal': 'Installed here',
+  'market.filterState': 'State',
+  'market.stateEnabled': 'Enabled',
+  'market.stateDisabled': 'Disabled',
+  'market.clear': 'Clear filters',
+  'market.results': '{count} shown',
+  'market.by': 'by {author}',
+  'market.install': 'Install',
+  'market.installing': 'Installing…',
+  'market.update': 'Update to {version}',
+  'market.installedMark': 'Installed',
+  'market.openPage': 'Open its page',
+  'market.enable': 'Enable',
+  'market.disable': 'Disable',
+  'market.uninstall': 'Uninstall',
+  'market.back': 'Back to the list',
+  'market.loading': 'Reading the catalogue…',
+  'market.stale': 'Showing the last catalogue that loaded — the network could not be reached.',
+  'market.retry': 'Try again',
+  'market.error': 'The catalogue could not be read.',
+  'market.emptySearch': 'Nothing matches what you typed.',
+  'market.emptyCatalog': 'No plugins are listed yet.',
+  'market.emptyInstalled': 'Nothing installed yet. The marketplace is the other tab.',
+  'market.detailCapabilities': 'What it can do',
+  'market.detailRepo': 'Source',
+  'market.notInstallable':
+    'This listing points at a page rather than publishing a package, so Alethe cannot install it for you.',
+  'market.fullPower':
+    'A plugin runs with the same power as Alethe itself. Capabilities are a disclosure, not a cage — install what you have reason to trust.',
+  'market.uninstallWarning': 'Uninstalling removes the plugin and the data it stored.',
+  'market.installDone': '{name} installed',
+  'market.installDoneBody': 'It is disabled until you enable it and accept what it can do.',
+  'market.installFailed': 'That plugin could not be installed.',
   'prefs.pluginsCatalogError': 'The plugin list could not be loaded.',
   'prefs.pluginsCatalogInstalled': 'Installed',
   'prefs.pluginsCatalogBy': 'By {author}',
@@ -888,9 +1189,17 @@ export const en = {
 
   'prefs.agentsTitle': 'Enabled agents',
   'prefs.agentsDesc': 'Choose which agents are available when creating terminals and sub-tabs.',
+  'prefs.shell': 'Shell',
+  'prefs.shellDesc':
+    'Alethe picks the shell on its own (PowerShell 7 when available, then Windows PowerShell; $SHELL elsewhere). Point it at another binary to override that — it applies to Shell tabs, not to agent tabs.',
+  'prefs.shellPathPick': 'Select the shell executable',
+  'prefs.terminalFont': 'Terminal font',
+  'prefs.terminalFontDesc':
+    'Font stack used by the terminal panes. Prompts such as oh-my-posh and Starship need a Nerd Font installed on the system — for example "CaskaydiaCove Nerd Font".',
+  'prefs.terminalFontFamily': 'Font family',
   'prefs.cliPaths': 'Agent CLI paths',
   'prefs.cliPathsDesc':
-    'Alethe finds each agent CLI on its own. Override it only when the CLI lives somewhere unusual — and point it at the command-line tool, not at a desktop app.',
+    'Alethe finds each agent CLI on its own. Override it only when the CLI lives somewhere unusual — and point it at the command-line tool, not at a desktop app. These are Windows paths: terminals whose folder is inside WSL ignore them and resolve the CLI inside the distro.',
   'prefs.cliPathAuto': 'Detected automatically',
   'prefs.cliPathSet': 'Set path',
   'prefs.cliPathReset': 'Reset',
@@ -899,6 +1208,51 @@ export const en = {
   'prefs.cliPathMismatchBody':
     'The {agent} command line tool is called "{command}". The file you picked has another name, so it may open the desktop app instead of running in a terminal.',
   'prefs.enabledAgents': 'Enabled agents ({count}/4)',
+  'prefs.customAgents': 'Custom agents',
+  'prefs.customAgentsDesc':
+    'Add your own agent CLIs. They appear alongside the built-ins everywhere and open a real terminal with the command you configure.',
+  'prefs.customAgentsEmpty': 'No custom agents yet.',
+  'prefs.customAgentAdd': 'Add custom agent',
+  'prefs.customAgentEdit': 'Edit',
+  'prefs.customAgentRemove': 'Remove',
+  'prefs.customAgentConfirmRemove': 'Remove the custom agent "{label}"?',
+  'prefs.customAgentId': 'ID (slug)',
+  'prefs.customAgentIdHint': 'Lowercase letters, numbers and dashes, 2–32 characters.',
+  'prefs.customAgentLabel': 'Display name',
+  'prefs.customAgentCli': 'CLI command',
+  'prefs.customAgentCliHint': 'Binary plus optional default args, e.g. my-agent --chat.',
+  'prefs.customAgentFlag': 'Unrestricted flag (optional)',
+  'prefs.customAgentFlagHint': 'Single flag appended in unrestricted mode, e.g. --allow-all.',
+  'prefs.customAgentAccent': 'Accent color',
+  'prefs.customAgentIcon': 'Icon',
+  'prefs.customAgentIconMode': 'Icon source',
+  'prefs.customAgentIconPreset': 'Built-in preset',
+  'prefs.customAgentIconFile': 'Local .ico file',
+  'prefs.customAgentIconUrl': 'Image link (https)',
+  'prefs.customAgentIconPreview': 'Preview',
+  'prefs.customAgentIconPick': 'Choose .ico file',
+  'prefs.customAgentIconFileKept': 'Using the saved .ico file. Pick a new one to replace it.',
+  'prefs.customAgentIconFileHint':
+    'Square .ico up to 512KB. Stored in app data, never as an absolute path.',
+  'prefs.customAgentIconUnavailable': 'Local .ico icons are only available in the desktop app.',
+  'prefs.customAgentIconUrlPlaceholder': 'https://example.com/icon.png',
+  'prefs.customAgentIconUrlHint':
+    'Https image link ending in .png, .jpg or .jpeg. Remote images load lazily with no referrer.',
+  'prefs.customAgentErrorIconFile': 'Pick a valid square .ico file up to 512KB.',
+  'prefs.customAgentErrorIconFileTooLarge': 'That .ico is over 512KB. Pick a smaller file.',
+  'prefs.customAgentErrorIconFileNotSquare': 'That .ico is not square. Pick a square icon.',
+  'prefs.customAgentErrorIconFileInvalid':
+    'That file is not a valid .ico. Pick an .ico file exported as an icon.',
+  'prefs.customAgentErrorIconUrl': 'Use an https link that ends in .png, .jpg or .jpeg.',
+  'prefs.customAgentSave': 'Save agent',
+  'prefs.customAgentCancel': 'Cancel',
+  'prefs.customAgentErrorIdFormat': 'Use 2–32 lowercase letters, numbers or dashes.',
+  'prefs.customAgentErrorIdTaken': 'This ID is already in use.',
+  'prefs.customAgentErrorIdBuiltin': 'This ID is reserved for a built-in agent.',
+  'prefs.customAgentErrorLabelEmpty': 'Give the agent a display name.',
+  'prefs.customAgentErrorCliEmpty': 'Enter the CLI command that starts the agent.',
+  'prefs.customAgentErrorCliUnsafe':
+    'The command looks unsafe or invalid. Use a binary name with plain arguments only.',
   'prefs.resetSession': 'Reset last session',
   'prefs.resetSessionDesc':
     'If reopening the app did not resume your agents, this finds each open agent’s most recent conversation and restarts it with resume.',
@@ -1089,6 +1443,34 @@ export const en = {
   'whatsNew.close': 'Got it',
   'whatsNew.update': 'View update',
   'whatsNew.releaseHeading': 'v{version} — {date}',
+  'whatsNew.v170.note1':
+    'Features now load as plugins: Git Control, Todo List and the Theme Pack ship as official plugins, and a plugin can be imported from its folder.',
+  'whatsNew.v170.note2':
+    'A plugin catalogue in Preferences installs and updates plugins in one click, each package pinned to a SHA-256 checksum.',
+  'whatsNew.v170.note3':
+    'Orchestration v2: a lead agent delegates to Claude and Codex workers on a board, asks before leaving its sandbox and checks each vendor’s remaining quota first.',
+  'whatsNew.v170.note4':
+    'Remote control grew into a mobile client with a live terminal, an agent chat view and interactive questions.',
+  'whatsNew.v170.note5':
+    'Projects can be split into optional named grids, each with its own terminals and layout.',
+  'whatsNew.v170.note6': 'New agents and terminals: Cursor CLI, Kiro CLI and plain WSL terminals.',
+  'whatsNew.v170.note7': '9router routing integration, and cloud sync for preferences (free tier).',
+  'whatsNew.v170.note8': 'Ctrl+P now finds commands, not just terminals.',
+  'whatsNew.v160.note1':
+    'Normal and Clean interface styles for the whole app, chosen during onboarding with a live preview.',
+  'whatsNew.v160.note2':
+    'Claude Code and Codex conversations can be continued in the other agent from the terminal.',
+  'whatsNew.v160.note3':
+    'Agents can be installed, updated and uninstalled from inside Alethe, and GitHub Copilot CLI joins as a new agent.',
+  'whatsNew.v160.note4':
+    'New MCP tab in the right sidebar with every configured MCP server and the skills installed for each agent.',
+  'whatsNew.v160.note5':
+    'Grid layouts are edited directly on the grid, with adaptive presets and the eight most recently saved layouts.',
+  'whatsNew.v160.note6':
+    'Browser panes are back in the workspace grid, and a URL printed in a terminal can open as one.',
+  'whatsNew.v160.note7':
+    'Remote control pairs through a short-lived pairing window, starts read-only and can hide individual terminals.',
+  'whatsNew.v160.note8': 'New Golden Premium and Ember themes.',
   'whatsNew.v150.note1':
     'Full-profile backup export now archives the entire profile (todos, history, preferences, tokens, scrollback) instead of a fixed short list.',
   'whatsNew.v150.note2':
@@ -1148,6 +1530,7 @@ export const en = {
   'rightSidebar.markdownTab': 'Markdown',
   'rightSidebar.gsdSyncTab': 'GSD Sync',
   'rightSidebar.prsTab': 'PRs',
+  'rightSidebar.agentsTab': 'Agents',
   'rightSidebar.gsdSyncEmptyTitle': 'No active GSD Sync session',
   'rightSidebar.gsdSyncEmptyDesc':
     'Turn on GSD monitoring for a project to see its child sessions here.',
@@ -1161,6 +1544,13 @@ export const en = {
   'rightSidebar.commentPlaceholder': 'Write a note about this passage...',
   'rightSidebar.commentSave': 'Save comment',
   'rightSidebar.commentDelete': 'Delete comment',
+  'agentsPanel.title': 'Agents',
+  'agentsPanel.scopeFocused': 'Focused planner',
+  'agentsPanel.scopeAll': 'All planners',
+  'agentsPanel.emptyTitle': 'No agents in use',
+  'agentsPanel.emptyBody':
+    'Workers the planner delegates, and its subagents, show up here while they run.',
+  'agentsPanel.expand': 'Open the full orchestration board',
 
   /* ---- home ---- */
   'home.agentHeroTitle': 'start an agents session',
@@ -1262,6 +1652,7 @@ export const en = {
   'widget.tryAgain': 'try again',
   'widget.noTokenConfigured': 'no token configured',
   'widget.connectToSeeUsage': 'connect to see usage',
+  'widget.usageUnavailableHint': 'the usage service refused the request; try again shortly',
   'widget.usage5h': 'usage 5h',
   'widget.resetIn': 'reset in {time}',
   'widget.resetsIn': 'resets in {time}',
@@ -1311,6 +1702,9 @@ export const en = {
   'widget.kimiNotSignedIn': 'not signed in to Kimi',
   'widget.kimiMonthlyCode': 'monthly code',
   'widget.kimiMonthlyTotal': 'monthly total',
+  'widget.usageOff': 'usage is off',
+  'widget.usageOffHint': 'turning it on uses your {provider} sign-in and contacts {vendor}',
+  'widget.turnOnUsage': 'turn on',
   'widget.mostUsed': 'most used',
   'widget.mostUsedBucket': 'most used · {name}',
   'widget.remainingLabel': 'remaining',
@@ -1350,6 +1744,7 @@ export const en = {
   'crud.projectPathLabel': 'Project folder',
   'crud.projectPathPlaceholder': 'Choose the project folder',
   'crud.projectPathHint': 'New terminals will start in this folder.',
+  'crud.wslHint': 'Running inside WSL · {distro}',
   'crud.groupLabel': 'Group',
   'crud.noGroup': 'Loose (no group)',
   'crud.colorLabel': 'Color',
@@ -1428,6 +1823,11 @@ export const en = {
   'term.goalPlaceholder': 'What should the planner get done?',
   'term.createMore': 'Create more',
   'term.createOrchestration': 'Create orchestration',
+  'term.wslBadgeLabel': 'Running inside WSL · {distro}',
+  'term.wslPick': 'WSL',
+  'term.wslPickTitle': 'Open a folder inside a WSL distro',
+  'term.wslPickFailed': 'Could not reach WSL',
+  'term.wslPickFailedBody': 'Alethe could not read the home directory of {distro}.',
   'term.openAgent': 'Open {agent}',
   'term.cancel': 'Cancel',
   'term.create': 'Create',
@@ -1437,7 +1837,8 @@ export const en = {
   'term.unrestrictedEnable': 'enable unrestricted mode',
   'term.unrestricted': 'Unrestricted mode',
   'term.runAsAdmin': 'Start shell as administrator',
-  'term.runAsAdminDescription': 'Windows UAC will ask for approval. Requires gsudo or Windows Sudo in inline mode.',
+  'term.runAsAdminDescription':
+    'Windows UAC will ask for approval. Requires gsudo or Windows Sudo in inline mode.',
   'term.unrestrictedDescription': 'Skip permission confirmations when this agent starts.',
   'term.unrestrictedOn': 'On',
   'term.unrestrictedOff': 'Off',
@@ -1636,6 +2037,13 @@ export const en = {
   'usageModal.showInTopbar': 'Topbar',
   'usageModal.allHidden':
     'All usage items are hidden. Re-enable them in the AI usage details panel.',
+  'prefs.usageAccess': 'AI usage reading',
+  'prefs.usageAccessDesc':
+    'Choose which providers Alethe reads your usage from. Turning one on uses the credentials of the CLI already installed on this computer and contacts that provider. While it is off, Alethe never reads those credentials or contacts the provider.',
+  'usageAccess.providerHint': 'Uses the {provider} sign-in on this computer and contacts {vendor}.',
+  'usageAccess.orchestratorToastTitle': 'Usage reading turned on',
+  'usageAccess.orchestratorToastBody':
+    'The orchestrator uses quota to warn you and to pick roles, so Alethe now reads usage for {providers} with the installed CLI credentials. You can turn it off in Preferences > Integrations.',
   'ui.titlebar.itemClaude': 'Claude Code usage',
   'ui.titlebar.itemCodex': 'Codex usage',
   'ui.titlebar.itemAntigravity': 'Antigravity status',
@@ -2007,10 +2415,12 @@ export const en = {
   'ws.now': 'now',
   'ws.claude5h': 'claude 5h {pct}%',
   'ws.codex5h': 'codex 5h {pct}%',
+  'ws.codexWeek': 'codex week {pct}%',
   'ws.usagePanelOpen': 'Usage stats (Claude / Codex)',
   'ws.usage5hLabel': '5h',
   'ws.usageWeekLabel': '7 days',
   'ws.usageOpusLabel': 'opus 7d',
+  'ws.usageModelLabel': '{model} 7d',
   'ws.usageStatus': 'status',
   'ws.usageOk': 'ok',
   'ws.usageLimited': 'rate limited',
@@ -2060,6 +2470,15 @@ export const en = {
   'ws.copied': 'copied!',
   'ws.copy': 'copy',
   'ws.agentsChangedRestart': 'agents changed — restart claude ↻',
+  'ws.permissionsChangedRestart': 'permission mode changed — restart claude ↻',
+  'ws.permissionsAsk': 'permissions: ask',
+  'ws.permissionsBypass': 'permissions: bypass',
+  'ws.permissionsAskTitle':
+    'Agents ask before running commands or editing files. A background worker has nobody to ask, so what needs approval is refused. Click to change.',
+  'ws.permissionsBypassTitle':
+    'Agents run commands and edit files without asking. Click to change.',
+  'ws.workerAskRefused':
+    'Ask mode: nobody could approve this worker, so any action that needed approval was refused. Change the mode in Preferences → Terminal and agents.',
   'ws.exitedCode': 'exited (code {code})',
   'ws.economyModeTitle':
     "Economy mode: writes/removes Haiku and codex-executor agents in the folder's .claude/agents/",
@@ -2077,14 +2496,6 @@ export const en = {
   'diff.error.binary': 'Binary file cannot be displayed as text',
   'diff.error.tooLarge': 'Diff is too large to display (> 2MB)',
   'diff.error.generic': 'Could not load the diff',
-  'orchestrator.steerPlaceholder': 'Correct this worker…',
-  'orchestrator.sendPlaceholder': 'Give it more work…',
-  'orchestrator.resumePlaceholder': 'Start it again with…',
-  'orchestrator.steerHint': 'Lands on the turn it is running now',
-  'orchestrator.sendHint': 'Runs as its next turn, on everything it already knows',
-  'orchestrator.resumeHint': 'Starts this worker again and resumes its thread with the message',
-  'orchestrator.resumeNote': 'sending starts it again, context intact',
-  'orchestrator.sendFailed': 'The worker did not take the message',
   'orchestrator.addPlannerTitle': 'Open another agent terminal to orchestrate from',
   'orchestrator.title': 'Orchestration',
   'orchestrator.running': '{count} running',
@@ -2099,6 +2510,17 @@ export const en = {
   'orchestrator.agentSpendTitle': '{agent}: {cost} · {tokens} tokens in this planner session',
   'orchestrator.isolated': 'worktree',
   'orchestrator.hasDiff': 'diff',
+  'orchestrator.roleTitle': 'Delegated with the {role} role',
+  'orchestrator.settingsNotApplied': 'Orchestration settings were not applied',
+  'orchestrator.settingsNotAppliedBody':
+    'Planners keep the previous roles and limits until this is fixed: {error}',
+  'orchestrator.modelTitle': 'Runs on {model}, as the planner asked',
+  'orchestrator.effortTitle': 'Runs with {effort} reasoning effort, as the planner asked',
+  'orchestrator.modelEffortTitle':
+    'Runs on {model} with {effort} reasoning effort, as the planner asked',
+  'orchestrator.readOnly': 'read-only',
+  'orchestrator.readOnlyTitle':
+    'Started in a read-only sandbox: it reads files and runs commands but cannot write',
   'orchestrator.status.queued': 'waiting for a slot',
   'orchestrator.status.running': 'running',
   'orchestrator.status.done': 'done',
@@ -2107,6 +2529,31 @@ export const en = {
   'orchestrator.status.released': 'released',
   'orchestrator.status.interrupted': 'interrupted',
   'orchestrator.status.blocked': 'waiting on you',
+  'orchestrator.shellsEyebrow': 'shells',
+  'orchestrator.shellsLabel': 'Shells',
+  'orchestrator.shellsOrphanLabel': 'Shells with no agent',
+  'orchestrator.shellCount': '{count} shell',
+  'orchestrator.shellCountPlural': '{count} shells',
+  'orchestrator.shell.running': 'running',
+  'orchestrator.shell.exited': 'exited ({code})',
+  'orchestrator.shell.stopped': 'stopped',
+  'orchestrator.shell.stop': 'Stop',
+  'orchestrator.shell.restart': 'Restart',
+  'orchestrator.shell.play': 'Run again',
+  'orchestrator.shell.openTerminal': 'Open terminal',
+  'orchestrator.shell.remove': 'Remove',
+  'orchestrator.shell.failed': 'The shell did not respond',
+  'orchestrator.shell.viewGone':
+    'This shell is not running. Start it again from the orchestration board.',
+  'orchestrator.shortcut.applyName': 'Apply',
+  'orchestrator.shortcut.applyText':
+    'Bring worker {jobId} into the project: commit what it left in {worktree}, merge {branch} into the current branch, and tell me if anything conflicts.',
+  'orchestrator.shortcut.reviewName': 'Review',
+  'orchestrator.shortcut.reviewText':
+    'Read worker {jobId}’s report and its diff, then tell me whether it did what it was asked and what you would change.',
+  'orchestrator.shortcut.continueName': 'Continue',
+  'orchestrator.shortcut.continueText':
+    'Send worker {jobId} more work on its existing thread, keeping everything it already learned.',
   'orchestrator.interruptedTitle':
     'Its process died with the app. The thread is still on disk, so the work can be picked up again.',
   'orchestrator.blockedTitle':
@@ -2118,6 +2565,10 @@ export const en = {
   'orchestrator.plannerEyebrow': 'planner',
   'orchestrator.plannerNodeTitle': 'Open the terminal this planner runs in',
   'orchestrator.plannerGone': 'The terminal this planner ran in is no longer open',
+  'orchestrator.plannerInMainWindow': "Open this planner's terminal from the main window",
+  'orchestrator.openInWindow': 'Open in new window',
+  'orchestrator.openInWindowFailed': 'Could not open the board in a new window',
+  'orchestrator.windowPaneGone': 'This orchestration pane no longer exists.',
   'orchestrator.noPlanner': 'no planner',
   'orchestrator.noPlannerTitle': 'Work delegated from outside an agent terminal',
   'orchestrator.plannerTitle': '{label} · {agent}',
@@ -2138,6 +2589,7 @@ export const en = {
   'orchestrator.forestHint':
     'One tree per delegation call · the workers under a run do not depend on each other.',
   'orchestrator.runNodeTitle': 'The delegation that started these workers',
+  'orchestrator.runRulesTitle': 'Rule set this run was delegated with',
   'orchestrator.zoomIn': 'Zoom in',
   'orchestrator.zoomOut': 'Zoom out',
   'orchestrator.zoomFit': 'fit',
@@ -2161,29 +2613,14 @@ export const en = {
   'orchestrator.noReport': 'This worker has not reported anything yet.',
   'orchestrator.contextChip': '{value}% context',
   'orchestrator.contextTitle': '{percent}% of the model context window used',
-  'orchestrator.messageAction': 'message',
-  'orchestrator.viewDiff': 'view diff',
-  'orchestrator.hideDiff': 'hide diff',
   'orchestrator.diffLoading': 'Loading diff…',
   'orchestrator.diffFailed': 'Could not load the diff',
-  'orchestrator.applyAction': 'apply',
-  'orchestrator.applying': 'applying…',
-  'orchestrator.applyConflict': 'Cannot apply automatically',
-  'orchestrator.applyConflictBody':
-    "Worker {id}'s branch conflicts with the current one. Resolve it by hand, same as any other worktree.",
-  'orchestrator.applyFailed': "Could not apply the worker's changes",
-  'orchestrator.applySuccess': 'Applied',
-  'orchestrator.applySuccessBody': 'Merged into {branch} and the worktree was removed.',
-  'orchestrator.composeTo': 'to {id}',
-  'orchestrator.composeNoTarget': 'Pick a worker to message it',
-  'orchestrator.modeSteer': 'steer',
-  'orchestrator.modeNext': 'next turn',
-  'orchestrator.modeResume': 'resume',
   'orchestrator.askLabel': 'waiting on you',
   'orchestrator.askCommand': 'It wants to run a command.',
   'orchestrator.askFileChange': 'It wants to change files.',
   'orchestrator.routingChosen': 'chosen · {agent} {window} {used}%',
   'orchestrator.routingIgnored': 'ignored hint · {agent} {window} {used}%',
+  'orchestrator.routingFallback': 'fallback · {from} → {to} · {agent} {window} {used}%',
   'orchestrator.askIn': 'in {path}',
   'orchestrator.askHint':
     'Declining lets it carry on down another path. Aborting ends its turn here.',
@@ -2196,6 +2633,18 @@ export const en = {
   'orchestrator.answerAbort': 'Abort',
   'orchestrator.answerAbortTitle': 'Ends this worker turn instead of answering the question',
   'orchestrator.answerFailed': 'The worker did not take the answer',
+  'orchestrator.reportTab': 'Report',
+  'orchestrator.diffTab': 'Diff',
+  'orchestrator.stopWorker': 'Stop this worker',
+  'orchestrator.stopFailed': 'The worker did not stop',
+  'orchestrator.menuOpen': 'Open',
+  'orchestrator.menuStop': 'Stop',
+  'orchestrator.menuRestart': 'Restart',
+  'orchestrator.restartFailed': 'Could not restart the worker',
+  'orchestrator.inspectorClose': 'Close',
+  'orchestrator.shellCwd': 'in {path}',
+  'orchestrator.noPlannerForShortcuts':
+    'The agent that started this worker is no longer open, so there is nobody to send an instruction to.',
   'addContent.orchestrator': 'Orchestration',
   'addContent.orchestratorDescription': 'Watch the workers agents delegate to.',
   'diff.empty': 'No changes to display.',
@@ -2236,6 +2685,13 @@ export const en = {
   'mod.jobGuardInactive':
     'Orphan process protection: unavailable on this platform/session. A crash may leave processes running; the next boot still tries to clean up automatically.',
   'ui.terminal.restartFailed': 'Failed to restart terminal',
+  'ui.terminal.orchestrationStartFailed': 'Could not start orchestration',
+  'ui.terminal.orchestrationStartFailedBody':
+    'Claude did not come back with the orchestrator tools.',
+  'ui.terminal.openOrchestration': 'Open orchestration',
+  'ui.terminal.orchestrationRestartTitle': 'Restart Claude for orchestration?',
+  'ui.terminal.orchestrationRestartBody':
+    'This conversation was started without the orchestrator tools. Claude restarts on the same conversation to get them, and Agent orchestration stays on for the Claude and Codex terminals you open next.',
   'git.initOffer.title': 'Not a Git repository yet',
   'git.initOffer.body':
     'Agent isolation, worktrees and merges all need this folder to be a Git repository. Initialize one now?',
@@ -2432,6 +2888,8 @@ export const en = {
   'sync.error.access_denied': 'Authorization was denied on GitHub.',
   'sync.error.code_expired': 'The code expired — try signing in again.',
   'sync.error.malformed_payload': 'The cloud data is malformed.',
+  'sync.error.secure_store_unavailable':
+    'The system credential store is not available, so nothing was saved. On Linux, install and unlock a keyring such as GNOME Keyring or KWallet, then try again.',
   'sync.error.generic': 'Sync failed: {error}',
 
   /* ---- resource supervisor ---- */
@@ -2479,6 +2937,11 @@ export const en = {
   'sandbox.statusWorking': 'Working',
   'sandbox.statusDone': 'Done',
   'sandbox.statusError': 'Error',
+  'sandbox.statusBlocked': 'Blocked',
+  'sandbox.approvalDeclinedCommand':
+    'Stopped by a permission request: a command needed approval and nobody could answer, so it was declined. Change the mode in Preferences → Terminal and agents.',
+  'sandbox.approvalDeclinedFileChange':
+    'Stopped by a permission request: a file change needed approval and nobody could answer, so it was declined. Change the mode in Preferences → Terminal and agents.',
   'sandbox.terminalPreview': 'Terminal preview',
   'sandbox.selectTerminal': 'Select an agent terminal to inspect it here.',
   'sandbox.resizeTerminal': 'Resize terminal',
@@ -2853,6 +3316,13 @@ export const en = {
   'mcp.registryOffline':
     'The registry could not be reached and nothing was cached for this search.',
   'mcp.registryStale': 'Registry unreachable — showing the copy saved on {date}.',
+  'mcp.registryReviewTitle': 'Registry selection',
+  'mcp.registryReviewOrigin': 'Registry origin',
+  'mcp.registryReviewName': 'Published title',
+  'mcp.registryReviewVersion': 'Published version',
+  'mcp.registryReviewRepository': 'Repository',
+  'mcp.registryAcknowledgement':
+    'I understand this is third-party software that may execute local code or contact remote services when an agent launches, and that a registry listing is not an endorsement by Alethe.',
   'mcp.addWritten': '{count} server(s) added to {agents}',
   'mcp.fieldName': 'Name',
   'mcp.fieldTransport': 'Transport',
@@ -2912,6 +3382,20 @@ export const en = {
   'skills.removedLinkOnly': 'The shared copy was kept at {path}',
   'skills.removeFailed': 'Could not remove the skill',
   'skills.errBundled': 'This skill ships with the agent and cannot be removed from Alethe.',
+  'skills.fromAlethe': 'From Alethe',
+  'skills.installedSection': 'Installed',
+  'skills.badgeAlethe': 'Alethe',
+  'skills.installAction': 'Install',
+  'skills.updateAction': 'Update',
+  'skills.availableFor': 'Available for',
+  'skills.stateAvailable': 'not installed',
+  'skills.stateInstalled': 'installed',
+  'skills.stateUpdate': 'update available',
+  'skills.stateConflict': 'name already in use',
+  'skills.conflictNote':
+    'Another skill with this name already exists there and was not installed by Alethe. Remove or rename it to install this one.',
+  'skills.installed': '{name} installed',
+  'skills.installFailed': 'Could not install the skill',
 
   /* ---- 9router ---- */
   'router9.title': '9router',
@@ -2944,6 +3428,11 @@ export const en = {
   'router9.install': 'Install',
   'router9.reinstall': 'Reinstall',
   'router9.update': 'Update to {version}',
+  'router9.installDone': '9router is installed and ready to route.',
+  'router9.installFailed': '9router was not installed. The installer output is below.',
+  'router9.uninstallDone': '9router was removed from Alethe’s folder.',
+  'router9.uninstallFailed': '9router is still installed. The output is below.',
+  'router9.retry': 'Try again',
   'router9.installTitle': 'Install 9router',
   'router9.uninstallTitle': 'Remove 9router',
   'router9.installIntro':

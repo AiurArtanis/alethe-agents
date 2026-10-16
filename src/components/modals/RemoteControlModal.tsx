@@ -1,19 +1,20 @@
 import { Smartphone, Wifi, WifiOff } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 
+import { useT } from '../../lib/i18n'
+import { requestRemoteControlPreference } from '../../lib/remoteControlConsent'
 import {
   openRemoteControlPairing,
+  type RemoteControlInfo,
   remoteControlInfo,
   remoteControlRevoke,
   remoteControlTailscaleStatus,
-  type RemoteControlInfo,
   type TailscaleStatus,
 } from '../../lib/tauri'
-import { useT } from '../../lib/i18n'
 import { useProjectsStore } from '../../stores/projectsStore'
 import { useUiStore } from '../../stores/uiStore'
-import { Modal } from './Modal'
 import controls from './controls.module.css'
+import { Modal } from './Modal'
 import styles from './RemoteControlModal.module.css'
 import { RemoteControlSettingsFields } from './RemoteControlSettingsFields'
 
@@ -46,7 +47,10 @@ export function RemoteControlModal() {
 
   useEffect(() => {
     if (!open) return
-    const check = () => void remoteControlTailscaleStatus().then(setTailscale).catch(() => undefined)
+    const check = () =>
+      void remoteControlTailscaleStatus()
+        .then(setTailscale)
+        .catch(() => undefined)
     check()
     const timer = window.setInterval(check, 5000)
     return () => window.clearInterval(timer)
@@ -79,7 +83,7 @@ export function RemoteControlModal() {
             <button
               type="button"
               className={`${controls.btn} ${controls.btnDanger}`}
-              onClick={() => setPreferences({ remoteEnabled: false })}
+              onClick={() => requestRemoteControlPreference(false, preferences, setPreferences, t)}
               disabled={busy}
             >
               <WifiOff size={14} />
@@ -89,7 +93,7 @@ export function RemoteControlModal() {
             <button
               type="button"
               className={`${controls.btn} ${controls.btnPrimary}`}
-              onClick={() => setPreferences({ remoteEnabled: true })}
+              onClick={() => requestRemoteControlPreference(true, preferences, setPreferences, t)}
               disabled={busy}
             >
               <Wifi size={14} />
@@ -166,16 +170,29 @@ export function RemoteControlModal() {
               <section className={styles.details}>
                 <div className={styles.metric}>
                   <span className={styles.metricLabel}>{t('remote.connectedDevices')}</span>
-                  <strong>{info?.connected_devices ?? 0}/{info?.max_devices ?? 1}</strong>
+                  <strong>
+                    {info?.connected_devices ?? 0}/{info?.max_devices ?? 1}
+                  </strong>
                   <span className={styles.metricHint}>
-                    {info?.connected_devices === 1 ? t('remote.deviceSingular') : t('remote.devicePlural')}
+                    {info?.connected_devices === 1
+                      ? t('remote.deviceSingular')
+                      : t('remote.devicePlural')}
                   </span>
                 </div>
                 <div className={styles.urlBlock}>
                   <span className={styles.metricLabel}>{t('remote.urlLabel')}</span>
-                  <code>{pairingOpen && info?.pairing_url ? info.pairing_url : t('remote.hiddenAddressPlaceholder')}</code>
+                  <code>
+                    {pairingOpen && info?.pairing_url
+                      ? info.pairing_url
+                      : t('remote.hiddenAddressPlaceholder')}
+                  </code>
                 </div>
-                <button type="button" className={controls.btn} onClick={() => void run(remoteControlRevoke)} disabled={busy}>
+                <button
+                  type="button"
+                  className={controls.btn}
+                  onClick={() => void run(remoteControlRevoke)}
+                  disabled={busy}
+                >
                   {t('remote.revoke')}
                 </button>
               </section>
@@ -191,13 +208,18 @@ export function RemoteControlModal() {
 
       <p className={styles.hint}>{t('remote.hint')}</p>
       <p className={styles.securityNote}>
-        {t(info?.reach_mode === 'tailscale' ? 'remote.securityNoteTailscale' : 'remote.securityNote')}
+        {t(
+          info?.reach_mode === 'tailscale' ? 'remote.securityNoteTailscale' : 'remote.securityNote',
+        )}
       </p>
 
       <button
         type="button"
         className={`${controls.btn} ${styles.advancedLink}`}
-        onClick={() => { closeModal(); openModal('preferences', { category: 'remoteControl' }) }}
+        onClick={() => {
+          closeModal()
+          openModal('preferences', { category: 'remoteControl' })
+        }}
       >
         {t('remote.openSettings')}
       </button>

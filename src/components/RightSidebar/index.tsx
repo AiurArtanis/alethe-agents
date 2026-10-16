@@ -2,6 +2,7 @@ import { getCurrentWebview } from '@tauri-apps/api/webview'
 import {
   ArrowLeft,
   Blocks,
+  Bot,
   ClipboardCopy,
   FileText,
   GitPullRequest,
@@ -54,6 +55,7 @@ import { PluginsSidebar } from '../PluginsSidebar'
 import { PullRequestsSidebar } from '../PullRequestsSidebar'
 import { DotmCircular2 } from '../ui/dotm-circular-2'
 import { VoiceHistoryPanel } from '../VoiceHistoryPanel'
+import { AgentsPanel } from './AgentsPanel'
 import styles from './RightSidebar.module.css'
 
 const markdownScrollPositions = new Map<string, number>()
@@ -66,6 +68,7 @@ export function RightSidebar() {
   const showGsdSyncSidebar = useUiStore((state) => state.showGsdSyncSidebar)
   const showMcp = useUiStore((state) => state.showMcpSidebar)
   const showPrs = useUiStore((state) => state.showPrsSidebar)
+  const showAgents = useUiStore((state) => state.showAgentsSidebar)
   const openModal = useUiStore((state) => state.openModal_)
   const preferences = useProjectsStore((state) => state.preferences)
   const setPreferences = useProjectsStore((state) => state.setPreferences)
@@ -85,6 +88,7 @@ export function RightSidebar() {
   const contributedTab = contributedTabs.find((tab) => tab.id === mode)
   const mcpEnabled = preferences.enabledFeatures.mcp
   const prsEnabled = preferences.enabledFeatures.prs
+  const agentsPanelEnabled = preferences.enabledFeatures.agentsPanel
   const gsdSyncAvailable = useGsdSyncAvailable()
   // The panel now survives its features being turned off one by one, so a mode whose
   // feature was disabled has to fall back instead of rendering a hidden feature.
@@ -94,12 +98,21 @@ export function RightSidebar() {
       (mode === 'gsdSync' && gsdSyncAvailable) ||
       (mode === 'mcp' && mcpEnabled) ||
       (mode === 'prs' && prsEnabled) ||
+      (mode === 'agents' && agentsPanelEnabled) ||
       mode === 'jev' ||
       mode === 'plugins' ||
       contributedTabs.some((tab) => tab.id === mode)
     if (modeStillEnabled) return
     openMarkdown()
-  }, [contributedTabs, gsdSyncAvailable, mcpEnabled, prsEnabled, mode, openMarkdown])
+  }, [
+    contributedTabs,
+    gsdSyncAvailable,
+    mcpEnabled,
+    prsEnabled,
+    agentsPanelEnabled,
+    mode,
+    openMarkdown,
+  ])
 
   return (
     <aside className={styles.sidebar} aria-label={t('rightSidebar.navigation')}>
@@ -183,6 +196,19 @@ export function RightSidebar() {
             <span>{t('rightSidebar.prsTab')}</span>
           </button>
         ) : null}
+        {agentsPanelEnabled ? (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === 'agents'}
+            className={`${styles.sidebarTab} ${mode === 'agents' ? styles.sidebarTabActive : ''}`}
+            onClick={showAgents}
+            title={t('rightSidebar.agentsTab')}
+          >
+            <Bot size={14} />
+            <span>{t('rightSidebar.agentsTab')}</span>
+          </button>
+        ) : null}
         <button
           type="button"
           role="tab"
@@ -222,6 +248,7 @@ export function RightSidebar() {
         {mode === 'gsdSync' && gsdSyncAvailable ? <GsdSyncSidebarContent /> : null}
         {mode === 'mcp' && mcpEnabled ? <McpPanel /> : null}
         {mode === 'prs' && prsEnabled ? <PullRequestsSidebar /> : null}
+        {mode === 'agents' && agentsPanelEnabled ? <AgentsPanel /> : null}
         {mode === 'jev' ? <VoiceHistoryPanel /> : null}
         {mode === 'plugins' ? <PluginsSidebar /> : null}
         {contributedTab ? (
@@ -407,24 +434,27 @@ function MarkdownSidebarViewer() {
     readmeTabs.find((tab) => tab.path === selectedPath) ??
     (markdown ? { path: markdown.path, title: markdown.title } : null)
 
-  const load = useCallback(async (path = selected?.path) => {
-    const requestId = ++markdownLoadRequestRef.current
-    if (!path) {
-      setContent(null)
-      setError(null)
-      return
-    }
-    try {
-      const nextContent = await readTextFile(path)
-      if (requestId !== markdownLoadRequestRef.current) return
-      setContent(nextContent)
-      setError(null)
-    } catch (err) {
-      if (requestId !== markdownLoadRequestRef.current) return
-      setError(String(err))
-      setContent(null)
-    }
-  }, [selected?.path])
+  const load = useCallback(
+    async (path = selected?.path) => {
+      const requestId = ++markdownLoadRequestRef.current
+      if (!path) {
+        setContent(null)
+        setError(null)
+        return
+      }
+      try {
+        const nextContent = await readTextFile(path)
+        if (requestId !== markdownLoadRequestRef.current) return
+        setContent(nextContent)
+        setError(null)
+      } catch (err) {
+        if (requestId !== markdownLoadRequestRef.current) return
+        setError(String(err))
+        setContent(null)
+      }
+    },
+    [selected?.path],
+  )
 
   useEffect(() => {
     setContent(null)

@@ -29,7 +29,7 @@ fn extract_path_arg(args: &[String]) -> Option<String> {
     None
 }
 
-fn strip_verbatim_prefix(path: PathBuf) -> PathBuf {
+pub(crate) fn strip_verbatim_prefix(path: PathBuf) -> PathBuf {
     let text = path.to_string_lossy();
 
     if let Some(stripped) = text.strip_prefix(r"\\?\UNC\") {
@@ -87,6 +87,7 @@ pub fn capture_cold_start(app: &AppHandle) {
 }
 
 pub fn handle_second_instance(app: &AppHandle, argv: Vec<String>, cwd: String) {
+    eprintln!("[single-instance] handoff received from a second launch");
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.unminimize();
         let _ = window.set_focus();

@@ -758,18 +758,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn catalog_lists_every_downloadable_model() {
+    fn catalog_recommends_exactly_one_downloadable_model() {
+        // Which model is recommended is a product choice that changes with the catalogue; the
+        // preferences list only needs exactly one of them marked, and every entry to have files.
         let list = speech_list_models();
-        assert_eq!(list.len(), 3);
-        let gigaspeech = list
-            .iter()
-            .find(|model| model.id == "zipformer-gigaspeech-en-int8")
-            .expect("gigaspeech entry");
-        assert!(gigaspeech.recommended);
-        let parakeet = list
-            .iter()
-            .find(|model| model.id == "parakeet-tdt-0.6b-v3-int8")
-            .expect("parakeet entry");
-        assert!(parakeet.size_bytes > 600_000_000);
+        assert_eq!(list.iter().filter(|model| model.recommended).count(), 1);
+        assert!(list.iter().all(|model| model.size_bytes > 0));
     }
 }

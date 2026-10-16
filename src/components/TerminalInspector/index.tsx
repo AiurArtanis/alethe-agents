@@ -13,19 +13,13 @@ import {
   TerminalSquare,
   Trash2,
 } from 'lucide-react'
-import { useMemo, useState, type ReactNode } from 'react'
+import { type ReactNode, useMemo, useState } from 'react'
 
-import { prepareAgentRelaunch } from '../../lib/sessionRelaunch'
+import { relaunchAgentPty } from '../../lib/agentRelaunch'
+import { graphifyRepoOf } from '../../lib/claudeMcpConfigs'
 import { useT } from '../../lib/i18n'
-import { resolveAgentCliCommand } from '../../lib/agentProviders'
 import type { SubTab, Terminal } from '../../lib/types'
-import {
-  getPtyCwd,
-  openInBrowser,
-  openInFileExplorer,
-  openInVscode,
-  restartPty,
-} from '../../lib/tauri'
+import { getPtyCwd, openInBrowser, openInFileExplorer, openInVscode } from '../../lib/tauri'
 import { useProjectsStore } from '../../stores/projectsStore'
 import { useTerminalsStore } from '../../stores/terminalsStore'
 import { useUiStore } from '../../stores/uiStore'
@@ -122,28 +116,21 @@ function InspectorBody({ projectId, terminal }: { projectId: string; terminal: T
 
   const onRestart = async () => {
     if (!activeTab?.ptyId || terminal.disabled) return
-    const launch = await prepareAgentRelaunch({
-      agent: activeTab.type,
-      ptyId: activeTab.ptyId,
-      baseArgs: activeTab.extraArgs,
-      runtimeProfile: activeTab.runtimeProfile,
-      sessionId: activeTab.sessionId,
-    })
-    if (launch.sessionId && launch.sessionId !== activeTab.sessionId) {
-      setSubTabSessionId(projectId, terminal.id, activeTab.id, launch.sessionId)
-    }
-    useTerminalsStore.getState().beginRestart(activeTab.ptyId)
     try {
-      await restartPty({
-        id: activeTab.ptyId,
-        cols: 80,
-        rows: 24,
-        command: resolveAgentCliCommand(activeTab.type),
-        cwd: activeTab.cwd || undefined,
-        extraArgs: launch.args,
-        runAsAdmin: activeTab.type === 'shell' && activeTab.runAsAdmin,
-        env: launch.env,
+      const project = useProjectsStore.getState().projects.find((entry) => entry.id === projectId)
+      const launch = await relaunchAgentPty({
+        ptyId: activeTab.ptyId,
+        agent: activeTab.type,
+        runtimeProfile: activeTab.runtimeProfile,
+        extraArgs: activeTab.extraArgs,
+        sessionId: activeTab.sessionId,
+        cwd: activeTab.cwd,
+        graphifyRepo: graphifyRepoOf(project, terminal.cwd),
+        runAsAdmin: activeTab.runAsAdmin,
       })
+      if (launch.sessionId && launch.sessionId !== activeTab.sessionId) {
+        setSubTabSessionId(projectId, terminal.id, activeTab.id, launch.sessionId)
+      }
       window.dispatchEvent(
         new CustomEvent('alethe:terminal-resize-request', { detail: { ptyId: activeTab.ptyId } }),
       )

@@ -2,23 +2,6 @@ import { create } from 'zustand'
 
 import { basename } from '../lib/paths'
 
-   
-                                                                      
-  
-                                                                           
-                                                                             
-                                                                      
-                                                                          
-                                  
-  
-                                                                          
-                                                                         
-                                                                         
-                                                                            
-                                                                             
-                   
-   
-
 export type AgentHookPayload = {
   hook_event_name?: string
   session_id?: string
@@ -33,6 +16,11 @@ export type AgentHookPayload = {
   tool_input?: Record<string, unknown>
   tool_response?: Record<string, unknown>
   tool_use_id?: string
+  /** UserPromptSubmit: what was submitted, including Claude's own task notifications. */
+  prompt?: string
+  /** Stop: the shells and subagents still running when the main agent's turn ends. */
+  background_tasks?: Array<{ id?: string; type?: string; status?: string }>
+  stop_hook_active?: boolean
   last_assistant_message?: string
   agent_transcript_path?: string
   /** Eventos de team (Fase 4). */
@@ -80,7 +68,6 @@ export type TeamTask = {
   owner: string | null
 }
 
-                                                                     
 const FEED_CAP = 300
 
 const SPAWNER_TOOLS = new Set(['Agent', 'Task'])
@@ -89,7 +76,30 @@ function str(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null
 }
 
-                                                                 
+const TASK_NOTIFICATION = /<task-notification>([\s\S]*?)<\/task-notification>/g
+const FINAL_TASK_STATUSES = new Set(['completed', 'failed', 'killed'])
+
+function notificationTag(block: string, name: string): string | null {
+  return str(block.match(new RegExp(`<${name}>([\\s\\S]*?)</${name}>`))?.[1]?.trim())
+}
+
+/**
+ * Background tasks a prompt reports as finished. Claude Code submits a `<task-notification>` block
+ * as a prompt of its own when a background task ends, whether it completed, failed or was killed.
+ * Only a prompt that is itself a notification counts: one quoting it among other text is a user's.
+ */
+function finishedBackgroundTasks(
+  prompt: string | undefined,
+): Array<{ id: string; summary: string | null }> {
+  if (!prompt?.trimStart().startsWith('<task-notification>')) return []
+  return [...prompt.matchAll(TASK_NOTIFICATION)].flatMap(([, block]) => {
+    const id = notificationTag(block, 'task-id')
+    const status = notificationTag(block, 'status')
+    if (!id || !status || !FINAL_TASK_STATUSES.has(status)) return []
+    return [{ id, summary: notificationTag(block, 'summary') }]
+  })
+}
+
 export function summarizeTool(toolName: string, input?: Record<string, unknown>): string {
   if (!input) return ''
   const clip = (s: string, n = 80) => (s.length > n ? `${s.slice(0, n)}…` : s)
@@ -125,7 +135,7 @@ type AgentCanvasState = {
   nodes: AgentNode[]
   selectedId: string | null
   lastEventAt: number | null
-                                                                            
+
   pendingPrompts: Record<string, PendingPrompt[]>
   /** Active team name from the lead's TeamCreate event. */
   teamName: string | null
@@ -151,6 +161,58 @@ export const useAgentCanvasStore = create<AgentCanvasState>((set, get) => ({
   ingest: (raw) => {
     const event = raw.hook_event_name
     set({ lastEventAt: Date.now() })
+
+    // The only signal a background shell that ends on its own ever sends: without it, the node
+    // stays running until the agent happens to stop the task itself (#239).
+    if (event === 'UserPromptSubmit') {
+      const finished = finishedBackgroundTasks(raw.prompt)
+      if (finished.length === 0) return
+      const plannerId = raw.plannerId ?? null
+      set((s) => ({
+        nodes: s.nodes.map((node) => {
+          if (node.kind !== 'background' || node.plannerId !== plannerId) return node
+          const task = finished.find((entry) => node.id === `background:${entry.id}`)
+          if (!task) return node
+          // The end of the turn can close the shell a moment before its notification arrives.
+          if (node.status !== 'running') {
+            return node.result ? node : { ...node, result: task.summary ?? null }
+          }
+          return {
+            ...node,
+            status: 'done',
+            endedAt: Date.now(),
+            result: task.summary ?? node.result,
+          }
+        }),
+      }))
+      return
+    }
+
+    // The end of the main agent's turn lists what it still has running. A shell or subagent of
+    // this planner missing from that list has ended, even when its own stop event never came (a
+    // subagent interrupted mid-run). Teammates outlive a turn, and a CLI that sends no list says
+    // nothing about what ended, so both are left alone.
+    if (event === 'Stop') {
+      if (raw.agent_id || !Array.isArray(raw.background_tasks)) return
+      const running = new Set(raw.background_tasks.map((task) => task?.id))
+      const plannerId = raw.plannerId ?? null
+      const sourceAgent = raw.sourceAgent ?? 'claude'
+      set((s) => ({
+        nodes: s.nodes.map((node) => {
+          if (node.status !== 'running' || node.plannerId !== plannerId) return node
+          if (node.sourceAgent !== sourceAgent) return node
+          const taskId =
+            node.kind === 'background'
+              ? node.id.slice('background:'.length)
+              : node.kind === 'subagent'
+                ? node.id
+                : null
+          if (!taskId || running.has(taskId)) return node
+          return { ...node, status: 'done', endedAt: Date.now() }
+        }),
+      }))
+      return
+    }
 
     if (event === 'SubagentStart') {
       const id = raw.agent_id
@@ -217,8 +279,6 @@ export const useAgentCanvasStore = create<AgentCanvasState>((set, get) => ({
       const id = raw.agent_id
       if (!id) return
       set((s) => {
-                                                                             
-                                                
         const teammateNodeId = s.incarnations[id]
         const idx = s.nodes.findIndex((n) => n.id === (teammateNodeId ?? id))
         if (idx === -1) {
@@ -308,7 +368,6 @@ export const useAgentCanvasStore = create<AgentCanvasState>((set, get) => ({
       const agentId = raw.agent_id
       const input = raw.tool_input ?? {}
 
-                                                             
       if (raw.tool_name === 'TaskUpdate') {
         const taskId = str(input.taskId) ?? str(input.task_id)
         if (taskId) {
@@ -330,11 +389,9 @@ export const useAgentCanvasStore = create<AgentCanvasState>((set, get) => ({
             }
           })
         }
-                                                                            
       }
 
       if (!agentId) {
-                                   
         if (raw.tool_name === 'TeamCreate') {
           const teamName = str(input.team_name)
           console.log('[agentCanvasStore] TeamCreate:', teamName)
@@ -346,7 +403,7 @@ export const useAgentCanvasStore = create<AgentCanvasState>((set, get) => ({
           const teamName = str(input.team_name)
           if (teammateName && teamName) {
             // Spawn de TEAMMATE (tool_input tem name+team_name; subagent comum
-                                                                  
+
             const nodeId = `teammate:${teammateName}`
             console.log(`[agentCanvasStore] teammate spawnado: ${teammateName} (${teamName})`)
             set((s) => {
@@ -376,14 +433,12 @@ export const useAgentCanvasStore = create<AgentCanvasState>((set, get) => ({
             })
             return
           }
-                                                                           
-                                       
+
           const subagentType = str(input.subagent_type) ?? 'general-purpose'
           set((s) => ({
             pendingPrompts: {
               ...s.pendingPrompts,
-                                                                                  
-                                     
+
               [subagentType]: [
                 ...(s.pendingPrompts[subagentType] ?? []),
                 { description: str(input.description), prompt: str(input.prompt) },
@@ -404,9 +459,6 @@ export const useAgentCanvasStore = create<AgentCanvasState>((set, get) => ({
         const targetId = s.incarnations[agentId] ?? agentId
         const idx = s.nodes.findIndex((n) => n.id === targetId)
         if (idx === -1) {
-                                                                              
-                                                                            
-                                             
           console.warn(
             `[agentCanvasStore] PreToolUse sem node, criando via ensureNode id=${agentId}`,
           )
@@ -496,8 +548,6 @@ export const useAgentCanvasStore = create<AgentCanvasState>((set, get) => ({
       })
       return
     }
-
-                                                                              
   },
 
   select: (id) => {

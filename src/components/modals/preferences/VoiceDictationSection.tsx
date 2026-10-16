@@ -16,6 +16,7 @@ import {
 } from '../../../lib/tauri'
 import { DICTATION_CLOUD_MODELS, type DictationCloudModel } from '../../../lib/types'
 import { useProjectsStore } from '../../../stores/projectsStore'
+import { Dropdown } from '../../ui/Dropdown'
 import styles from '../PreferencesModal.module.css'
 import { SettingsSection } from './primitives'
 
@@ -201,12 +202,11 @@ export function VoiceDictationSection() {
         title={t('prefs.dictationMic')}
         description={t('prefs.dictationMicDesc')}
       >
-        <select
-          className={styles.select}
+        <Dropdown
+          rootClassName={styles.dictationMicSelect}
           disabled={!preferences.dictationEnabled}
           value={preferences.dictationMicrophoneId ?? ''}
-          onChange={(event) => {
-            const value = event.target.value
+          onChange={(value) => {
             if (!value) {
               setPreferences({ dictationMicrophoneId: null, dictationMicrophoneLabel: null })
               return
@@ -217,16 +217,15 @@ export function VoiceDictationSection() {
               dictationMicrophoneLabel: device?.label ?? null,
             })
           }}
-          aria-label={t('prefs.dictationMic')}
-        >
-          <option value="">{t('prefs.dictationMicSystem')}</option>
-          {mics.map((device) => (
-            <option key={device.deviceId} value={device.deviceId}>
-              {device.label}
-              {device.isDefault ? ` (${t('prefs.dictationMicSystem')})` : ''}
-            </option>
-          ))}
-        </select>
+          ariaLabel={t('prefs.dictationMic')}
+          options={[
+            { value: '', label: t('prefs.dictationMicSystem') },
+            ...mics.map((device) => ({
+              value: device.deviceId,
+              label: `${device.label}${device.isDefault ? ` (${t('prefs.dictationMicSystem')})` : ''}`,
+            })),
+          ]}
+        />
       </SettingsSection>
 
       <SettingsSection

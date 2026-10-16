@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Check, Settings2 } from 'lucide-react'
 import { UsageStrip } from '../HomeView/UsageStrip'
 import { getCachedAntigravityUsage } from '../../lib/antigravityUsageCache'
-import { getCachedClaudeUsage } from '../../lib/claudeUsageCache'
+import { loadClaudeUsage } from '../../lib/claudeUsageCache'
 import { getCachedCodexUsage } from '../../lib/codexUsageCache'
 import { getCachedKimiUsage } from '../../lib/kimiUsageCache'
 import { useT } from '../../lib/i18n'
@@ -71,38 +71,67 @@ export function AiUsageModal() {
   const t = useT()
   const open = useUiStore((state) => state.openModal === 'aiUsage')
   const closeModal = useUiStore((state) => state.closeModal)
-  const setClaudeUsage = useUiStore((state) => state.setClaudeUsage)
   const setCodexUsage = useUiStore((state) => state.setCodexUsage)
   const setAntigravityUsage = useUiStore((state) => state.setAntigravityUsage)
   const setKimiUsage = useUiStore((state) => state.setKimiUsage)
+  const claudeAccess = useProjectsStore((state) => state.preferences.usageAccess.claude)
+  const codexAccess = useProjectsStore((state) => state.preferences.usageAccess.codex)
+  const antigravityAccess = useProjectsStore((state) => state.preferences.usageAccess.antigravity)
+  const kimiAccess = useProjectsStore((state) => state.preferences.usageAccess.kimi)
+  const preferences = useProjectsStore((state) => state.preferences)
   const [editing, setEditing] = useState(false)
 
+  const visibleProviders = USAGE_PROVIDERS.filter(
+    (provider) => preferences[provider.usagePrefKey],
+  ).length
+  // The card grid needs ~300px per provider to stay readable; grow the modal so
+  // four or more providers still fit side by side instead of wrapping a lone card.
+  const width = visibleProviders <= 3 ? 920 : Math.min(920 + (visibleProviders - 3) * 300, 1600)
+
+  // Opening the modal refreshes only the providers whose usage reading is on.
   useEffect(() => {
     if (!open) return
     let cancelled = false
-    void Promise.allSettled([
-      getCachedClaudeUsage(true),
-      getCachedCodexUsage(true),
-      getCachedAntigravityUsage(true),
-      getCachedKimiUsage(true),
-    ]).then(([claude, codex, antigravity, kimi]) => {
-      if (cancelled) return
-      setClaudeUsage(claude.status === 'fulfilled' ? claude.value : null)
-      setCodexUsage(codex.status === 'fulfilled' ? codex.value : null)
-      setAntigravityUsage(antigravity.status === 'fulfilled' ? antigravity.value : null)
-      setKimiUsage(kimi.status === 'fulfilled' ? kimi.value : null)
-    })
+    // Claude writes its own result: a refused refresh keeps the last reading instead of blanking it.
+    if (claudeAccess) void loadClaudeUsage(true)
+    if (codexAccess) {
+      void getCachedCodexUsage(true).then(
+        (usage) => !cancelled && setCodexUsage(usage),
+        () => !cancelled && setCodexUsage(null),
+      )
+    }
+    if (antigravityAccess) {
+      void getCachedAntigravityUsage(true).then(
+        (usage) => !cancelled && setAntigravityUsage(usage),
+        () => !cancelled && setAntigravityUsage(null),
+      )
+    }
+    if (kimiAccess) {
+      void getCachedKimiUsage(true).then(
+        (usage) => !cancelled && setKimiUsage(usage),
+        () => !cancelled && setKimiUsage(null),
+      )
+    }
     return () => {
       cancelled = true
     }
-  }, [open, setAntigravityUsage, setClaudeUsage, setCodexUsage, setKimiUsage])
+  }, [
+    open,
+    claudeAccess,
+    codexAccess,
+    antigravityAccess,
+    kimiAccess,
+    setAntigravityUsage,
+    setCodexUsage,
+    setKimiUsage,
+  ])
 
   return (
     <Modal
       open={open}
       onClose={closeModal}
       title={t('usageModal.title')}
-      width={920}
+      width={width}
       headerAction={
         <button
           type="button"

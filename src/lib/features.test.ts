@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  legacyGitFeatureFlag,
-  legacyTodosFeatureFlag,
-  normalizeEnabledFeatures,
-} from './features'
+import { legacyGitFeatureFlag, legacyTodosFeatureFlag, normalizeEnabledFeatures } from './features'
 
 describe('normalizeEnabledFeatures', () => {
   it('enables the initial modules for a fresh profile', () => {
@@ -17,6 +13,8 @@ describe('normalizeEnabledFeatures', () => {
       orchestrator: false,
       gsdSync: false,
       prs: true,
+      wsl: true,
+      agentsPanel: true,
     })
   })
 
@@ -30,6 +28,8 @@ describe('normalizeEnabledFeatures', () => {
       orchestrator: false,
       gsdSync: false,
       prs: true,
+      wsl: true,
+      agentsPanel: true,
     })
   })
 
@@ -43,13 +43,13 @@ describe('normalizeEnabledFeatures', () => {
       orchestrator: false,
       gsdSync: false,
       prs: true,
+      wsl: true,
+      agentsPanel: true,
     })
   })
 
   it('keeps AI Memory off unless explicitly enabled', () => {
-    expect(
-      normalizeEnabledFeatures({ enabledFeatures: { aiMemory: true } }),
-    ).toEqual({
+    expect(normalizeEnabledFeatures({ enabledFeatures: { aiMemory: true } })).toEqual({
       browser: true,
       graphify: true,
       aiMemory: true,
@@ -58,7 +58,17 @@ describe('normalizeEnabledFeatures', () => {
       orchestrator: false,
       gsdSync: false,
       prs: true,
+      wsl: true,
+      agentsPanel: true,
     })
+  })
+
+  it('enables the Agents panel by default and backfills it for existing profiles', () => {
+    expect(normalizeEnabledFeatures(undefined).agentsPanel).toBe(true)
+    expect(normalizeEnabledFeatures({ enabledFeatures: { prs: false } }).agentsPanel).toBe(true)
+    expect(normalizeEnabledFeatures({ enabledFeatures: { agentsPanel: false } }).agentsPanel).toBe(
+      false,
+    )
   })
 
   it('keeps the Playwright browser off unless explicitly enabled', () => {
@@ -125,5 +135,17 @@ describe('legacyTodosFeatureFlag', () => {
     // It used to be on only for fresh profiles; undefined here would switch the
     // tab on for someone who never had it.
     expect(legacyTodosFeatureFlag({ showGitControl: false })).toBe(false)
+  })
+})
+
+describe('the WSL integration preference', () => {
+  it('is on by default, since the integration works out of the box', () => {
+    expect(normalizeEnabledFeatures(undefined).wsl).toBe(true)
+    expect(normalizeEnabledFeatures({ showGitControl: false }).wsl).toBe(true)
+    expect(normalizeEnabledFeatures({ enabledFeatures: { todos: false } }).wsl).toBe(true)
+  })
+
+  it('stays off once explicitly disabled', () => {
+    expect(normalizeEnabledFeatures({ enabledFeatures: { wsl: false } }).wsl).toBe(false)
   })
 })

@@ -1,3 +1,5 @@
+import { DEFAULT_TERMINAL_FONT_FAMILY } from '../../lib/types'
+
 export const TERMINAL_FONT_SIZE = 14
 
 export const TERMINAL_FONT_FAMILY = [
@@ -26,7 +28,13 @@ export async function loadTerminalFonts(): Promise<void> {
   await Promise.all(TERMINAL_FONT_FACES.map((face) => document.fonts.load(face).catch(() => [])))
 }
 
+export function resolveTerminalFontFamily(preference: string | undefined): string {
+  const chosen = preference?.trim()
+  if (!chosen || chosen === DEFAULT_TERMINAL_FONT_FAMILY) return TERMINAL_FONT_FAMILY
+  return `${chosen}, ${TERMINAL_FONT_FAMILY}`
+}
+
 // xterm only re-measures cells when the option value changes, so alternate two equivalent stacks
-export function remeasuredFontFamily(current: string | undefined): string {
-  return current === TERMINAL_FONT_FAMILY ? `${TERMINAL_FONT_FAMILY} ` : TERMINAL_FONT_FAMILY
+export function remeasuredFontFamily(current: string | undefined, family: string): string {
+  return current === family ? `${family} ` : family
 }

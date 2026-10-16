@@ -1,6 +1,8 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 
+import { isOrchestratorShellPty, shellIdOfPty } from '../orchestratorShells'
+
 export type SpawnPtyArgs = {
   cols: number
   rows: number
@@ -9,10 +11,16 @@ export type SpawnPtyArgs = {
   cwd?: string
   extraArgs?: string[]
   runAsAdmin?: boolean
-  /** Path absoluto pro launcher (override do auto-detect). */
+  /** Absolute path to the launcher (overrides auto-detection). */
   launcherOverride?: string
 
   env?: Record<string, string>
+  /**
+   * One line for the shell to run, ending the PTY with it. Use this instead of typing a command
+   * into an interactive shell: the exit is deterministic, so a caller can wait for `pty://exit`
+   * rather than guessing when the work finished.
+   */
+  commandLine?: string
 }
 
 export async function spawnPty(args: SpawnPtyArgs): Promise<{ id: string }> {
@@ -26,6 +34,7 @@ export async function spawnPty(args: SpawnPtyArgs): Promise<{ id: string }> {
     runAsAdmin: args.runAsAdmin,
     launcherOverride: args.launcherOverride,
     env: args.env,
+    commandLine: args.commandLine,
   })
 }
 
@@ -90,6 +99,13 @@ export async function killPtyTree(ptyId: string): Promise<number[]> {
 }
 
 export async function restartPty(args: SpawnPtyArgs & { id: string }): Promise<{ id: string }> {
+  // A view of an orchestrator shell restarts the service itself, so its command runs again rather
+  // than an empty interactive shell taking over its id.
+  if (isOrchestratorShellPty(args.id)) {
+    await invoke('orchestrator_shell_restart', { shellId: shellIdOfPty(args.id) })
+    return { id: args.id }
+  }
+
   return invoke<{ id: string }>('restart_pty', {
     id: args.id,
     command: args.command,

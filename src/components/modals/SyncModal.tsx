@@ -32,8 +32,6 @@ const CREATE_TOKEN_URL =
 type Busy = null | 'connect' | 'push' | 'pull' | 'logout'
 type CloudBusy = null | 'signin' | 'push' | 'pull' | 'logout'
 
-                                                                            
-                                                         
 const KNOWN_ERRORS = new Set([
   'empty_token',
   'invalid_token',
@@ -95,6 +93,7 @@ export function SyncModal() {
   const mapError = (raw: unknown): string => {
     const msg =
       typeof raw === 'string' ? raw : String((raw as { message?: string })?.message ?? raw)
+    if (msg.startsWith('secure_store_unavailable')) return t('sync.error.secure_store_unavailable')
     if (KNOWN_ERRORS.has(msg)) return t(`sync.error.${msg}` as MessageKey)
     return t('sync.error.generic', { error: msg })
   }
@@ -143,7 +142,7 @@ export function SyncModal() {
       const next = await githubSyncPull()
       setStatus(next)
       // Regrava projects.json/activity-stats.json em disco → re-hidrata o store
-                                          
+
       await hydrate()
       setNotice(t('sync.github.pullDone'))
     } catch (e) {

@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 
 import type { AgentFitness } from '../agentFitness'
+import type { OrchestrationRole, OrchestrationSettings, RuleSet } from '../types'
 
 export type OrchestratorJobStatus =
   | 'queued'
@@ -60,11 +61,17 @@ export type OrchestratorClaudeQuota = {
 }
 
 export type OrchestratorRouting = {
-  /** `ignored` means the planner delegated into the strained side with the reading in hand. */
-  verdict: 'chosen' | 'ignored'
+  /**
+   * `ignored` means the planner delegated into the strained side with the reading in hand;
+   * `fallback` that the role asked for ran as its fallback role because `agent` was running out.
+   */
+  verdict: 'chosen' | 'ignored' | 'fallback'
   agent: string
   window: string
   used: number
+  /** Set on a `fallback`: the role asked for and the role it ran as. */
+  from?: string
+  to?: string
 }
 
 export type OrchestratorJob = {
@@ -76,6 +83,8 @@ export type OrchestratorJob = {
   /** One delegation call is one run; workers from different rounds group by this. */
   runId: string
   runLabel: string | null
+  /** Which rule set this worker was briefed with, by name; null when none applied. */
+  rules: string | null
   spec: string
   cwd: string
   status: OrchestratorJobStatus
@@ -91,7 +100,17 @@ export type OrchestratorJob = {
   /** Why this worker ran on this agent; null when neither side was running out at the time. */
   routing: OrchestratorRouting | null
   worktree: string | null
+  /** The Orchestration settings role it was delegated under; null when the call spelled it out. */
+  role: string | null
+  /** The model the planner delegated this worker on; null when it runs on the CLI's default. */
+  model: string | null
+  /** Codex reasoning effort the planner asked for; null keeps the CLI's own setting. */
+  effort: string | null
+  /** Started in a read-only sandbox: it can read and run commands but not write. */
+  readOnly: boolean
   pendingApproval: OrchestratorPendingApproval | null
+  /** The worker that took this one's task over after it ended without finishing it. */
+  supersededBy?: string | null
   hasDiff: boolean
   summary: string
   /** Set only on the frontend, for a Claude/Codex native subagent reshaped into this type — it never
@@ -105,12 +124,41 @@ export type OrchestratorPlanner = {
   agent: string
 }
 
+export type OrchestratorShellStatus = 'running' | 'exited' | 'stopped'
+
+/** Who opened a shell. Only planners do today; a worker-owned shell needs no type change. */
+export type OrchestratorShellOwner = { kind: 'planner' | 'worker'; id: string }
+
+/** A long-running command a planner started, owned by Alethe rather than by the planner. */
+export type OrchestratorShell = {
+  id: string
+  name: string
+  command: string
+  cwd: string
+  owner: OrchestratorShellOwner | null
+  status: OrchestratorShellStatus
+  exitCode: number | null
+  startedAtMs: number
+  /** The PTY a terminal view attaches to. */
+  ptyId: string
+}
+
+export type OrchestratorShellOutput = {
+  shellId: string
+  status: OrchestratorShellStatus
+  exitCode: number | null
+  output: string
+}
+
 export type OrchestratorSnapshot = {
   jobs: OrchestratorJob[]
   planners: OrchestratorPlanner[]
   running: number
   queued: number
   concurrencyLimit: number
+  shells: OrchestratorShell[]
+  /** The roles from the Orchestration settings, as the orchestrator will apply them. */
+  roles: OrchestrationRole[]
 }
 
 const JOBS_EVENT = 'orchestrator://jobs'
@@ -136,9 +184,38 @@ export async function orchestratorSetConcurrency(limit: number): Promise<void> {
   return invoke<void>('orchestrator_set_concurrency', { limit })
 }
 
-/** Pushes an agent's remaining-limit snapshot into the orchestrator core, which cannot poll for it. */
-export async function setAgentFitness(agent: string, snapshot: AgentFitness): Promise<void> {
+/** Hands the roles and limits from Preferences to the orchestrator. */
+export async function orchestratorApplySettings(settings: OrchestrationSettings): Promise<void> {
+  return invoke<void>('orchestrator_apply_settings', { settings })
+}
+
+/** A model the installed Codex offers, with the efforts it accepts. */
+export type CodexModelOption = {
+  model: string
+  name: string
+  defaultEffort: string | null
+  efforts: string[]
+}
+
+export async function orchestratorCodexModels(): Promise<CodexModelOption[]> {
+  return invoke<CodexModelOption[]>('orchestrator_codex_models')
+}
+
+/**
+ * Pushes an agent's remaining-limit snapshot into the orchestrator core, which cannot poll for it.
+ * `null` makes the core forget the agent, for when its usage is no longer read.
+ */
+export async function setAgentFitness(agent: string, snapshot: AgentFitness | null): Promise<void> {
   return invoke<void>('orchestrator_set_agent_fitness', { agent, snapshot })
+}
+
+/** Pushed whenever the person's sets change; an empty list means they removed them all. */
+export async function orchestratorSetRuleSets(sets: RuleSet[]): Promise<void> {
+  return invoke<void>('orchestrator_set_rule_sets', { sets })
+}
+
+export async function orchestratorDefaultRuleSets(): Promise<RuleSet[]> {
+  return invoke<RuleSet[]>('orchestrator_default_rule_sets')
 }
 
 /** The unified diff a worker has produced so far — the same text `alethe_diff` hands the planner. */
@@ -161,6 +238,42 @@ export async function orchestratorMessage(
   steer: boolean,
 ): Promise<unknown> {
   return invoke<unknown>('orchestrator_message', { jobId, message, steer })
+}
+
+/** Interrupts a running worker and settles it as cancelled — the same path `alethe_cancel` takes. */
+export async function orchestratorCancelJob(jobId: string): Promise<unknown> {
+  return invoke<unknown>('orchestrator_cancel_job', { jobId })
+}
+
+export async function orchestratorShellOutput(
+  shellId: string,
+  lines: number,
+): Promise<OrchestratorShellOutput> {
+  return invoke<OrchestratorShellOutput>('orchestrator_shell_output', { shellId, lines })
+}
+
+/** Ctrl+C first, the whole process tree after five seconds. */
+export async function orchestratorShellStop(shellId: string): Promise<unknown> {
+  return invoke<unknown>('orchestrator_shell_stop', { shellId })
+}
+
+/** Restarts a running shell, or runs one that exited or was stopped again. */
+export async function orchestratorShellRestart(shellId: string): Promise<unknown> {
+  return invoke<unknown>('orchestrator_shell_restart', { shellId })
+}
+
+export async function orchestratorShellRemove(shellId: string): Promise<unknown> {
+  return invoke<unknown>('orchestrator_shell_remove', { shellId })
+}
+
+/** Runs a worker's request again as a new worker under the same planner. */
+export async function orchestratorRestart(jobId: string): Promise<unknown> {
+  return invoke<unknown>('orchestrator_restart', { jobId })
+}
+
+/** Opens an orchestration pane's board in its own window, or brings back the one already open. */
+export async function openOrchestrationWindow(terminalId: string): Promise<void> {
+  await invoke('open_orchestration_window', { terminalId })
 }
 
 export async function listenOrchestratorJobs(

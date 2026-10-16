@@ -14,7 +14,7 @@ import type { AgentNode } from '../stores/agentCanvasStore'
 import { AGENT_COLORS, FAMILY_RANK } from './agentCanvasConfig'
 import { costLevel, shortModel } from './costFormat'
 import type { ModelRate, SessionCost } from './tauri'
-import type { AgentType } from './types'
+import type { AgentType, ExperimentalAgentPermissionMode } from './types'
 
 /** CSS module class map. */
 export type CanvasStyleMap = Readonly<Record<string, string>>
@@ -32,8 +32,12 @@ export type CodexWorker = {
   cwd: string
   startedAt: number
   exitedCode: number | null
-  /** One-shot agent arguments; undefined for interactive mode. */
+  /** Launch arguments, built by `experimentalAgentPolicy`. */
   args?: string[]
+  /** True when the worker runs one task non-interactively, with nobody to answer a prompt. */
+  oneShot: boolean
+  /** Permission mode the worker was started with. */
+  permissionMode: ExperimentalAgentPermissionMode
   /** Tail summary of the worker output. */
   result?: string
 }
@@ -94,7 +98,7 @@ export function tailSummary(raw: string, max = 320): string {
     .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '')
     // outros escapes ESC de 1 char
     .replace(/\x1b[@-Z\\-_]/g, '')
-                                                     
+
     .replace(/[\x00-\x08\x0b-\x1f\x7f]/g, '')
     .replace(/[^\S\n]+/g, ' ')
     .replace(/\n{2,}/g, '\n')
@@ -102,22 +106,6 @@ export function tailSummary(raw: string, max = 320): string {
   return clean.length > max ? `…${clean.slice(-max)}` : clean
 }
 
-                                                                                     
-export function execArgsFor(agent: AgentType, task: string): string[] | undefined {
-  switch (agent) {
-    case 'codex':
-      return ['exec', '--skip-git-repo-check', task]
-    case 'claude':
-                                                                                 
-      return ['-p', task, '--dangerously-skip-permissions']
-    case 'opencode':
-      return ['run', task]
-    default:
-      return undefined
-  }
-}
-
-                                                           
 export function statusBadgeClass(status: AgentNode['status'], styles: CanvasStyleMap): string {
   if (status === 'running') return styles.statusRunning
   if (status === 'idle') return styles.statusIdle
@@ -132,7 +120,6 @@ export function costClassFor(usd: number, styles: CanvasStyleMap): string {
   return styles.costLow
 }
 
-                                                                               
 export function costAtRate(c: SessionCost, rate: ModelRate): number {
   return (
     (c.input * rate.input +
@@ -144,12 +131,6 @@ export function costAtRate(c: SessionCost, rate: ModelRate): number {
   )
 }
 
-   
-                                                                             
-                                                                     
-                                                                                
-                                                                         
-   
 export function estimateRoutingSavings(
   nodeCosts: Record<string, SessionCost>,
   leadModel: string | null,
@@ -172,7 +153,6 @@ export function estimateRoutingSavings(
   return saved
 }
 
-                                                         
 export function personaIconFor(agentName: string): LucideIcon {
   const name = agentName.toLowerCase()
   if (name.includes('orchestr') || name.includes('tech-lead')) return LayoutTemplate
