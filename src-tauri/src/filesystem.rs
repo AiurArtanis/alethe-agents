@@ -145,7 +145,9 @@ pub fn browse_directory(path: String) -> Result<DirectoryListing, String> {
         let p = PathBuf::from(trimmed);
         if p.exists() {
             if p.is_file() {
-                p.parent().map(|parent| parent.to_path_buf()).unwrap_or(home.clone())
+                p.parent()
+                    .map(|parent| parent.to_path_buf())
+                    .unwrap_or(home.clone())
             } else {
                 p
             }
@@ -154,7 +156,9 @@ pub fn browse_directory(path: String) -> Result<DirectoryListing, String> {
         }
     };
 
-    let canonical = directory.canonicalize().unwrap_or_else(|_| directory.clone());
+    let canonical = directory
+        .canonicalize()
+        .unwrap_or_else(|_| directory.clone());
     let current_path_str = canonical.to_string_lossy().into_owned();
     let clean_current_path = current_path_str
         .strip_prefix(r"\\?\")
@@ -177,7 +181,10 @@ pub fn browse_directory(path: String) -> Result<DirectoryListing, String> {
                     return None;
                 }
                 let full_path = entry.path().to_string_lossy().into_owned();
-                let clean_path = full_path.strip_prefix(r"\\?\").unwrap_or(&full_path).to_string();
+                let clean_path = full_path
+                    .strip_prefix(r"\\?\")
+                    .unwrap_or(&full_path)
+                    .to_string();
                 Some(BrowseDirectoryEntry {
                     name,
                     path: clean_path,
@@ -196,7 +203,10 @@ pub fn browse_directory(path: String) -> Result<DirectoryListing, String> {
     });
 
     let clean_home = home.to_string_lossy().into_owned();
-    let home_path = clean_home.strip_prefix(r"\\?\").unwrap_or(&clean_home).to_string();
+    let home_path = clean_home
+        .strip_prefix(r"\\?\")
+        .unwrap_or(&clean_home)
+        .to_string();
 
     Ok(DirectoryListing {
         current_path: clean_current_path,

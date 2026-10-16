@@ -49,9 +49,10 @@ fn prepare(app: &AppHandle, state: &OrchestratorState) {
     if let Some(program) = cli_resolver::find_windows_cli_launcher("codex") {
         let mut launcher = Launcher::codex_app_server(PathBuf::from(program));
         #[cfg(windows)]
-        launcher
-            .env
-            .push(("Path".to_string(), crate::orchestrator_core::path_without_store_aliases(&cli_resolver::rebuilt_path())));
+        launcher.env.push((
+            "Path".to_string(),
+            crate::orchestrator_core::path_without_store_aliases(&cli_resolver::rebuilt_path()),
+        ));
         core.set_launcher(launcher);
     }
     if let Some(program) = cli_resolver::find_windows_cli_launcher("claude") {

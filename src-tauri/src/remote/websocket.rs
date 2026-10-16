@@ -15,11 +15,16 @@ use crate::pty::PtySessions;
 use super::pty_bridge::{read_pty_size, read_scrollback};
 use super::util::bind_listener;
 use super::{
-    ConnectionGuard, RemoteHub, HTTP_END, HTTP_START, MAX_MESSAGE, MAX_SCROLLBACK,
-    SOCKET_TIMEOUT, WS_AUTH_TIMEOUT,
+    ConnectionGuard, RemoteHub, HTTP_END, HTTP_START, MAX_MESSAGE, MAX_SCROLLBACK, SOCKET_TIMEOUT,
+    WS_AUTH_TIMEOUT,
 };
 
-pub(crate) fn run_websocket(app: AppHandle, hub: Arc<RemoteHub>, sessions: PtySessions, generation: u64) {
+pub(crate) fn run_websocket(
+    app: AppHandle,
+    hub: Arc<RemoteHub>,
+    sessions: PtySessions,
+    generation: u64,
+) {
     let host = hub.host();
     let Some(listener) = bind_listener(&host, HTTP_START + 1, HTTP_END + 1) else {
         eprintln!("[remote] unable to bind LAN WebSocket listener");
