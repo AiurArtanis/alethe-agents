@@ -308,6 +308,12 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   panel now list each model-scoped weekly limit, such as Fable, below the Opus row, and the
   orchestrator counts them when it checks Claude's remaining quota
   ([#208](https://github.com/Kc1t/alethe-agents/issues/208)).
+- **A fuller About page.** Preferences → About now shows who builds Alethe, with links to the
+  creator's GitHub, YouTube, Instagram, and LinkedIn; shortcuts to report a bug, request a feature,
+  or open a pull request; and the license, privacy notes, source code, data folder, and logs.
+  **Older versions** lists earlier releases from GitHub and installs the chosen one through the
+  signed updater after offering a backup; releases from before signed updates link to their
+  installer instead.
 
 ### Changed
 
