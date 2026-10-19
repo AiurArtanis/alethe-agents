@@ -11,6 +11,10 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 ## [Unreleased]
 
 ### Added
+- **Leftover processes in Memory analytics.** Dev servers and runtimes still running after the
+  terminal that started them closed (Node, Python, shells, agent CLIs) are listed with how long they
+  have been running, when they started, their folder, and their memory, each with an End button and
+  an End all action.
 - **Administrator shell tabs.** New terminal and new tab dialogs offer a Windows administrator
   option when Shell is selected. Elevated shells stay in the Alethe tab and request UAC approval
   through gsudo or Windows Sudo configured in inline mode.
@@ -386,6 +390,9 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Fixed
 
+- Closing or killing a terminal on Windows now also ends the dev servers and background jobs it
+  started, even when the shell that launched them had already exited. Each terminal runs inside its
+  own Job Object, so a `npm run dev` left behind by an agent no longer keeps holding memory.
 - Claude panes reopen on the conversation they were on when the project folder has a space, an
   underscore, an accent or other punctuation in its path. Alethe looked for the saved conversation
   in the wrong directory, treated it as gone and started a new chat on every launch.

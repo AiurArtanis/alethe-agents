@@ -162,7 +162,7 @@ impl Default for ResourceSupervisor {
     }
 }
 
-fn process_private_commit_bytes(pid: u32, fallback: u64) -> u64 {
+pub(crate) fn process_private_commit_bytes(pid: u32, fallback: u64) -> u64 {
     #[cfg(windows)]
     {
         use std::mem::size_of;

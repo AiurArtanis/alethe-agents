@@ -98,6 +98,25 @@ export async function killPtyTree(ptyId: string): Promise<number[]> {
   return invoke<number[]>('kill_pty_tree_cmd', { ptyId })
 }
 
+export type LeftoverProcess = {
+  pid: number
+  name: string
+  command: string
+  cwd: string | null
+  startedAtSecs: number
+  uptimeSecs: number
+  memoryMb: number
+  processCount: number
+}
+
+export async function listLeftoverProcesses(): Promise<LeftoverProcess[]> {
+  return invoke<LeftoverProcess[]>('list_leftover_processes')
+}
+
+export async function killLeftoverProcess(pid: number, startedAtSecs: number): Promise<number[]> {
+  return invoke<number[]>('kill_leftover_process', { pid, startedAtSecs })
+}
+
 export async function restartPty(args: SpawnPtyArgs & { id: string }): Promise<{ id: string }> {
   // A view of an orchestrator shell restarts the service itself, so its command runs again rather
   // than an empty interactive shell taking over its id.

@@ -40,6 +40,7 @@ mod handoff;
 mod health_probe;
 mod jev;
 mod kimi_usage;
+mod leftover_processes;
 mod logging;
 mod mcp_agents;
 mod mcp_catalog;
@@ -416,6 +417,8 @@ pub fn run() {
             resource_manager::get_resource_metrics,
             process_tree::get_pty_tree_info,
             process_tree::kill_pty_tree_cmd,
+            leftover_processes::list_leftover_processes,
+            leftover_processes::kill_leftover_process,
             projects::load_projects,
             projects::save_projects,
             projects::clone_github_repo,
