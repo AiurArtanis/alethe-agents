@@ -199,6 +199,11 @@ export const en = {
   'menu.factoryReset': 'Erase all data (fresh install)…',
   'menu.exportBackupTitle': 'Export backup',
   'menu.importBackupTitle': 'Import backup',
+  'backup.savedTitle': 'Backup saved',
+  'backup.complete': 'Projects, settings, theme, profile name and photo, and terminal history are all in the file.',
+  'backup.skipped': 'Files in use that were left out ({count}): {files}.',
+  'backup.embeddedImages': 'Linked images saved inside the backup: {count}.',
+  'backup.linksKept': 'Linked images that could not be downloaded and stay as links: {count}.',
   'menu.backupFilter': 'Alethe backup',
   'menu.confirmReset':
     'Erase ALL app state (projects, scrollback, settings)? This cannot be undone.',

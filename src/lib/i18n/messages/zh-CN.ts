@@ -186,6 +186,11 @@ export const zhCN: Record<MessageKey, string> = {
   'menu.factoryReset': '擦除所有数据（全新安装）…',
   'menu.exportBackupTitle': '导出备份',
   'menu.importBackupTitle': '导入备份',
+  'backup.savedTitle': '备份已保存',
+  'backup.complete': '项目、设置、主题、个人资料名称和头像以及终端历史都已保存在文件中。',
+  'backup.skipped': '未包含的正在使用的文件（{count} 个）：{files}。',
+  'backup.embeddedImages': '已保存到备份中的链接图片：{count} 张。',
+  'backup.linksKept': '无法下载、仍保留为链接的图片：{count} 张。',
   'menu.backupFilter': 'Alethe 备份',
   'menu.confirmReset': '清除所有应用状态（项目、回滚、设置）？此操作无法撤销。',
   'menu.confirmFactoryReset':

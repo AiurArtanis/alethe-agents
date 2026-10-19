@@ -203,6 +203,11 @@ export const ptBR: Record<MessageKey, string> = {
   'menu.factoryReset': 'Apagar todos os dados (instalação nova)…',
   'menu.exportBackupTitle': 'Exportar backup',
   'menu.importBackupTitle': 'Importar backup',
+  'backup.savedTitle': 'Backup salvo',
+  'backup.complete': 'Projetos, configurações, tema, nome e foto do perfil e o histórico dos terminais estão todos no arquivo.',
+  'backup.skipped': 'Arquivos em uso que ficaram de fora ({count}): {files}.',
+  'backup.embeddedImages': 'Imagens linkadas salvas dentro do backup: {count}.',
+  'backup.linksKept': 'Imagens linkadas que não puderam ser baixadas e continuam como link: {count}.',
   'menu.backupFilter': 'Alethe backup',
   'menu.confirmReset':
     'Apagar TODO o estado do app (projetos, scrollback, configs)? Não dá pra desfazer.',
