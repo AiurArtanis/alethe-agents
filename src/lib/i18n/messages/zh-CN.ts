@@ -3268,7 +3268,7 @@ export const zhCN: Record<MessageKey, string> = {
   'market.installDone': '{name} 已安装',
   'market.installDoneBody': '在你启用它并接受其能力之前，它保持停用状态。',
   'market.installFailed': '无法安装该插件。',
-  'orchestrator.shellsEyebrow': 'shell',
+  'orchestrator.shellsEyebrow': 'Shell',
   'orchestrator.shellsLabel': 'Shell',
   'orchestrator.shellsOrphanLabel': '没有智能体的 Shell',
   'orchestrator.shellCount': '{count} 个 shell',
