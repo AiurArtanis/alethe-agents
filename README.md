@@ -186,6 +186,10 @@ Listing is a human reading your pull request, not an audit: the plugin still arr
 still goes through the trust dialog. `docs/examples/notes-plugin/` is a working plugin in plain
 JavaScript with no build step; the [plugin guide](docs/PLUGINS.md) has the full contract.
 
+For a plugin with a real toolchain, [Jev](https://github.com/Kc1t/alethe-jev) is the reference
+external plugin: its own repository, TypeScript, React and CSS Modules built by Vite into one
+script, released as a checksummed zip and installed from the catalogue.
+
 **Stay in control**
 
 - RAM readout in the title bar; disable a terminal or suspend a whole group to get memory back.
