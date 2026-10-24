@@ -36,6 +36,8 @@ Mac synced through: `v1.7.0` (`80e44a3`)
 
 ## Unreleased
 
+- `pending` · `backend` · fix(clone): keep existing agent guides and cut the README briefing at a char boundary
+  - Files: `src-tauri/src/projects.rs`
 - `pending` · `ui` · refactor(agents): derive onboarding and terminal agent lists from one source
   - Files: `src/components/modals/OnboardingModal.tsx`, `src/components/modals/preferences/TerminalPage.tsx`
 - `pending` · `contract` · fix(backup): export the whole profile and skip files in use

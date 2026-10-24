@@ -402,6 +402,9 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Fixed
 
+- **Cloning keeps the repository's own agent guides.** Cloning a repository from Alethe no longer
+  overwrites its `AGENTS.md` or `CLAUDE.md` with the generated briefing, and a README with accented
+  or other non-ASCII characters no longer crashes the briefing step.
 - **Exporting a backup no longer stops at a permission error.** Files the embedded browser keeps
   locked while Alethe is open are left out, and any other file in use is skipped and named in the
   confirmation instead of failing the whole export.
