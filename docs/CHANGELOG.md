@@ -317,6 +317,8 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Changed
 
+- **One agent list everywhere.** Onboarding now also detects the Cursor CLI, and agent names in
+  onboarding and Preferences → Terminal match the rest of the app (for example "Claude Code").
 - **Backups restore the whole profile.** An export now also carries the profile name, the terminal
   prompt history, open Markdown tabs, and folded settings sections, and saves the profile photo and
   project logos that were only links inside the file. Importing puts all of it back, and a
