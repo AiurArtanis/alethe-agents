@@ -13,7 +13,7 @@
     <br />
     Run Claude Code, Codex, Copilot and your shells side by side — in one local-first desktop app.
     <br />
-    <a href="./README.zh-CN.md">中文说明</a>
+    <a href="./README.pt-BR.md">Português</a> · <a href="./README.zh-CN.md">中文说明</a>
   </p>
 
   <p align="center">

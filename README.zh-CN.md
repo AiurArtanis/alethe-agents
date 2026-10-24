@@ -13,7 +13,7 @@
     <br />
     在同一款本地优先的桌面应用里，并排运行 Claude Code、Codex、Copilot 以及你的 Shell。
     <br />
-    <a href="./README.md">English</a>
+    <a href="./README.md">English</a> · <a href="./README.pt-BR.md">Português</a>
   </p>
 
   <p align="center">
