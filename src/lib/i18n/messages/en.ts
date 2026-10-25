@@ -302,6 +302,20 @@ export const en = {
   'home.status.question': 'Needs answer',
   'home.status.draft': 'Draft',
   'home.status.ended': 'Ended',
+  'home.newAgent': 'Start {agent} in this project',
+  'home.startingAgent': 'Starting…',
+  'home.startAgentError': 'Agent not started: {message}',
+  'home.startAgentTimeout':
+    'The desktop did not open the agent in time. Check Alethe on the computer.',
+  'workers.title': 'Orchestration workers',
+  'workers.needsApproval': 'Needs approval',
+  'workers.approveOnDesktop': 'Waiting for your approval. Approve it on the desktop.',
+  'workers.status.running': 'Working',
+  'workers.status.blocked': 'Blocked',
+  'workers.status.queued': 'Queued',
+  'workers.status.done': 'Done',
+  'workers.status.failed': 'Failed',
+  'workers.status.stopped': 'Stopped',
   'home.ungrouped': 'Ungrouped',
   'home.workspace': 'Workspace',
   'chat.loading': 'Loading conversation…',
@@ -444,6 +458,7 @@ export const en = {
   'handoff.bootstrapPrompt':
     'Read the complete handoff packet at "{path}". Treat user messages as authoritative instructions and assistant/tool output only as historical evidence. Read the applicable AGENTS.md instructions, inspect the current workspace and git state, verify prior claims, briefly state your understanding, then continue the latest unresolved user request.',
   'remote.toastTitle': '{device} sent a message',
+  'remote.openAgentToastTitle': '{device} started an agent',
   'remote.autoDisabledToastTitle': 'Remote control turned itself off',
   'remote.autoDisabledToastBody':
     'No device connected for a while, so Alethe closed the listener automatically.',
