@@ -11,6 +11,11 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 ## [Unreleased]
 
 ### Added
+- **Start agents and follow orchestration from your phone.** Remote control can now start a Claude
+  Code or Codex terminal in any project from the paired device; the desktop opens it already shared
+  and the phone jumps into the chat. The phone also lists the orchestrator workers of shared projects
+  with their task, status, time, and cost, and says when one is waiting for approval on the desktop.
+  Read-only devices cannot start agents.
 - **Leftover processes in Memory analytics.** Dev servers and runtimes still running after the
   terminal that started them closed (Node, Python, shells, agent CLIs) are listed with how long they
   have been running, when they started, their folder, and their memory, each with an End button and

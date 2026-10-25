@@ -9,14 +9,17 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::pty::PtySessions;
 
 use super::appearance::{projects_document, remote_appearance, selected_brand_icon};
 use super::pty_bridge::{read_pty_size, read_scrollback, write_remote};
 use super::util::{query_value, sanitize_remote_message};
-use super::workspace::{pty_agent, pty_is_shared, shared_tab, workspace_snapshot};
+use super::workspace::{
+    orchestration_snapshot, project_exists, pty_agent, pty_is_shared, shared_tab,
+    workspace_snapshot,
+};
 use super::{
     ConnectionGuard, RemoteHub, IDLE_DISABLE_SECS, MAX_BODY, MAX_MESSAGE, MAX_REQUEST,
     MAX_SCROLLBACK, MAX_STATIC_ASSET, SOCKET_TIMEOUT,
@@ -325,6 +328,18 @@ fn handle_api(
             &workspace_snapshot(app)?.to_string(),
         );
     }
+    if path == "/api/orchestration" {
+        let board = app
+            .try_state::<crate::orchestrator::OrchestratorState>()
+            .map(|state| state.board())
+            .unwrap_or_else(|| json!({}));
+        return respond(
+            stream,
+            200,
+            "application/json",
+            &orchestration_snapshot(app, &board).to_string(),
+        );
+    }
     if path == "/api/scrollback" {
         let id = query_value(target, "id").ok_or_else(|| "Missing PTY id".to_string())?;
         if !pty_is_shared(app, &id) {
@@ -613,7 +628,75 @@ fn handle_api(
         );
         return respond(stream, 204, "text/plain", "");
     }
+    if path == "/api/open-agent" && method == "POST" {
+        if hub.is_read_only() {
+            return respond(
+                stream,
+                403,
+                "application/json",
+                r#"{"error":"Remote control is in read-only mode"}"#,
+            );
+        }
+        if !hub.allow_message(session_id) {
+            return respond(
+                stream,
+                429,
+                "application/json",
+                r#"{"error":"Too many messages, slow down"}"#,
+            );
+        }
+        let payload: RemoteOpenAgent =
+            serde_json::from_slice(body).map_err(|error| error.to_string())?;
+        if !REMOTE_OPEN_AGENTS.contains(&payload.agent.as_str()) {
+            return respond(
+                stream,
+                400,
+                "application/json",
+                r#"{"error":"Only Codex and Claude Code can be started remotely"}"#,
+            );
+        }
+        if !project_exists(app, &payload.project_id) {
+            return respond(
+                stream,
+                404,
+                "application/json",
+                r#"{"error":"Project not found"}"#,
+            );
+        }
+        let device_name = hub.device_name(session_id);
+        // The desktop owns terminal creation; it spawns the PTY and shares the new terminal.
+        let emitted = hub.with_active_session(generation, session_id, || {
+            app.emit(
+                "remote://open-agent",
+                json!({
+                    "projectId": payload.project_id,
+                    "agent": payload.agent,
+                    "deviceId": session_id,
+                    "deviceName": device_name,
+                }),
+            )
+            .map_err(|error| error.to_string())
+        })?;
+        if !emitted {
+            return respond_session_inactive(stream);
+        }
+        eprintln!(
+            "[remote] {device_name} (device {session_id}) started {} in project {}",
+            payload.agent, payload.project_id
+        );
+        return respond(stream, 204, "text/plain", "");
+    }
     respond(stream, 404, "application/json", r#"{"error":"Not found"}"#)
+}
+
+/// Agents a paired device may start: the ones the remote chat view can drive.
+const REMOTE_OPEN_AGENTS: [&str; 2] = ["claude", "codex"];
+
+#[derive(Deserialize)]
+struct RemoteOpenAgent {
+    #[serde(rename = "projectId")]
+    project_id: String,
+    agent: String,
 }
 
 /// The session was revoked or remote control was turned off between
