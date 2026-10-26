@@ -36,6 +36,8 @@ Mac synced through: `v1.7.0` (`80e44a3`)
 
 ## Unreleased
 
+- `pending` · `backend` · fix(memory): read available memory from the kernel on macOS
+  - Files: `src-tauri/src/stats.rs`
 - `pending` · `backend` · feat(remote): start agents and list orchestration workers from a paired device
   - Files: `src-tauri/src/remote/http.rs`, `src-tauri/src/remote/workspace.rs`, `src-tauri/remote/app.js`
   - Contract: new remote API `POST /api/open-agent` (`projectId`, `agent`: `claude` or `codex`) and `GET /api/orchestration` (workers of projects with a shared terminal)
