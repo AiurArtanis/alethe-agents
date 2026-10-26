@@ -204,10 +204,12 @@ export const ptBR: Record<MessageKey, string> = {
   'menu.exportBackupTitle': 'Exportar backup',
   'menu.importBackupTitle': 'Importar backup',
   'backup.savedTitle': 'Backup salvo',
-  'backup.complete': 'Projetos, configurações, tema, nome e foto do perfil e o histórico dos terminais estão todos no arquivo.',
+  'backup.complete':
+    'Projetos, configurações, tema, nome e foto do perfil e o histórico dos terminais estão todos no arquivo.',
   'backup.skipped': 'Arquivos em uso que ficaram de fora ({count}): {files}.',
   'backup.embeddedImages': 'Imagens linkadas salvas dentro do backup: {count}.',
-  'backup.linksKept': 'Imagens linkadas que não puderam ser baixadas e continuam como link: {count}.',
+  'backup.linksKept':
+    'Imagens linkadas que não puderam ser baixadas e continuam como link: {count}.',
   'menu.backupFilter': 'Alethe backup',
   'menu.confirmReset':
     'Apagar TODO o estado do app (projetos, scrollback, configs)? Não dá pra desfazer.',
@@ -2034,7 +2036,8 @@ export const ptBR: Record<MessageKey, string> = {
   'mod.leftoversTitle': 'Processos esquecidos',
   'mod.leftoversSubtitle':
     '{count} processos de dev ainda rodando depois que o terminal que os abriu fechou · {total}',
-  'mod.leftoversEmpty': 'Nenhum processo esquecido. Todo servidor de dev pertence a um terminal aberto.',
+  'mod.leftoversEmpty':
+    'Nenhum processo esquecido. Todo servidor de dev pertence a um terminal aberto.',
   'mod.leftoversRunningFor': 'rodando há {duration}',
   'mod.leftoversStartedAt': 'iniciado {time}',
   'mod.leftoversKill': 'Encerrar',
@@ -2901,7 +2904,8 @@ export const ptBR: Record<MessageKey, string> = {
   'prefs.aboutCreatorDesc': 'O Alethe é desenhado, construído e mantido por um desenvolvedor.',
   'prefs.aboutCreatorPhotoAlt': 'Kauã Miguel',
   'prefs.aboutCreatorRole': 'Criador e mantenedor',
-  'prefs.aboutCreatorBio': 'Constrói o Alethe em público. Acompanhe para ver as novas versões e vídeos sobre agentes de código.',
+  'prefs.aboutCreatorBio':
+    'Constrói o Alethe em público. Acompanhe para ver as novas versões e vídeos sobre agentes de código.',
   'prefs.aboutOlderTitle': 'Versões anteriores',
   'prefs.aboutOlderDesc': 'Volte para uma versão anterior se uma mais nova atrapalhar.',
   'prefs.aboutOlderShow': 'Mostrar versões anteriores',
@@ -2910,18 +2914,22 @@ export const ptBR: Record<MessageKey, string> = {
   'prefs.aboutOlderEmpty': 'Não há versão anterior à v{version}.',
   'prefs.aboutOlderInstall': 'Instalar',
   'prefs.aboutOlderDownload': 'Baixar',
-  'prefs.aboutOlderManualHint': 'Esta versão é anterior à instalação pelo app. Baixe o instalador no GitHub.',
-  'prefs.aboutOlderConfirm': 'O Alethe vai fechar, instalar a v{version} e abrir de novo. Uma versão anterior pode não ler tudo o que uma mais nova salvou, então exporte um backup antes.',
+  'prefs.aboutOlderManualHint':
+    'Esta versão é anterior à instalação pelo app. Baixe o instalador no GitHub.',
+  'prefs.aboutOlderConfirm':
+    'O Alethe vai fechar, instalar a v{version} e abrir de novo. Uma versão anterior pode não ler tudo o que uma mais nova salvou, então exporte um backup antes.',
   'prefs.aboutOlderBackup': 'Exportar backup',
   'prefs.aboutOlderBackupDone': 'Backup salvo',
   'prefs.aboutOlderBackupError': 'Não foi possível exportar o backup: {error}',
   'prefs.aboutOlderConfirmInstall': 'Instalar v{version}',
   'prefs.aboutOlderInstalling': 'Baixando v{version}… {percent}%',
   'prefs.aboutOlderInstallError': 'Não foi possível instalar a v{version}: {error}',
-  'prefs.aboutOlderNotInstallable': 'A v{version} não pode ser instalada por aqui. Baixe o instalador no GitHub.',
+  'prefs.aboutOlderNotInstallable':
+    'A v{version} não pode ser instalada por aqui. Baixe o instalador no GitHub.',
   'prefs.aboutOlderAll': 'Todas as versões no GitHub',
   'prefs.aboutContributeTitle': 'Contribuir',
-  'prefs.aboutContributeDesc': 'O Alethe é open source sob AGPL-3.0. Relate o que quebrou, sugira o que falta ou envie uma mudança.',
+  'prefs.aboutContributeDesc':
+    'O Alethe é open source sob AGPL-3.0. Relate o que quebrou, sugira o que falta ou envie uma mudança.',
   'prefs.aboutReportBug': 'Relatar um bug',
   'prefs.aboutRequestFeature': 'Sugerir um recurso',
   'prefs.aboutOpenPullRequest': 'Abrir um pull request',
