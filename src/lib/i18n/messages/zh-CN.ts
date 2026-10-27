@@ -2532,7 +2532,8 @@ export const zhCN: Record<MessageKey, string> = {
   'prefs.aboutOlderInstall': '安装',
   'prefs.aboutOlderDownload': '下载',
   'prefs.aboutOlderManualHint': '此版本早于应用内安装功能。请从 GitHub 下载安装程序。',
-  'prefs.aboutOlderConfirm': 'Alethe 将关闭、安装 v{version} 并重新打开。旧版本可能无法读取新版本保存的全部内容，请先导出备份。',
+  'prefs.aboutOlderConfirm':
+    'Alethe 将关闭、安装 v{version} 并重新打开。旧版本可能无法读取新版本保存的全部内容，请先导出备份。',
   'prefs.aboutOlderBackup': '导出备份',
   'prefs.aboutOlderBackupDone': '备份已保存',
   'prefs.aboutOlderBackupError': '无法导出备份：{error}',

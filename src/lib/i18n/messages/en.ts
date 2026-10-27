@@ -200,7 +200,8 @@ export const en = {
   'menu.exportBackupTitle': 'Export backup',
   'menu.importBackupTitle': 'Import backup',
   'backup.savedTitle': 'Backup saved',
-  'backup.complete': 'Projects, settings, theme, profile name and photo, and terminal history are all in the file.',
+  'backup.complete':
+    'Projects, settings, theme, profile name and photo, and terminal history are all in the file.',
   'backup.skipped': 'Files in use that were left out ({count}): {files}.',
   'backup.embeddedImages': 'Linked images saved inside the backup: {count}.',
   'backup.linksKept': 'Linked images that could not be downloaded and stay as links: {count}.',
@@ -2869,7 +2870,8 @@ export const en = {
   'prefs.aboutCreatorDesc': 'Alethe is designed, built, and maintained by one developer.',
   'prefs.aboutCreatorPhotoAlt': 'Kauã Miguel',
   'prefs.aboutCreatorRole': 'Creator and maintainer',
-  'prefs.aboutCreatorBio': 'Builds Alethe in the open. Follow along for new releases and videos about coding agents.',
+  'prefs.aboutCreatorBio':
+    'Builds Alethe in the open. Follow along for new releases and videos about coding agents.',
   'prefs.aboutOlderTitle': 'Older versions',
   'prefs.aboutOlderDesc': 'Go back to an earlier release if a newer one gets in your way.',
   'prefs.aboutOlderShow': 'Show older versions',
@@ -2878,18 +2880,22 @@ export const en = {
   'prefs.aboutOlderEmpty': 'There is no release older than v{version}.',
   'prefs.aboutOlderInstall': 'Install',
   'prefs.aboutOlderDownload': 'Download',
-  'prefs.aboutOlderManualHint': 'This release predates in-app installs. Download its installer from GitHub.',
-  'prefs.aboutOlderConfirm': 'Alethe will close, install v{version}, and open again. An older version may not read everything a newer one saved, so export a backup first.',
+  'prefs.aboutOlderManualHint':
+    'This release predates in-app installs. Download its installer from GitHub.',
+  'prefs.aboutOlderConfirm':
+    'Alethe will close, install v{version}, and open again. An older version may not read everything a newer one saved, so export a backup first.',
   'prefs.aboutOlderBackup': 'Export backup',
   'prefs.aboutOlderBackupDone': 'Backup saved',
   'prefs.aboutOlderBackupError': "Couldn't export the backup: {error}",
   'prefs.aboutOlderConfirmInstall': 'Install v{version}',
   'prefs.aboutOlderInstalling': 'Downloading v{version}… {percent}%',
   'prefs.aboutOlderInstallError': "Couldn't install v{version}: {error}",
-  'prefs.aboutOlderNotInstallable': "v{version} can't be installed from here. Download its installer from GitHub.",
+  'prefs.aboutOlderNotInstallable':
+    "v{version} can't be installed from here. Download its installer from GitHub.",
   'prefs.aboutOlderAll': 'All releases on GitHub',
   'prefs.aboutContributeTitle': 'Contribute',
-  'prefs.aboutContributeDesc': 'Alethe is open source under AGPL-3.0. Report what broke, suggest what is missing, or send a change.',
+  'prefs.aboutContributeDesc':
+    'Alethe is open source under AGPL-3.0. Report what broke, suggest what is missing, or send a change.',
   'prefs.aboutReportBug': 'Report a bug',
   'prefs.aboutRequestFeature': 'Request a feature',
   'prefs.aboutOpenPullRequest': 'Open a pull request',
