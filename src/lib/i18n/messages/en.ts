@@ -2327,8 +2327,6 @@ export const en = {
   'ui.sidebar.designLayout': 'Design layout…',
   'ui.sidebar.removeFromGroup': 'Remove from group (move to Ungrouped)',
   'ui.sidebar.moveToGroup': 'Move to group…',
-  'ui.sidebar.createGroupFirst': 'Create a group first so you can move it.',
-  'ui.sidebar.moveProjectToWhichGroup': 'Move "{name}" to which group?\n\n{list}',
   'ui.sidebar.reactivateProject': 'Reactivate project',
   'ui.sidebar.disableProject': 'Disable project',
   'ui.sidebar.deleteProject': 'Delete project',

@@ -2361,8 +2361,6 @@ export const ptBR: Record<MessageKey, string> = {
   'ui.sidebar.designLayout': 'Desenhar layout…',
   'ui.sidebar.removeFromGroup': 'Tirar do grupo (vai pra Solto)',
   'ui.sidebar.moveToGroup': 'Mover pra grupo…',
-  'ui.sidebar.createGroupFirst': 'Crie um grupo primeiro pra poder mover.',
-  'ui.sidebar.moveProjectToWhichGroup': 'Mover "{name}" pra qual grupo?\n\n{list}',
   'ui.sidebar.reactivateProject': 'Reativar projeto',
   'ui.sidebar.disableProject': 'Desabilitar projeto',
   'ui.sidebar.deleteProject': 'Apagar projeto',

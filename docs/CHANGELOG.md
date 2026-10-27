@@ -405,6 +405,12 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Fixed
 
+- **Moving a project into a group works again.** **Move to group…** now lists the groups to pick
+  from (nested ones with their path) instead of asking for a typed number, which did nothing on
+  macOS, and a project already in a group can move straight to another one. Dropping a dragged
+  project anywhere on a group's area, including the "No projects yet" space of an empty group,
+  moves it into that group; before, only the group's name strip took the drop.
+
 - **Exporting a backup no longer stops at a permission error.** Files the embedded browser keeps
   locked while Alethe is open are left out, and any other file in use is skipped and named in the
   confirmation instead of failing the whole export.

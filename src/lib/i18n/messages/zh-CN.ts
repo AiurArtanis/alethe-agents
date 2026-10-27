@@ -2042,8 +2042,6 @@ export const zhCN: Record<MessageKey, string> = {
   'ui.sidebar.designLayout': '设计布局…',
   'ui.sidebar.removeFromGroup': '从组中移除（移动到未分组）',
   'ui.sidebar.moveToGroup': '移动到组…',
-  'ui.sidebar.createGroupFirst': '先创建一个组，这样你才能移动它。',
-  'ui.sidebar.moveProjectToWhichGroup': '将“{name}”移动到哪个组？\n\n{list}',
   'ui.sidebar.reactivateProject': '重新激活项目',
   'ui.sidebar.disableProject': '禁用项目',
   'ui.sidebar.deleteProject': '删除项目',
