@@ -685,21 +685,14 @@
   display: inline-flex;
   align-items: center;
   gap: 1px;
-  width: 0;
-  max-width: 0;
   overflow: hidden;
   opacity: 0;
   pointer-events: none;
-  transition:
-    width 120ms ease,
-    max-width 120ms ease,
-    opacity 120ms ease;
+  transition: opacity 120ms ease;
 }
 
 .todoRow:hover .rowActions,
 .todoRow:focus-within .rowActions {
-  width: auto;
-  max-width: 66px;
   opacity: 1;
   pointer-events: auto;
 }
