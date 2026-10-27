@@ -10,6 +10,7 @@ export type SpawnPtyArgs = {
   command?: string
   cwd?: string
   extraArgs?: string[]
+  runAsAdmin?: boolean
   /** Absolute path to the launcher (overrides auto-detection). */
   launcherOverride?: string
 
@@ -30,6 +31,7 @@ export async function spawnPty(args: SpawnPtyArgs): Promise<{ id: string }> {
     command: args.command,
     cwd: args.cwd,
     extraArgs: args.extraArgs,
+    runAsAdmin: args.runAsAdmin,
     launcherOverride: args.launcherOverride,
     env: args.env,
     commandLine: args.commandLine,
@@ -73,6 +75,10 @@ export async function setPtyVisible(id: string, visible: boolean): Promise<boole
   return invoke<boolean>('set_pty_visible', { id, visible })
 }
 
+export async function resumePtyOutput(id: string): Promise<string | null> {
+  return invoke<string | null>('resume_pty_output', { id })
+}
+
 export async function setPtyPriority(id: string, active: boolean): Promise<void> {
   await invoke('set_pty_priority', { id, active })
 }
@@ -92,6 +98,25 @@ export async function killPtyTree(ptyId: string): Promise<number[]> {
   return invoke<number[]>('kill_pty_tree_cmd', { ptyId })
 }
 
+export type LeftoverProcess = {
+  pid: number
+  name: string
+  command: string
+  cwd: string | null
+  startedAtSecs: number
+  uptimeSecs: number
+  memoryMb: number
+  processCount: number
+}
+
+export async function listLeftoverProcesses(): Promise<LeftoverProcess[]> {
+  return invoke<LeftoverProcess[]>('list_leftover_processes')
+}
+
+export async function killLeftoverProcess(pid: number, startedAtSecs: number): Promise<number[]> {
+  return invoke<number[]>('kill_leftover_process', { pid, startedAtSecs })
+}
+
 export async function restartPty(args: SpawnPtyArgs & { id: string }): Promise<{ id: string }> {
   // A view of an orchestrator shell restarts the service itself, so its command runs again rather
   // than an empty interactive shell taking over its id.
@@ -105,6 +130,7 @@ export async function restartPty(args: SpawnPtyArgs & { id: string }): Promise<{
     command: args.command,
     cwd: args.cwd,
     extraArgs: args.extraArgs,
+    runAsAdmin: args.runAsAdmin,
     launcherOverride: args.launcherOverride,
     env: args.env,
   })
@@ -196,7 +222,7 @@ export function listenPtyExit(
   return listen<PtyExitPayload>(`pty://exit/${id}`, (event) => handler(event.payload))
 }
 
-export type PtyExitReason = 'exited' | 'killed' | 'suspended' | 'restarted'
+export type PtyExitReason = 'exited' | 'killed' | 'suspended' | 'restarted' | 'shutdown'
 
 export type PtyExitPayload = {
   code: number | null

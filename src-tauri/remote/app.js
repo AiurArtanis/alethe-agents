@@ -137,6 +137,12 @@ let socketAuthenticated = false
 let reconnectTimer = null
 let reconnectAttempt = 0
 let workspaceSyncing = false
+// Agents a paired device may start; the backend enforces the same list.
+const STARTABLE_AGENTS = ['claude', 'codex']
+const OPEN_AGENT_TIMEOUT_MS = 15_000
+let startingAgent = null
+let startAgentError = null
+let workers = []
 let connectionState = 'connecting'
 let currentFilter = ''
 const openProjects = new Set()
@@ -245,8 +251,12 @@ async function refreshWorkspace() {
   if (!sessionToken || workspaceSyncing || document.visibilityState === 'hidden') return
   workspaceSyncing = true
   try {
-    const next = await api('/api/state')
+    const [next, board] = await Promise.all([
+      api('/api/state'),
+      api('/api/orchestration').catch(() => ({ jobs: [] })),
+    ])
     state = next
+    workers = board.jobs || []
     if (selected && !findChat(selected)) {
       selected = null
       renderHome()
@@ -387,7 +397,8 @@ function workspaceSections(filter) {
         )
       }),
     }))
-    .filter((project) => project.chats.length > 0)
+    // Without a search, projects with no shared chat still show so an agent can be started there.
+    .filter((project) => project.chats.length > 0 || (!query && !readOnly))
 
   if (!projects.length) {
     const hasChats = (state.projects || []).some((project) => (project.chats || []).length)
@@ -425,8 +436,69 @@ function projectBlockMarkup(project, forceOpen) {
       <span class="project-name">${escapeHtml(project.name)}</span>
       <span class="project-meta">${!isOpen ? `<span class="meta-text">${plural('home.chatCount', 'home.chatCountPlural', project.chats.length)}</span>` : ''}${collapsible ? `<span class="chevron">${icons.chevronRight}</span>` : ''}</span>
     </div>
-    <div class="terminal-list"${isOpen ? '' : ' hidden'}>${project.chats.map((chat) => terminalRowMarkup(chat)).join('')}</div>
+    <div class="terminal-list"${isOpen ? '' : ' hidden'}>${project.chats.map((chat) => terminalRowMarkup(chat)).join('')}${newAgentMarkup(project)}</div>
   </div>`
+}
+
+function newAgentMarkup(project) {
+  if (readOnly) return ''
+  const busy = startingAgent !== null
+  const buttons = STARTABLE_AGENTS.map((agent) => {
+    const label = agentName(agent)
+    const starting =
+      startingAgent !== null &&
+      startingAgent.projectId === project.id &&
+      startingAgent.agent === agent
+    return `<button class="new-agent-button" type="button" data-new-agent="${agent}" data-project="${escapeHtml(project.id)}"${busy ? ' disabled' : ''} aria-label="${escapeHtml(t('home.newAgent', { agent: label }))}">${icons.fontLarger}<span>${escapeHtml(starting ? t('home.startingAgent') : label)}</span></button>`
+  }).join('')
+  const error =
+    startAgentError !== null && startAgentError.projectId === project.id
+      ? `<p class="new-agent-error" role="alert">${escapeHtml(t('home.startAgentError', { message: startAgentError.message }))}</p>`
+      : ''
+  return `<div class="new-agent">${buttons}</div>${error}`
+}
+
+function projectPtyIds(projectId) {
+  const project = (state.projects || []).find((candidate) => candidate.id === projectId)
+  return new Set((project?.chats || []).map((chat) => chat.ptyId))
+}
+
+async function startAgent(projectId, agent) {
+  if (startingAgent) return
+  const known = projectPtyIds(projectId)
+  startingAgent = { projectId, agent }
+  startAgentError = null
+  renderWorkspaceList(currentFilter)
+  try {
+    await api('/api/open-agent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId, agent }),
+    })
+    // The desktop creates the terminal; wait for it to appear in the shared workspace.
+    const deadline = Date.now() + OPEN_AGENT_TIMEOUT_MS
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => window.setTimeout(resolve, 1000))
+      state = await api('/api/state')
+      const project = state.projects.find((candidate) => candidate.id === projectId)
+      const created = (project?.chats || []).find((chat) => !known.has(chat.ptyId))
+      if (created) {
+        startingAgent = null
+        openChat(created.ptyId)
+        return
+      }
+    }
+    throw new Error(t('home.startAgentTimeout'))
+  } catch (error) {
+    if (error instanceof SessionError) {
+      startingAgent = null
+      renderSessionLost(error.message)
+      return
+    }
+    startAgentError = { projectId, message: error.message }
+  }
+  startingAgent = null
+  renderWorkspaceList(currentFilter)
 }
 
 function terminalRowMarkup(chat) {
@@ -451,14 +523,65 @@ function terminalRowMarkup(chat) {
   </button>`
 }
 
+const WORKER_STATUS = {
+  running: 'working',
+  blocked: 'question',
+  queued: 'draft',
+}
+
+function workerStatusKey(worker) {
+  if (worker.needsApproval) return 'workers.needsApproval'
+  if (['running', 'blocked', 'queued', 'done', 'failed'].includes(worker.status))
+    return `workers.status.${worker.status}`
+  return 'workers.status.stopped'
+}
+
+function workerMeta(worker) {
+  const parts = []
+  if (typeof worker.seconds === 'number') parts.push(`${Math.round(worker.seconds / 60)} min`)
+  if (typeof worker.costUsd === 'number') parts.push(`US$ ${worker.costUsd.toFixed(2)}`)
+  return parts.join(' · ')
+}
+
+function workersMarkup(filter) {
+  if (!workers.length || filter.trim()) return ''
+  const rows = workers
+    .map((worker) => {
+      const status = worker.needsApproval ? 'question' : WORKER_STATUS[worker.status] || 'ended'
+      const hint = worker.needsApproval
+        ? `<span class="worker-summary">${t('workers.approveOnDesktop')}</span>`
+        : worker.summary
+          ? `<span class="worker-summary">${escapeHtml(worker.summary)}</span>`
+          : ''
+      return `<div class="worker-row">
+      <span class="terminal-lead">${agentIconMarkup(worker.agent)}</span>
+      <span class="worker-body"><span class="terminal-name">${escapeHtml(worker.task || agentName(worker.agent))}</span>${hint}<span class="worker-meta">${escapeHtml(workerMeta(worker))}</span></span>
+      <span class="terminal-status" data-status="${status}"><i aria-hidden="true"></i>${t(workerStatusKey(worker))}</span>
+    </div>`
+    })
+    .join('')
+  return `<section class="group-block">
+    <div class="group-tag"><span>${t('workers.title')}</span><span class="group-rule"></span></div>
+    <div class="group-body">${rows}</div>
+  </section>`
+}
+
 function renderWorkspaceList(filter) {
   currentFilter = filter
   const list = document.querySelector('#workspace-list')
   if (!list) return
-  list.innerHTML = workspaceSections(filter)
+  list.innerHTML = workersMarkup(filter) + workspaceSections(filter)
   list
     .querySelectorAll('[data-chat]')
     .forEach((button) => button.addEventListener('click', () => void openChat(button.dataset.chat)))
+  list
+    .querySelectorAll('[data-new-agent]')
+    .forEach((button) =>
+      button.addEventListener(
+        'click',
+        () => void startAgent(button.dataset.project, button.dataset.newAgent),
+      ),
+    )
   list.querySelectorAll('[data-toggle]').forEach((row) =>
     row.addEventListener('click', () => {
       const id = row.dataset.toggle

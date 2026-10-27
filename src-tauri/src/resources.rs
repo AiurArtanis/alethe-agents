@@ -162,7 +162,7 @@ impl Default for ResourceSupervisor {
     }
 }
 
-fn process_private_commit_bytes(pid: u32, fallback: u64) -> u64 {
+pub(crate) fn process_private_commit_bytes(pid: u32, fallback: u64) -> u64 {
     #[cfg(windows)]
     {
         use std::mem::size_of;
@@ -573,9 +573,7 @@ pub fn update_pty_runtime_meta(
             if let Some(session) = sessions.get(&meta.id) {
                 // A silenced pane is indistinguishable from a frozen one, so every flip is
                 // recorded: it is the only trace left when a terminal stops showing output.
-                let was = session
-                    .visible
-                    .swap(meta.visible, std::sync::atomic::Ordering::Relaxed);
+                let was = session.set_visible(meta.visible);
                 if was != meta.visible {
                     let _ = crate::logging::record_app_event(
                         "pty.visibility".to_string(),

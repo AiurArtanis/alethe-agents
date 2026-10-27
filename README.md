@@ -186,6 +186,10 @@ Listing is a human reading your pull request, not an audit: the plugin still arr
 still goes through the trust dialog. `docs/examples/notes-plugin/` is a working plugin in plain
 JavaScript with no build step; the [plugin guide](docs/PLUGINS.md) has the full contract.
 
+For a plugin with a real toolchain, [Jev](https://github.com/Kc1t/alethe-jev) is the reference
+external plugin: its own repository, TypeScript, React and CSS Modules built by Vite into one
+script, released as a checksummed zip and installed from the catalogue.
+
 **Stay in control**
 
 - RAM readout in the title bar; disable a terminal or suspend a whole group to get memory back.
@@ -388,7 +392,7 @@ Thanks to everyone helping shape Alethe.
   <a href="https://github.com/rlevidev"><img src="https://github.com/rlevidev.png?size=100" width="80" height="80" alt="rlevidev" title="rlevidev" /></a>
   <a href="https://github.com/mapsiva"><img src="https://github.com/mapsiva.png?size=100" width="80" height="80" alt="mapsiva" title="mapsiva" /></a>
   <a href="https://github.com/moisesz10"><img src="https://github.com/moisesz10.png?size=100" width="80" height="80" alt="moisesz10" title="moisesz10" /></a>
-  <a href="https://github.com/Bakurin0"><img src="https://github.com/Bakurin0.png?size=100" width="80" height="80" alt="Bakurin0" title="Bakurin0" /></a>
+  <a href="https://github.com/verdejodev"><img src="https://github.com/verdejodev.png?size=100" width="80" height="80" alt="verdejodev" title="verdejodev" /></a>
   <a href="https://github.com/SrAmaral"><img src="https://github.com/SrAmaral.png?size=100" width="80" height="80" alt="SrAmaral" title="SrAmaral" /></a>
   <a href="https://github.com/diegoliveiraa"><img src="https://github.com/diegoliveiraa.png?size=100" width="80" height="80" alt="diegoliveiraa" title="diegoliveiraa" /></a>
   <a href="https://github.com/VicktorMS"><img src="https://github.com/VicktorMS.png?size=100" width="80" height="80" alt="VicktorMS" title="VicktorMS" /></a>
@@ -407,6 +411,7 @@ Thanks to everyone helping shape Alethe.
   <a href="https://github.com/opedrooz"><img src="https://github.com/opedrooz.png?size=100" width="80" height="80" alt="opedrooz" title="opedrooz" /></a>
   <a href="https://github.com/devmatheusmota"><img src="https://github.com/devmatheusmota.png?size=100" width="80" height="80" alt="devmatheusmota" title="devmatheusmota" /></a>
   <a href="https://github.com/JohnPss"><img src="https://github.com/JohnPss.png?size=100" width="80" height="80" alt="JohnPss" title="JohnPss" /></a>
+  <a href="https://github.com/Jhonata-Anderson"><img src="https://github.com/Jhonata-Anderson.png?size=100" width="80" height="80" alt="Jhonata-Anderson" title="Jhonata-Anderson" /></a>
   <a href="https://github.com/GabrielKLopes"><img src="https://github.com/GabrielKLopes.png?size=100" width="80" height="80" alt="GabrielKLopes" title="GabrielKLopes" /></a>
   <a href="https://github.com/floze-the-genius"><img src="https://github.com/floze-the-genius.png?size=100" width="80" height="80" alt="floze-the-genius" title="floze-the-genius" /></a>
   <a href="https://github.com/claude"><img src="https://github.com/claude.png?size=100" width="80" height="80" alt="claude" title="claude" /></a>

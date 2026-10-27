@@ -39,6 +39,8 @@ mod graphify;
 mod handoff;
 mod health_probe;
 mod jev;
+mod kimi_usage;
+mod leftover_processes;
 mod logging;
 mod mcp_agents;
 mod mcp_catalog;
@@ -65,6 +67,7 @@ mod project_detector;
 mod projects;
 mod provider_common;
 mod pty;
+mod release_install;
 mod remote;
 mod resource_manager;
 mod resources;
@@ -78,6 +81,8 @@ mod single_instance_probe;
 mod skills;
 mod speech;
 mod speech_capture;
+mod speech_cloud;
+mod speech_vad;
 mod spotify;
 mod stats;
 mod supervisor;
@@ -220,6 +225,7 @@ pub fn run() {
         .manage(router9::Router9Process::default())
         .manage(ai_memory::AiMemoryProcess::default())
         .manage(speech::SpeechState::default())
+        .manage(release_install::PendingRelease::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_process::init())
@@ -401,6 +407,7 @@ pub fn run() {
             pty::get_pty_cwd,
             pty::set_pty_read_state,
             pty::set_pty_visible,
+            pty::resume_pty_output,
             pty::set_pty_priority,
             ghostty_bridge::ghostty_spawn,
             ghostty_bridge::ghostty_sync_frame,
@@ -412,6 +419,8 @@ pub fn run() {
             resource_manager::get_resource_metrics,
             process_tree::get_pty_tree_info,
             process_tree::kill_pty_tree_cmd,
+            leftover_processes::list_leftover_processes,
+            leftover_processes::kill_leftover_process,
             projects::load_projects,
             projects::save_projects,
             projects::clone_github_repo,
@@ -438,6 +447,8 @@ pub fn run() {
             backup::export_backup,
             backup::export_profile_backup,
             backup::import_backup,
+            release_install::download_release,
+            release_install::install_downloaded_release,
             github_sync::github_sync_status,
             github_sync::github_sync_set_token,
             github_sync::github_sync_logout,
@@ -496,6 +507,7 @@ pub fn run() {
             spotify::spotify_status,
             spotify::spotify_get_current,
             claude_sessions::snapshot_claude_sessions,
+            claude_sessions::claude_session_exists,
             claude_sessions::list_claude_sessions,
             claude_sessions::get_claude_session_title,
             claude_sessions::get_claude_activity,
@@ -511,6 +523,7 @@ pub fn run() {
             codex_usage::get_codex_usage,
             codex_usage::consume_codex_reset_credit,
             antigravity_usage::get_antigravity_usage,
+            kimi_usage::get_kimi_usage,
             agent_cost::get_session_cost,
             agent_cost::get_transcript_cost,
             agent_cost::get_model_pricing,
@@ -526,10 +539,14 @@ pub fn run() {
             speech::speech_delete_model,
             speech::speech_start_capture,
             speech::speech_capture_level,
+            speech::speech_vad_status,
+            speech::speech_prepare_vad,
             speech::speech_stop_capture,
             speech::speech_prepare,
             speech::speech_stop_and_transcribe,
+            speech::speech_transcribe_partial,
             speech::speech_transcribe,
+            speech_cloud::speech_stop_and_transcribe_cloud,
             quit_app,
             worktrees::worktree_provision,
             worktrees::worktree_list,
