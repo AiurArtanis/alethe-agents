@@ -1464,6 +1464,8 @@ export const en = {
   'whatsNew.close': 'Got it',
   'whatsNew.update': 'View update',
   'whatsNew.releaseHeading': 'v{version} — {date}',
+  'whatsNew.v1702.note1':
+    'Aiur fork rebuild: stamped 1.7.0-2 after syncing upstream main and regenerating installers.',
   'whatsNew.v170.note1':
     'Features now load as plugins: Git Control, Todo List and the Theme Pack ship as official plugins, and a plugin can be imported from its folder.',
   'whatsNew.v170.note2':

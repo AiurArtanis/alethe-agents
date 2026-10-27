@@ -1233,6 +1233,7 @@ export const zhCN: Record<MessageKey, string> = {
   'whatsNew.close': '明白了',
   'whatsNew.update': '查看更新',
   'whatsNew.releaseHeading': 'v{version} — {date}',
+  'whatsNew.v1702.note1': 'Aiur 分支重建：同步上游 main 后打上 1.7.0-2 并重新生成安装包。',
   'whatsNew.v170.note1':
     '功能现在以插件形式加载：Git Control、Todo List 和 Theme Pack 作为官方插件提供，也可以从文件夹导入插件。',
   'whatsNew.v170.note2':
