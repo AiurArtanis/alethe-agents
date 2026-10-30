@@ -36,6 +36,8 @@ Mac synced through: `v1.7.0` (`80e44a3`)
 
 ## Unreleased
 
+- `pending` · `ui` · feat(tabs): close terminal sub-tabs and workspace tabs with a middle-click
+  - Files: `src/components/SubTabsLane/index.tsx`, `src/components/TitleBar/index.tsx`
 - `pending` · `ui` · fix(terminal): ignore a repeated identical paste within 2 seconds
   - Files: `src/components/XTermView/useXtermSession.ts`
 - `pending` · `backend` · feat(remote): start agents and list orchestration workers from a paired device
