@@ -36,6 +36,10 @@ Mac synced through: `v1.7.0` (`80e44a3`)
 
 ## Unreleased
 
+- `pending` · `ui` · feat(terminal): minimize a pane and reopen it from the sidebar, keeping its
+  PTY alive in the background
+  - Files: `src/stores/projectsStore.ts`, `src/stores/projectsStore.terminalSlices.ts`,
+    `src/components/TerminalPane/index.tsx`, `src/components/ProjectSidebar/sidebarMenus.tsx`
 - `pending` · `ui` · feat(tabs): close terminal sub-tabs and workspace tabs with a middle-click
   - Files: `src/components/SubTabsLane/index.tsx`, `src/components/TitleBar/index.tsx`
 - `pending` · `ui` · fix(terminal): ignore a repeated identical paste within 2 seconds

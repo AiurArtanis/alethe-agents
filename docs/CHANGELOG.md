@@ -11,6 +11,9 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 ## [Unreleased]
 
 ### Added
+- **Minimize a terminal instead of deleting it.** The terminal header gets a minimize button, and
+  the sidebar context menu gets a matching option, that hides the pane while keeping its process
+  running in the background. Clicking the terminal in the sidebar reopens it.
 - **Close tabs with the middle mouse button.** Terminal sub-tabs and workspace tabs in the title
   bar now close on a middle-click, matching browser tab-strip convention.
 - **Start agents and follow orchestration from your phone.** Remote control can now start a Claude
