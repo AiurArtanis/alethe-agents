@@ -405,6 +405,8 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Fixed
 
+- **Right-click paste no longer pastes twice.** The same clipboard text arriving again within two
+  seconds is ignored by the terminal.
 - **Exporting a backup no longer stops at a permission error.** Files the embedded browser keeps
   locked while Alethe is open are left out, and any other file in use is skipped and named in the
   confirmation instead of failing the whole export.
