@@ -107,6 +107,8 @@ Mac synced through: `v1.7.0` (`80e44a3`)
   - Files: `src/components/modals/MemoryAnalyticsModal.tsx`, `src-tauri/src/leftover_processes.rs`
 - `skip (Windows Job Objects; macOS terminals already end their process group)` · `platform` · Terminals run in a per-PTY Job Object so killing one ends orphaned descendants
   - Files: `src-tauri/src/process_tree.rs`
+- `pending` · `ui` · fix(usage): share one Claude usage request with the orchestrator
+  - Files: `src/hooks/useOrchestratorQuotaWarnings.ts`, `src/lib/claudeUsageCache.ts`
 - `pending` · `contract` · MCP servers and skills saved per account and per project, carried by sync
   - Files: `src/lib/toolingManifest.ts`, `src/lib/toolingNotice.ts`, `src/components/ToolingManifestPanel/`
   - Contract: new tooling manifest in the synced payload; secret env and header values are never stored
