@@ -407,6 +407,15 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Fixed
 
+- **Shift+Enter adds a line instead of sending.** Claude Code and Codex now get a line break in the
+  prompt. In Claude Code panes, Ctrl+Enter (Cmd+Enter on macOS) sends the typed message right away,
+  even while the agent is busy and Enter would only queue it.
+- **Long task titles in the Todo sidebar wrap instead of being cut off.** Tags and project links
+  move below the title, and rows keep their height when the hover actions appear.
+- **On macOS, agents installed with npm, bun, pnpm, Volta, nvm or fnm are found when Alethe is
+  opened from the Dock or Finder.** Remote control's Tailscale mode also finds the CLI bundled in
+  Tailscale.app or installed with Homebrew.
+- **Picking `C:\Windows\System32\wsl.exe` as the terminal shell opens WSL**, the same as `wsl.exe`.
 - **Right-click paste no longer pastes twice.** The same clipboard text arriving again within two
   seconds is ignored by the terminal.
 - **Exporting a backup no longer stops at a permission error.** Files the embedded browser keeps

@@ -36,9 +36,29 @@ Mac synced through: `v1.7.0` (`80e44a3`)
 
 ## Unreleased
 
-- `pending` · `ui` · feat(tabs): close terminal sub-tabs and workspace tabs with a middle-click
+- `pending` · `ui` · `168167d` fix(usage): name the quota window behind the orchestrator warning
+  - Files: `src/components/OrchestratorPane/index.tsx`, `src/hooks/useOrchestratorQuotaWarnings.ts`
+- `pending` · `backend` · `a5857ff` fix(macos): find npm-global agents and the Tailscale CLI under Launch Services' PATH
+  - Files: `src-tauri/src/cli_resolver.rs`, `src-tauri/src/remote/util.rs`
+- `pending` · `ui` · `80048bf` fix(todos): wrap task titles above their metadata
+  - Files: `src/plugins/todos/TodoSidebar.module.css`
+- `pending` · `ui` · `0650e0f` fix(todos): keep row height stable when actions appear
+  - Files: `src/plugins/todos/TodoSidebar.module.css`
+- `pending` · `ui` · `e8c29da` fix(terminal): Shift+Enter adds a line, Ctrl/Cmd+Enter sends now in Claude Code
+  - Files: `src/components/XTermView/useXtermSession.ts`
+- `pending` · `ui` · `889cece` fix(profiles): reload the app when switching profiles
+  - Files: `src/components/modals/ProfilesModal.tsx`
+- `pending` · `ui` · `5a53321` fix(i18n): polish zh-CN memory analytics wording after f8f0a21 sync
+  - Files: `src/lib/i18n/messages/zh-CN.ts`
+- `pending` · `ui` · `8c61b65` i18n(zh-CN): unify Shell casing
+  - Files: `src/lib/i18n/messages/zh-CN.ts`
+- `pending` · `ui` · `1c7c987` i18n(zh-CN): Shell casing in counts
+  - Files: `src/lib/i18n/messages/zh-CN.ts`
+- `skip (WSL is Windows-only)` · `platform` · `86589be` fix(wsl): recognize an absolute path to wsl.exe as the WSL launcher
+  - Files: `src-tauri/src/wsl.rs`
+- `pending` · `ui` · `afe693d` feat(tabs): close terminal sub-tabs and workspace tabs with middle-click
   - Files: `src/components/SubTabsLane/index.tsx`, `src/components/TitleBar/index.tsx`
-- `pending` · `ui` · fix(terminal): ignore a repeated identical paste within 2 seconds
+- `pending` · `ui` · `305a99d` fix(terminal): ignore duplicate paste within 2 seconds
   - Files: `src/components/XTermView/useXtermSession.ts`
 - `pending` · `backend` · feat(remote): start agents and list orchestration workers from a paired device
   - Files: `src-tauri/src/remote/http.rs`, `src-tauri/src/remote/workspace.rs`, `src-tauri/remote/app.js`
