@@ -447,6 +447,8 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   them over the new account's. Switching now reloads the app, as creating or deleting an account
   already did.
 
+- **Orchestrator quota warnings now identify the limit that triggered them** and use raw utilization
+  so their threshold matches the usage indicators.
 - **Reconnecting a planner no longer starts a duplicate shell.** Asking the lead agent to open a dev
   server or watcher it already has running on the board (for example after reopening the app, or
   from a new planner terminal) now reuses that running shell and adopts it under the new planner,
