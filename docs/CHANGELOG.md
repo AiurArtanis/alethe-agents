@@ -475,6 +475,10 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 - **Orchestrator quota warnings now identify the limit that triggered them** and use raw utilization
   so their threshold matches the usage indicators.
+- **GitHub sync is reachable from Preferences → Account and reports push and pull results.**
+  Existing profiles can open the sync dialog from Account settings without repeating onboarding,
+  and GitHub Gist or cloud push and pull now show a toast when they succeed or fail, alongside the
+  inline message.
 - **Reconnecting a planner no longer starts a duplicate shell.** Asking the lead agent to open a dev
   server or watcher it already has running on the board (for example after reopening the app, or
   from a new planner terminal) now reuses that running shell and adopts it under the new planner,
