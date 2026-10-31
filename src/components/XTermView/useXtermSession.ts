@@ -91,6 +91,7 @@ import type { AgentHookPayload } from '../../stores/agentCanvasStore'
 import { useProjectsStore } from '../../stores/projectsStore'
 import { useTerminalsStore } from '../../stores/terminalsStore'
 import { useUiStore } from '../../stores/uiStore'
+import { keepTerminalTextareaClean } from './terminalComposition'
 import {
   loadTerminalFonts,
   remeasuredFontFamily,
@@ -111,6 +112,7 @@ import {
   getLogicalTerminalLine,
   makeXtermLink,
 } from './terminalLinks'
+import { captureTerminalPaste } from './terminalPaste'
 import {
   TERMINAL_WRITE_FALLBACK_MS,
   TERMINAL_WRITE_FRAME_BUDGET,
@@ -118,7 +120,6 @@ import {
   writePtyChunked,
   writePtyWithTimeout,
 } from './terminalWrite'
-import { captureTerminalPaste } from './terminalPaste'
 import { getXtermTheme, type LinkActionState } from './xtermThemes'
 
 // Early exits trigger a single fresh-session retry.
@@ -391,6 +392,9 @@ export function useXtermSession(params: {
     terminal.loadAddon(new Unicode11Addon())
     terminal.unicode.activeVersion = '11'
     terminal.open(container)
+    const releaseTextareaClean = terminal.textarea
+      ? keepTerminalTextareaClean(terminal.textarea)
+      : () => {}
     terminalRef.current = terminal
     const clampHorizontalScroll = () => {
       container.scrollLeft = 0
@@ -1781,6 +1785,7 @@ export function useXtermSession(params: {
       container.removeEventListener('pointerdown', focusTerminal, true)
       container.removeEventListener('click', focusTerminal)
       releasePasteCapture()
+      releaseTextareaClean()
       container.removeEventListener('focusin', rememberTerminalFocus)
       container.removeEventListener('focusout', forgetTerminalFocus)
       document.removeEventListener('pointerdown', rememberPointerFocusIntent, true)
