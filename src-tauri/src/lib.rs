@@ -659,8 +659,7 @@ pub fn run() {
         .build(context)
         .expect("error while building alethe")
         .run(move |_app_handle, event| {
-            // Teardown runs on `ExitRequested`: the runtime does not always emit `Exit`, and
-            // waiting for it would leave shells and agents alive.
+            // Tear down on ExitRequested: on Windows `Exit` can arrive late and leave shells alive.
 
             if let tauri::RunEvent::ExitRequested { .. } = event {
                 pty::kill_all_sessions_background(&sessions_for_exit);
