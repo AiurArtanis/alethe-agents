@@ -86,6 +86,9 @@ Mac synced through: `v1.7.0` (`80e44a3`)
   - Files: `src/components/XTermView/useXtermSession.ts`
 - `pending` · `backend` · fix(memory): read available memory from the kernel on macOS
   - Files: `src-tauri/src/stats.rs`
+- `pending` · `ui` · fix(sidebar): pick the group from a list and drop projects on a group's area
+  - Files: `src/components/ProjectSidebar/sidebarMenus.tsx`, `src/components/ProjectSidebar/ContextMenu.tsx`,
+    `src/components/ProjectSidebar/NormalGroupNode.tsx`
 - `pending` · `backend` · feat(remote): start agents and list orchestration workers from a paired device
   - Files: `src-tauri/src/remote/http.rs`, `src-tauri/src/remote/workspace.rs`, `src-tauri/remote/app.js`
   - Contract: new remote API `POST /api/open-agent` (`projectId`, `agent`: `claude` or `codex`) and `GET /api/orchestration` (workers of projects with a shared terminal)
