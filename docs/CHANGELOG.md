@@ -64,9 +64,10 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   sentence with a send phrase such as "thanks Jev" or "send it" and it fires as soon as
   the phrase is recognised, and a pause of about two seconds sends by itself. Releasing
   F9 or clicking the stop button still works.
-- Added `--version`, `--help`, and `update` to the `alethe` command. `alethe update` waits for
-  Alethe to be closed, since installing the update would close it and its terminals.
-
+- **The `alethe` command gains `--version`, `--help` and `update`.** `alethe update` installs a
+  newer release from the terminal, and refuses while Alethe is open, since installing would close it
+  and its terminals. A command installed by an older release shows as outdated in Preferences →
+  Integrations until it is reinstalled.
 - **Turning on AI Memory now takes you to a working install, and recall actually works.** The switch
   in Preferences → Features grew a panel beneath it: whether ai-memory is there, a button to install
   it — the download checked against the hash the project publishes — and whether it is running, with

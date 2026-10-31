@@ -239,6 +239,11 @@ fn shim_targets_binary(contents: &str, binary: &Path) -> bool {
     line == binary.to_string_lossy()
 }
 
+fn shim_is_stale(contents: &str, binary: &Path) -> bool {
+    !shim_targets_binary(contents, binary)
+        || render_shim(binary).is_ok_and(|fresh| fresh != contents)
+}
+
 fn build_status() -> Result<CliShimStatus, String> {
     let bin_dir = shim_bin_dir()?;
     let path = shim_path()?;
@@ -247,7 +252,7 @@ fn build_status() -> Result<CliShimStatus, String> {
     let contents = std::fs::read_to_string(&path).ok();
     let installed = contents.is_some();
     let stale = contents
-        .map(|contents| !shim_targets_binary(&contents, &binary))
+        .map(|contents| shim_is_stale(&contents, &binary))
         .unwrap_or(false);
 
     Ok(CliShimStatus {
@@ -465,6 +470,15 @@ mod tests {
             &script,
             Path::new("/opt/alethe-novo/alethe")
         ));
+    }
+
+    #[test]
+    fn a_shim_written_by_an_older_release_counts_as_stale() {
+        let binary = PathBuf::from("/opt/alethe/alethe");
+        let current = render_shim(&binary).expect("script");
+        assert!(!shim_is_stale(&current, &binary));
+        let older = current.replacen("--version", "--ver", 1);
+        assert!(shim_is_stale(&older, &binary));
     }
 
     #[test]
