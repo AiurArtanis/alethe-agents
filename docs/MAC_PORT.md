@@ -36,6 +36,23 @@ Mac synced through: `v1.7.0` (`80e44a3`)
 
 ## Unreleased
 
+- `pending` · `ui` · `6376021` fix(orchestrator): keep the board view still during a live dispatch
+  - Files: `src/components/OrchestratorPane/index.tsx`, `src/lib/orchestratorViewPolicy.ts`
+- `pending` · `ui` · `1334e64` feat(orchestrator): show the effective model and effort of every worker
+  - Files: `src/components/OrchestratorPane/index.tsx`, `src/lib/orchestratorWorkerDisplay.ts`
+  - Native subagent cards show no model chip (`31d4774`)
+- `pending` · `backend` · `8bf7bf4` feat(cli): support --version, --help and update on the alethe binary
+  - Files: `src-tauri/src/cli_launch.rs`, `src-tauri/src/cli_shim.rs`, `src-tauri/src/lib.rs`
+- `pending` · `backend` · `7dc3fdd` fix(cli): flag a terminal command left by an older release as outdated
+  - Files: `src-tauri/src/cli_shim.rs`
+- `pending` · `ui` · `0c3eaa6` fix(remote): show the pairing QR code in Preferences
+  - Files: `src/components/modals/RemotePairingQr.tsx`, `src/components/modals/preferences/RemoteControlPage.tsx`
+- `pending` · `ui` · `44a0bca` fix(sync): reach the sync dialog from Preferences and report every push and pull
+  - Files: `src/components/modals/SyncModal.tsx`, `src/components/modals/preferences/AccountPage.tsx`
+- `skip (ConPTY repaints on a same-size resize; Unix never signals one)` · `backend` · `dbd0718` fix(pty): skip a resize to the size the pty already has (#303)
+  - Files: `src-tauri/src/pty.rs`
+- `pending` · `backend` · `4cb2beb` fix(sessions): resume Claude chats in cwds with spaces and discover new Antigravity conversations
+  - Files: `src-tauri/src/antigravity_sessions.rs`
 - `skip (Tauri window chrome; the Swift app has native window controls)` · `ui` · `46ea5fc` fix(macos): use the native title bar and traffic lights
   - Files: `src-tauri/tauri.macos.conf.json`, `src-tauri/capabilities/default.json`, `src/components/TitleBar/index.tsx`
 - `pending` · `backend` · `56f16b7` fix(remote): let the phone send a message Claude Code queued while busy
