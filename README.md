@@ -382,9 +382,8 @@ Thanks to everyone helping shape Alethe.
   <a href="https://github.com/pinhaum"><img src="https://github.com/pinhaum.png?size=100" width="80" height="80" alt="pinhaum" title="pinhaum" /></a>
   <a href="https://github.com/S1LV4"><img src="https://github.com/S1LV4.png?size=100" width="80" height="80" alt="S1LV4" title="S1LV4" /></a>
   <a href="https://github.com/AiurArtanis"><img src="https://github.com/AiurArtanis.png?size=100" width="80" height="80" alt="AiurArtanis" title="AiurArtanis" /></a>
-  <a href="https://github.com/Tavaressan"><img src="https://github.com/Tavaressan.png?size=100" width="80" height="80" alt="Tavaressan" title="Tavaressan" /></a>
-  <a href="https://github.com/1arley"><img src="https://github.com/1arley.png?size=100" width="80" height="80" alt="1arley" title="1arley" /></a>
   <a href="https://github.com/afthex"><img src="https://github.com/afthex.png?size=100" width="80" height="80" alt="afthex" title="afthex" /></a>
+  <a href="https://github.com/1arley"><img src="https://github.com/1arley.png?size=100" width="80" height="80" alt="1arley" title="1arley" /></a>
   <a href="https://github.com/potatoiscompiled"><img src="https://github.com/potatoiscompiled.png?size=100" width="80" height="80" alt="potatoiscompiled" title="potatoiscompiled" /></a>
   <a href="https://github.com/Arthurandrealmeida"><img src="https://github.com/Arthurandrealmeida.png?size=100" width="80" height="80" alt="Arthurandrealmeida" title="Arthurandrealmeida" /></a>
   <a href="https://github.com/Erikkaso"><img src="https://github.com/Erikkaso.png?size=100" width="80" height="80" alt="Erikkaso" title="Erikkaso" /></a>
@@ -394,6 +393,7 @@ Thanks to everyone helping shape Alethe.
   <a href="https://github.com/AshSgDe29071999"><img src="https://github.com/AshSgDe29071999.png?size=100" width="80" height="80" alt="AshSgDe29071999" title="AshSgDe29071999" /></a>
   <a href="https://github.com/sthevan027"><img src="https://github.com/sthevan027.png?size=100" width="80" height="80" alt="sthevan027" title="sthevan027" /></a>
   <a href="https://github.com/rlevidev"><img src="https://github.com/rlevidev.png?size=100" width="80" height="80" alt="rlevidev" title="rlevidev" /></a>
+  <a href="https://github.com/Tavaressan"><img src="https://github.com/Tavaressan.png?size=100" width="80" height="80" alt="Tavaressan" title="Tavaressan" /></a>
   <a href="https://github.com/mapsiva"><img src="https://github.com/mapsiva.png?size=100" width="80" height="80" alt="mapsiva" title="mapsiva" /></a>
   <a href="https://github.com/moisesz10"><img src="https://github.com/moisesz10.png?size=100" width="80" height="80" alt="moisesz10" title="moisesz10" /></a>
   <a href="https://github.com/Jhonata-Anderson"><img src="https://github.com/Jhonata-Anderson.png?size=100" width="80" height="80" alt="Jhonata-Anderson" title="Jhonata-Anderson" /></a>
