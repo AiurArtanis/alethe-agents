@@ -385,41 +385,42 @@ function WorkerNode({
           {job.role && (
             <span title={t('orchestrator.roleTitle', { role: job.role })}>{job.role}</span>
           )}
-          {(() => {
-            const settings = workerSettingDisplay(job)
-            const sourceTitle = (field: typeof settings.model) => {
-              if (field.source === 'cli') return t('orchestrator.settingFromCli')
-              if (field.source === 'role')
-                return t('orchestrator.settingFromRole', { role: field.role ?? job.role ?? '' })
-              if (field.source === 'fallback')
-                return t('orchestrator.settingFromFallback', { role: field.role ?? '' })
-              return t('orchestrator.settingFromPlanner')
-            }
-            const display = (field: typeof settings.model) => (
-              <span className={field.source === 'cli' ? styles.settingDefault : undefined}>
-                {field.value ?? t('orchestrator.cliDefault')}
-                {field.source === 'role' && (
-                  <small className={styles.settingMarker}>
-                    {t('orchestrator.settingRoleMarker')}
-                  </small>
-                )}
-                {field.source === 'fallback' && (
-                  <small className={styles.settingMarker}>
-                    {t('orchestrator.settingFallbackMarker')}
-                  </small>
-                )}
-              </span>
-            )
-            const title = [
-              t('orchestrator.modelSourceTitle', { source: sourceTitle(settings.model) }),
-              t('orchestrator.effortSourceTitle', { source: sourceTitle(settings.effort) }),
-            ].join('\n')
-            return (
-              <span className={styles.workerSettings} title={title}>
-                {display(settings.model)} · {display(settings.effort)}
-              </span>
-            )
-          })()}
+          {!job.native &&
+            (() => {
+              const settings = workerSettingDisplay(job)
+              const sourceTitle = (field: typeof settings.model) => {
+                if (field.source === 'cli') return t('orchestrator.settingFromCli')
+                if (field.source === 'role')
+                  return t('orchestrator.settingFromRole', { role: field.role ?? job.role ?? '' })
+                if (field.source === 'fallback')
+                  return t('orchestrator.settingFromFallback', { role: field.role ?? '' })
+                return t('orchestrator.settingFromPlanner')
+              }
+              const display = (field: typeof settings.model) => (
+                <span className={field.source === 'cli' ? styles.settingDefault : undefined}>
+                  {field.value ?? t('orchestrator.cliDefault')}
+                  {field.source === 'role' && (
+                    <small className={styles.settingMarker}>
+                      {t('orchestrator.settingRoleMarker')}
+                    </small>
+                  )}
+                  {field.source === 'fallback' && (
+                    <small className={styles.settingMarker}>
+                      {t('orchestrator.settingFallbackMarker')}
+                    </small>
+                  )}
+                </span>
+              )
+              const title = [
+                t('orchestrator.modelSourceTitle', { source: sourceTitle(settings.model) }),
+                t('orchestrator.effortSourceTitle', { source: sourceTitle(settings.effort) }),
+              ].join('\n')
+              return (
+                <span className={styles.workerSettings} title={title}>
+                  {display(settings.model)} · {display(settings.effort)}
+                </span>
+              )
+            })()}
           {job.readOnly && (
             <span className={styles.metaIcon} title={t('orchestrator.readOnlyTitle')}>
               <Eye size={9} aria-hidden />
