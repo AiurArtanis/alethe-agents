@@ -421,6 +421,8 @@ pub fn run() {
             ghostty_bridge::ghostty_spawn,
             ghostty_bridge::ghostty_sync_frame,
             ghostty_bridge::ghostty_set_hidden,
+            ghostty_bridge::ghostty_set_focus,
+            ghostty_bridge::ghostty_surface_exited,
             ghostty_bridge::ghostty_kill,
             ghostty_bridge::ghostty_kill_all,
             ghostty_bridge::ghostty_debug_send_read,
