@@ -24,7 +24,7 @@ fn shared_system() -> &'static Mutex<System> {
 /// A 0 held every new terminal at the memory gate and kept the resource manager at Critical, so
 /// macOS reads the share of memory the kernel itself reports as available instead.
 #[cfg(target_os = "macos")]
-fn system_available_mb(sys: &System, total_mb: f64) -> f64 {
+pub(crate) fn system_available_mb(sys: &System, total_mb: f64) -> f64 {
     match macos_memorystatus_level() {
         Some(percent) => total_mb * f64::from(percent.clamp(0, 100)) / 100.0,
         None => sys.available_memory() as f64 / 1024.0 / 1024.0,
@@ -32,7 +32,7 @@ fn system_available_mb(sys: &System, total_mb: f64) -> f64 {
 }
 
 #[cfg(not(target_os = "macos"))]
-fn system_available_mb(sys: &System, _total_mb: f64) -> f64 {
+pub(crate) fn system_available_mb(sys: &System, _total_mb: f64) -> f64 {
     sys.available_memory() as f64 / 1024.0 / 1024.0
 }
 
