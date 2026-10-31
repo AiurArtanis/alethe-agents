@@ -26,6 +26,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { requestAppClose } from '../../hooks/useCloseConfirmation'
 import { useRouter9Runtime } from '../../hooks/useRouter9Runtime'
+import { usePolling } from '../../hooks/usePolling'
 import { getCachedAntigravityUsage } from '../../lib/antigravityUsageCache'
 import { loadClaudeUsage } from '../../lib/claudeUsageCache'
 import { getCachedCodexUsage } from '../../lib/codexUsageCache'
@@ -317,134 +318,83 @@ export function TitleBar() {
 
   const activeRef = useRef(true)
 
-  useEffect(() => {
-    let cancelled = false
-    const refreshRemoteDevices = async () => {
-      if (!activeRef.current) return
-      try {
-        const info = await remoteControlInfo()
-        if (!cancelled) {
-          setRemoteConnectedDevices(info.connected_devices)
-          setRemoteBackendEnabled(info.enabled)
-        }
-      } catch {
-        if (!cancelled) {
-          setRemoteConnectedDevices(0)
-          setRemoteBackendEnabled(false)
-        }
+  usePolling(async (isCancelled) => {
+    if (!activeRef.current) return
+    try {
+      const info = await remoteControlInfo()
+      if (!isCancelled()) {
+        setRemoteConnectedDevices(info.connected_devices)
+        setRemoteBackendEnabled(info.enabled)
+      }
+    } catch {
+      if (!isCancelled()) {
+        setRemoteConnectedDevices(0)
+        setRemoteBackendEnabled(false)
       }
     }
-    void refreshRemoteDevices()
-    const interval = window.setInterval(
-      () => void refreshRemoteDevices(),
-      REMOTE_CONTROL_POLL_INTERVAL_MS,
-    )
-    return () => {
-      cancelled = true
-      window.clearInterval(interval)
-    }
-  }, [])
+  }, REMOTE_CONTROL_POLL_INTERVAL_MS)
 
   // Each provider polls only while its usage reading is on: off schedules no timer at all.
-  useEffect(() => {
-    if (!usageAccess.claude) return
-    let cancelled = false
-    let interval: number | null = null
-    const tick = async () => {
+  usePolling(
+    async (isCancelled) => {
       if (!activeRef.current) return
       const usage = await loadClaudeUsage()
-      if (usage && !cancelled) observeClaudeReset(usage)
-    }
-    const startupDelay = window.setTimeout(() => {
-      void tick()
-      interval = window.setInterval(tick, CLAUDE_POLL_INTERVAL_MS)
-    }, 1500)
-    return () => {
-      cancelled = true
-      window.clearTimeout(startupDelay)
-      if (interval !== null) window.clearInterval(interval)
-    }
-  }, [usageAccess.claude])
+      if (usage && !isCancelled()) observeClaudeReset(usage)
+    },
+    CLAUDE_POLL_INTERVAL_MS,
+    usageAccess.claude,
+    1500,
+  )
 
-  useEffect(() => {
-    if (!usageAccess.codex) return
-    let cancelled = false
-    let interval: number | null = null
-    let consecutiveFailures = 0
-    const tick = async () => {
+  const codexFailuresRef = useRef(0)
+  usePolling(
+    async (isCancelled) => {
       if (!activeRef.current) return
       try {
         const usage = await getCachedCodexUsage()
-        if (!cancelled) {
+        if (!isCancelled()) {
           setCodexUsage(usage)
           observeCodexReset(usage)
-          consecutiveFailures = 0
+          codexFailuresRef.current = 0
         }
       } catch {
-        consecutiveFailures += 1
-        if (consecutiveFailures >= 3 && !cancelled) {
-          setCodexUsage(null)
-        }
+        codexFailuresRef.current += 1
+        if (codexFailuresRef.current >= 3 && !isCancelled()) setCodexUsage(null)
       }
-    }
-    const startupDelay = window.setTimeout(() => {
-      void tick()
-      interval = window.setInterval(tick, CLAUDE_POLL_INTERVAL_MS)
-    }, 2500)
-    return () => {
-      cancelled = true
-      window.clearTimeout(startupDelay)
-      if (interval !== null) window.clearInterval(interval)
-    }
-  }, [setCodexUsage, usageAccess.codex])
+    },
+    CLAUDE_POLL_INTERVAL_MS,
+    usageAccess.codex,
+    2500,
+  )
 
-  useEffect(() => {
-    if (!usageAccess.antigravity) return
-    let cancelled = false
-    let interval: number | null = null
-    const tick = async () => {
+  usePolling(
+    async (isCancelled) => {
       if (!activeRef.current) return
       try {
         const usage = await getCachedAntigravityUsage()
-        if (!cancelled) {
-          setAntigravityUsage(usage)
-        }
+        if (!isCancelled()) setAntigravityUsage(usage)
       } catch {
-        if (!cancelled) {
-          setAntigravityUsage(null)
-        }
+        if (!isCancelled()) setAntigravityUsage(null)
       }
-    }
-    const startupDelay = window.setTimeout(() => {
-      void tick()
-      interval = window.setInterval(tick, CLAUDE_POLL_INTERVAL_MS)
-    }, 3000)
-    return () => {
-      cancelled = true
-      window.clearTimeout(startupDelay)
-      if (interval !== null) window.clearInterval(interval)
-    }
-  }, [setAntigravityUsage, usageAccess.antigravity])
+    },
+    CLAUDE_POLL_INTERVAL_MS,
+    usageAccess.antigravity,
+    3000,
+  )
 
-  useEffect(() => {
-    if (!usageAccess.kimi) return
-    let cancelled = false
-    const tick = async () => {
+  usePolling(
+    async (isCancelled) => {
       if (!activeRef.current) return
       try {
         const usage = await getCachedKimiUsage()
-        if (!cancelled) setKimiUsage(usage)
+        if (!isCancelled()) setKimiUsage(usage)
       } catch {
-        if (!cancelled) setKimiUsage(null)
+        if (!isCancelled()) setKimiUsage(null)
       }
-    }
-    void tick()
-    const interval = window.setInterval(tick, 60_000)
-    return () => {
-      cancelled = true
-      window.clearInterval(interval)
-    }
-  }, [setKimiUsage, usageAccess.kimi])
+    },
+    60_000,
+    usageAccess.kimi,
+  )
 
   const win = getCurrentWindow()
 

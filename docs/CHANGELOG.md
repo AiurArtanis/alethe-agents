@@ -333,6 +333,8 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Changed
 
+- **One agent list everywhere.** Onboarding now also detects the Cursor CLI, and agent names in
+  onboarding and Preferences → Terminal match the rest of the app (for example "Claude Code").
 - **Backups restore the whole profile.** An export now also carries the profile name, the terminal
   prompt history, open Markdown tabs, and folded settings sections, and saves the profile photo and
   project logos that were only links inside the file. Importing puts all of it back, and a
@@ -444,6 +446,9 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 - **Picking `C:\Windows\System32\wsl.exe` as the terminal shell opens WSL**, the same as `wsl.exe`.
 - **Right-click paste no longer pastes twice.** The same clipboard text arriving again within two
   seconds is ignored by the terminal.
+- **Cloning keeps the repository's own agent guides.** Cloning a repository from Alethe no longer
+  overwrites its `AGENTS.md` or `CLAUDE.md` with the generated briefing, and a README with accented
+  or other non-ASCII characters no longer crashes the briefing step.
 - **Exporting a backup no longer stops at a permission error.** Files the embedded browser keeps
   locked while Alethe is open are left out, and any other file in use is skipped and named in the
   confirmation instead of failing the whole export.

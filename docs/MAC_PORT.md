@@ -87,6 +87,10 @@ Mac synced through: `v1.7.0` (`80e44a3`)
 - `pending` · `backend` · feat(remote): start agents and list orchestration workers from a paired device
   - Files: `src-tauri/src/remote/http.rs`, `src-tauri/src/remote/workspace.rs`, `src-tauri/remote/app.js`
   - Contract: new remote API `POST /api/open-agent` (`projectId`, `agent`: `claude` or `codex`) and `GET /api/orchestration` (workers of projects with a shared terminal)
+- `pending` · `backend` · fix(clone): keep existing agent guides and cut the README briefing at a char boundary
+  - Files: `src-tauri/src/projects.rs`
+- `pending` · `ui` · refactor(agents): derive onboarding and terminal agent lists from one source
+  - Files: `src/components/modals/OnboardingModal.tsx`, `src/components/modals/preferences/TerminalPage.tsx`
 - `pending` · `contract` · fix(backup): export the whole profile and skip files in use
   - Files: `src-tauri/src/backup.rs`, `src/lib/backup.ts`, `src/lib/storageNamespace.ts`
   - Contract: archives gain `alethe-backup.json` at the root (`format: 1`, `appVersion`, `createdAtMs`, `profileName`, `localStorage` keyed without the `alethe:<profile>:` prefix, `skipped`), never extracted on import; archives leave out `browser-session/`, `mcp/backups/`, `speech-models/`, `tools/`, `cloud_sync.json` and `sync-state.json`; the archived `projects.json` embeds `iconUrl` and `profileImageUrl` links as `data:` URLs of up to 4 MB each; import renames the profile to `profileName` unless another profile already uses it
