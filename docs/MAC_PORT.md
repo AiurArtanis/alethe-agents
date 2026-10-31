@@ -36,6 +36,10 @@ Mac synced through: `v1.7.0` (`80e44a3`)
 
 ## Unreleased
 
+- `pending` · `ui` · `eb426c5` fix(ui): keep the Dropdown search usable inside modal dialogs
+  - Files: `src/components/ui/Dropdown.tsx`
+- `skip (npm packages of the Tauri app)` · `backend` · `3ad4ce9` fix(build): align Tauri plugin npm packages with their Rust crates
+  - Files: `package.json`, `package-lock.json`
 - `pending` · `ui` · `6376021` fix(orchestrator): keep the board view still during a live dispatch
   - Files: `src/components/OrchestratorPane/index.tsx`, `src/lib/orchestratorViewPolicy.ts`
 - `pending` · `ui` · `1334e64` feat(orchestrator): show the effective model and effort of every worker

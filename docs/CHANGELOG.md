@@ -418,6 +418,8 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Fixed
 
+- **Searchable pickers inside dialogs keep the cursor in their search box.** Model pickers in
+  Preferences and the project agent settings lost focus to the dialog as soon as the list opened.
 - **Antigravity panes find a new conversation right away.** Alethe also reads Antigravity's
   `last_conversations.json`, so a chat started in a pane is saved and reopened even before
   `conversation_metadata.json` lists it, including in folders whose path has a space.
