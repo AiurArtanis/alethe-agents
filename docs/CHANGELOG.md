@@ -68,6 +68,8 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   newer release from the terminal, and refuses while Alethe is open, since installing would close it
   and its terminals. A command installed by an older release shows as outdated in Preferences →
   Integrations until it is reinstalled.
+- **Worker cards now show each worker's model and effort**, including whether each value came from
+  the planner, a role, a fallback role, or the CLI default.
 - **Turning on AI Memory now takes you to a working install, and recall actually works.** The switch
   in Preferences → Features grew a panel beneath it: whether ai-memory is there, a button to install
   it — the download checked against the hash the project publishes — and whether it is running, with
@@ -485,6 +487,8 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
   inline message.
 - **Pairing from Preferences now shows its QR code and address.** You can scan the code or enter
   its address manually while pairing is active.
+- **Routing rules now show their role on the orchestrator board**, instead of an incomplete
+  usage label.
 - **Reconnecting a planner no longer starts a duplicate shell.** Asking the lead agent to open a dev
   server or watcher it already has running on the board (for example after reopening the app, or
   from a new planner terminal) now reuses that running shell and adopts it under the new planner,
