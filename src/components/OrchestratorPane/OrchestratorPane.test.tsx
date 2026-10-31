@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fixtures = vi.hoisted(() => {
@@ -40,7 +40,11 @@ const fixtures = vi.hoisted(() => {
       roles: [],
     },
     jobs: vi.fn(),
-    listen: vi.fn(() => Promise.resolve(() => {})),
+    push: undefined as ((snapshot: unknown) => void) | undefined,
+    listen: vi.fn((handler: (snapshot: unknown) => void) => {
+      fixtures.push = handler
+      return Promise.resolve(() => {})
+    }),
   }
 })
 
@@ -121,9 +125,14 @@ vi.mock('../XTermView/terminalWrite', () => ({ writePtyChunked: vi.fn() }))
 
 import { OrchestratorPane } from './index'
 
+let resizeCallback: ResizeObserverCallback | undefined
+
 beforeEach(() => {
   fixtures.jobs.mockResolvedValue(fixtures.snapshot)
   class MockResizeObserver {
+    constructor(callback: ResizeObserverCallback) {
+      resizeCallback = callback
+    }
     observe() {}
     unobserve() {}
     disconnect() {}
@@ -140,6 +149,58 @@ afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
+  resizeCallback = undefined
+  fixtures.snapshot.jobs[0].routing = null
+})
+
+describe('OrchestratorPane view fitting', () => {
+  it('fits initially and preserves the world transform after a pan and resize notification', async () => {
+    render(<OrchestratorPane projectId="project-1" terminal={{ id: 'board-terminal' } as never} />)
+
+    const board = await screen
+      .findByText('Build a thing')
+      .then((element) => element.closest('[class*="board"]') as HTMLElement)
+    const world = board.querySelector('[class*="world"]') as HTMLElement
+    await waitFor(() => expect(world.style.transform).not.toBe('translate(0px, 0px) scale(1)'))
+
+    fireEvent.pointerDown(board, { button: 0, pointerId: 1, clientX: 100, clientY: 100 })
+    fireEvent.pointerMove(board, { pointerId: 1, clientX: 145, clientY: 130 })
+    fireEvent.pointerUp(board, { pointerId: 1 })
+    const pannedTransform = world.style.transform
+    expect(pannedTransform).not.toBe('')
+
+    await act(async () => {
+      resizeCallback?.([], {} as ResizeObserver)
+    })
+    expect(world.style.transform).toBe(pannedTransform)
+  })
+
+  it('keeps a pan made after re-selecting the active planner when a live update grows the board', async () => {
+    render(<OrchestratorPane projectId="project-1" terminal={{ id: 'board-terminal' } as never} />)
+
+    const board = await screen
+      .findByText('Build a thing')
+      .then((element) => element.closest('[class*="board"]') as HTMLElement)
+    const world = board.querySelector('[class*="world"]') as HTMLElement
+    await waitFor(() => expect(world.style.transform).not.toBe('translate(0px, 0px) scale(1)'))
+
+    fireEvent.click(screen.getByRole('tab', { selected: true }))
+    fireEvent.pointerDown(board, { button: 0, pointerId: 1, clientX: 100, clientY: 100 })
+    fireEvent.pointerMove(board, { pointerId: 1, clientX: 145, clientY: 130 })
+    fireEvent.pointerUp(board, { pointerId: 1 })
+    const pannedTransform = world.style.transform
+
+    const [first] = fixtures.snapshot.jobs
+    await act(async () => {
+      fixtures.push?.({
+        ...fixtures.snapshot,
+        jobs: [first, { ...first, id: 'job-2', spec: 'Build another thing' }],
+        running: 2,
+      })
+    })
+    await screen.findByText('Build another thing')
+    expect(world.style.transform).toBe(pannedTransform)
+  })
 })
 
 describe('OrchestratorPane routing notes', () => {
