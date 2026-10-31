@@ -103,6 +103,8 @@ Mac synced through: `v1.7.0` (`80e44a3`)
   - Files: `src/components/modals/preferences/AboutPage.tsx`, `src/lib/releases.ts`, `src-tauri/src/release_install.rs`
 - `skip (Linux AppImage only; the Mac app does not ship as an AppImage)` · `platform` · fix(pty): keep AppImage env out of terminals
   - Files: `src-tauri/src/child_env.rs`, `src-tauri/src/cli_resolver.rs`
+- `pending` · `backend` · fix(clipboard): paste images and Finder files into a terminal on macOS
+  - Files: `src-tauri/src/diagnostics.rs`
 - `pending` · `ui` · feat(memory): list leftover processes and end orphaned terminal children
   - Files: `src/components/modals/MemoryAnalyticsModal.tsx`, `src-tauri/src/leftover_processes.rs`
 - `skip (Windows Job Objects; macOS terminals already end their process group)` · `platform` · Terminals run in a per-PTY Job Object so killing one ends orphaned descendants
