@@ -447,6 +447,9 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 - **Exporting a backup no longer stops at a permission error.** Files the embedded browser keeps
   locked while Alethe is open are left out, and any other file in use is skipped and named in the
   confirmation instead of failing the whole export.
+- On Linux, terminals and files or links opened from the AppImage no longer inherit the AppImage's
+  bundled library and runtime paths. System tools such as `curl` and `python` run normally inside
+  Alethe terminals again, and links open in the browser with its own libraries.
 - Closing or killing a terminal on Windows now also ends the dev servers and background jobs it
   started, even when the shell that launched them had already exited. Each terminal runs inside its
   own Job Object, so a `npm run dev` left behind by an agent no longer keeps holding memory.
