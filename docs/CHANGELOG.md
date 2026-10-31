@@ -410,6 +410,15 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 
 ### Fixed
 
+- **Typing accented characters quickly no longer duplicates letters or brings back text already
+  sent.** The terminal empties its hidden input buffer once typing pauses, never during an open IME
+  composition.
+- **Remote control can send a message Claude Code queued while busy.** With the message box empty,
+  tapping send twice on the phone sends the queued message right away, the phone's take on Claude
+  Code's Ctrl+X Ctrl+S.
+- **On macOS, the window uses the native title bar and traffic lights**, so maximize, restore and
+  display changes behave like in other Mac apps. On every platform, double-clicking an empty part
+  of the title bar now maximizes or restores the window.
 - **Shift+Enter adds a line instead of sending.** Claude Code and Codex now get a line break in the
   prompt. In Claude Code panes, Ctrl+Enter (Cmd+Enter on macOS) sends the typed message right away,
   even while the agent is busy and Enter would only queue it.

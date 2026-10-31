@@ -36,6 +36,11 @@ Mac synced through: `v1.7.0` (`80e44a3`)
 
 ## Unreleased
 
+- `skip (Tauri window chrome; the Swift app has native window controls)` · `ui` · `46ea5fc` fix(macos): use the native title bar and traffic lights
+  - Files: `src-tauri/tauri.macos.conf.json`, `src-tauri/capabilities/default.json`, `src/components/TitleBar/index.tsx`
+- `pending` · `backend` · `56f16b7` fix(remote): let the phone send a message Claude Code queued while busy
+  - Files: `src-tauri/src/remote/http.rs`, `src-tauri/remote/app.js`
+  - Contract: `POST /api/agent-control` accepts `action: "send_now"` (Claude Code only), written as `Ctrl+X` then `Ctrl+S` 60 ms apart
 - `pending` · `ui` · `20546e1` feat(terminal): minimize a pane and reopen it from the sidebar
   - Files: `src/stores/projectsStore.terminalSlices.ts`, `src/components/TerminalPane/index.tsx`, `src/components/ProjectSidebar/sidebarMenus.tsx`
 - `pending` · `ui` · `168167d` fix(usage): name the quota window behind the orchestrator warning
