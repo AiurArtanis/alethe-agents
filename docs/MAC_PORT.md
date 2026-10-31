@@ -36,6 +36,8 @@ Mac synced through: `v1.7.0` (`80e44a3`)
 
 ## Unreleased
 
+- `pending` · `ui` · `20546e1` feat(terminal): minimize a pane and reopen it from the sidebar
+  - Files: `src/stores/projectsStore.terminalSlices.ts`, `src/components/TerminalPane/index.tsx`, `src/components/ProjectSidebar/sidebarMenus.tsx`
 - `pending` · `ui` · `168167d` fix(usage): name the quota window behind the orchestrator warning
   - Files: `src/components/OrchestratorPane/index.tsx`, `src/hooks/useOrchestratorQuotaWarnings.ts`
 - `pending` · `backend` · `a5857ff` fix(macos): find npm-global agents and the Tailscale CLI under Launch Services' PATH
