@@ -11,6 +11,8 @@ Notable user-facing changes to **Alethe** are documented here. The format is bas
 ## [Unreleased]
 
 ### Added
+- **Close tabs with the middle mouse button.** Terminal sub-tabs and workspace tabs in the title
+  bar now close on a middle-click, matching browser tab-strip convention.
 - **Start agents and follow orchestration from your phone.** Remote control can now start a Claude
   Code or Codex terminal in any project from the paired device; the desktop opens it already shared
   and the phone jumps into the chat. The phone also lists the orchestrator workers of shared projects
