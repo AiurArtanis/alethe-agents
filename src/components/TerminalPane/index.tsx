@@ -6,6 +6,7 @@ import {
   GripVertical,
   Maximize2,
   Minimize2,
+  Minus,
   Network,
   PanelLeftClose,
   PanelLeftOpen,
@@ -133,11 +134,11 @@ export const TerminalPane = memo(function TerminalPane({
   const setLaneVisible = useProjectsStore((s) => s.setLaneVisible)
   const setTerminalTopbarPinned = useProjectsStore((s) => s.setTerminalTopbarPinned)
   const setTerminalDisabled = useProjectsStore((s) => s.setTerminalDisabled)
+  const minimizePane = useProjectsStore((s) => s.minimizePane)
   const markTerminalUsed = useProjectsStore((s) => s.markTerminalUsed)
   const setSubTabPtyId = useProjectsStore((s) => s.setSubTabPtyId)
   const setSubTabSessionId = useProjectsStore((s) => s.setSubTabSessionId)
   const setSubTabInitialInput = useProjectsStore((s) => s.setSubTabInitialInput)
-  const setSubTabHandoff = useProjectsStore((s) => s.setSubTabHandoff)
   const setSubTabCompletionUnread = useProjectsStore((s) => s.setSubTabCompletionUnread)
   const deleteTerminalWithWorktreeCleanup = useProjectsStore(
     (s) => s.deleteTerminalWithWorktreeCleanup,
@@ -652,6 +653,15 @@ export const TerminalPane = memo(function TerminalPane({
               ) : null}
               <button
                 type="button"
+                className={styles.action}
+                onClick={() => minimizePane(projectId, terminal.id)}
+                title={t('ui.terminal.minimize')}
+                aria-label={t('ui.terminal.minimize')}
+              >
+                <Minus size={12} />
+              </button>
+              <button
+                type="button"
                 className={`${styles.action} ${styles.danger}`}
                 onClick={onDelete}
                 title={t('ui.sidebar.deleteTerminal')}
@@ -750,15 +760,9 @@ export const TerminalPane = memo(function TerminalPane({
                     useTerminalsStore.getState().markSuspended(activeTab.ptyId)
                     pushToast({ title: t('ui.terminal.resumeFailed'), body: String(error) })
                   }}
-                  onAgentComplete={() => {
+                  onAgentComplete={() =>
                     setSubTabCompletionUnread(projectId, terminal.id, activeTab.id, true)
-                    if (!activeTab.handoff) return
-                    void completeAgentHandoff(activeTab.handoff.id)
-                      .then(() => setSubTabHandoff(projectId, terminal.id, activeTab.id, undefined))
-                      .catch((cause) =>
-                        console.warn('[handoff] could not clean the completed packet:', cause),
-                      )
-                  }}
+                  }
                 />
               )}
               {ptyExited && !useNativeBackend ? (

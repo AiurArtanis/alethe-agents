@@ -52,7 +52,16 @@ plugin exercises the real API rather than a privileged shortcut.
 
 `id` accepts `[A-Za-z0-9._-]` and is validated on the Rust side against path traversal. `entry` and
 `styles` must be plain file names. Contribution ids follow the same shape and must be unique within
-a manifest. A manifest whose `apiVersion` is not 1 is refused, on install and on activation.
+a manifest.
+
+The app speaks plugin API **3**, and `apiVersion` is the lowest version a plugin needs. A manifest
+above the running version is refused, on install and on activation; older manifests keep working.
+Version 2 added overlays, settings sections, `context.workspace`, `context.listen`,
+`context.ui.toast` and `context.useT`. Version 3 added `context.terminals`, `context.agents`,
+`context.components`, `context.locale` and streaming through `context.invoke`. A plugin that uses any
+of them declares that `apiVersion` and its catalogue entry the same `minApiVersion`: older apps then
+hide the listing and refuse a manual import instead of activating a plugin that would call APIs they
+do not have.
 
 **Unknown keys are rejected, not ignored** (`deny_unknown_fields`, top level and inside
 `contributes`). A manifest written for a future `apiVersion` must fail loudly rather than load with
@@ -120,6 +129,18 @@ const plugin: PluginModule = {
 export default plugin
 ```
 
+### Examples
+
+| Example | Where | What it shows |
+|---|---|---|
+| Hello | `docs/examples/hello-plugin/` | the smallest local plugin, no build step |
+| Scratch Notes | `docs/examples/notes-plugin/` | plain JavaScript, a sidebar tab, translated strings and a command |
+| Agent Voice | [`Kc1t/alethe-agent-voice`](https://github.com/Kc1t/alethe-agent-voice) | an **external** plugin on API 3: it reads agent output through `context.terminals`, types spoken replies back, streams audio from a host command through a function argument, and draws the app's own agent icons and dropdowns from `context.components`; the Fish Audio key stays behind narrow `agent_voice_*` commands in the core |
+| Jev | [`Kc1t/alethe-jev`](https://github.com/Kc1t/alethe-jev) | an **external** plugin with a real toolchain: its own repository, TypeScript, React and CSS Modules built by Vite into one IIFE, overlays, settings sections, a sidebar view, the workspace API, host commands through `invoke`, and a reproducible release zip listed in the catalogue |
+
+Start from Jev's `vite.config.ts` and `scripts/package.mjs` when a plugin outgrows a single
+hand-written `main.js`.
+
 ### Opening your own view or modal
 
 `context.ui` is the only way a plugin moves the app, and it moves nothing that is not its own:
@@ -179,10 +200,110 @@ rather than throwing, so a plugin still starts.
 | `contributes.pane` | code | `ui.pane` | a workspace pane for one `Terminal.kind` |
 | `contributes.modal` | code | `ui.modal` | a modal the shell mounts when `openModal` matches its id |
 | `contributes.agentProvider` | code | `agent.provider` | a new agent CLI: label, binary, unrestricted flag, accent, icon |
+| `contributes.overlay` | code | `ui.overlay` | a component mounted over the whole window while the plugin is active |
+| `contributes.settings` | code | `ui.settings` | a section on Preferences → Integrations, listed by the settings search |
 
-Themes, panes and agent providers stay imperative because none of them is revealed by a tab: a theme
-applies as soon as it exists, a pane only renders for a terminal that already carries its kind, and a
-provider only matters once someone opens a terminal with it.
+Themes, panes, agent providers, overlays and settings stay imperative because none of them is
+revealed by a tab: a theme applies as soon as it exists, a pane only renders for a terminal that
+already carries its kind, a provider only matters once someone opens a terminal with it, and overlays
+and settings sections are simply present while the plugin runs.
+
+### Overlays
+
+An overlay is mounted once, outside every panel, for as long as the plugin is active. It owns its own
+visibility and keyboard handling: a voice bar listens for its shortcut and renders `null` until then.
+Each overlay sits inside its own error boundary that renders nothing on failure, so a broken overlay
+disappears instead of covering the window.
+
+### Settings sections
+
+```ts
+context.contributes.settings({
+  id: 'jev.key',
+  title: () => context.t('settings.keyTitle'),
+  description: () => context.t('settings.keyHint'),
+  keywords: 'voice api key',
+  component: KeySetting,
+})
+```
+
+`title` and `description` are functions so the section follows the current language. The shell draws
+the heading and the fold toggle; the component renders the controls only. The settings search matches
+the title, the description and `keywords`, and jumps to the section by its `id`.
+
+### Workspace, terminals, toasts and events
+
+| API | Capability | Does |
+|---|---|---|
+| `context.workspace.snapshot()` | `workspace.read` | live projects, plain terminals (agent, folder, running, busy), enabled agents, and what has focus |
+| `context.workspace.focusTerminal(id)` | `workspace.control` | brings a terminal forward and flashes its pane |
+| `context.workspace.openAgentTerminal(projectId, options)` | `workspace.control` | opens an enabled agent in the project's folder, optionally typing a first prompt |
+| `context.workspace.closeTerminal(id)` | `workspace.control` | closes a terminal, ending its process |
+| `context.workspace.writeToTerminal(id, text)` | `terminal.write` | types into the running tab of a terminal |
+| `context.ui.toast({ title, body })` | none | shows a notification and keeps it in the history |
+| `context.listen(event, handler)` | `listen:<event>` | subscribes to an app event; `listen:speech*` covers every `speech…` event |
+| `context.useT()` | none | the hook form of `context.t`, re-rendering when the language changes |
+| `context.locale()` | none | the language the app is shown in |
+
+The snapshot never carries PTY ids, and the workspace calls only reach terminals of non-archived
+projects. Typing into a terminal is the same power as running a command there, which is why
+`terminal.write` is its own capability and the trust dialog names it; `write_pty` itself stays on the
+forbidden list for `context.invoke`. Event subscriptions are disposed with the plugin.
+
+### Terminal sessions
+
+`context.terminals` sees each running tab of a terminal as a **session**, so an agent in a background
+tab is visible too.
+
+| API | Capability | Does |
+|---|---|---|
+| `sessions()` | `terminal.read` | running sessions of non-archived projects: terminal, project, name, agent, whether it is a shell, and its status (`working`, `waiting`, …) |
+| `onChange(handler)` | `terminal.read` | fires when a session starts, ends, is renamed or changes status, and not on every byte of output |
+| `onOutput(id, handler)` | `terminal.read` | the raw output of a session, escape sequences included |
+| `onExit(id, handler)` | `terminal.read` | the exit code and reason once the process ends |
+| `size(id)` | `terminal.read` | the columns and rows last sent to the process, which is what its output is drawn for |
+| `write(id, text)` | `terminal.write` | types into that session |
+
+A session id is opaque and is replaced when the tab's process is, so a plugin that keys its state by
+session id never mixes the output of two processes. PTY ids are never handed out. Reading output is
+reading whatever the terminal shows, secrets included, which is why `terminal.read` is its own
+capability and the trust dialog names it.
+
+Text typed through `write` or `workspace.writeToTerminal` counts as input the agent received, exactly
+like the keyboard: a prompt ending in Enter marks the agent as working and arms the same completion
+detection.
+
+### Agents and shared components
+
+`context.agents.label(agent)` and `context.agents.accent(agent)` give an agent's display name and a
+CSS color that follows the active theme. `context.components` hands out two of the app's own
+components, so a plugin does not redraw them by hand:
+
+| Component | Props |
+|---|---|
+| `AgentIcon` | `agent`, `size?` — the official mark, in the variant for the current theme |
+| `Dropdown` | `value`, `options: { value, label }[]`, `onChange`, `ariaLabel`, `disabled?` — the themed dropdown used across Preferences |
+
+They render with the host's React, which a local plugin could not bundle anyway: a second copy of
+`react-dom` would not share the host's tree, so a menu drawn through a portal would never appear.
+
+### Streaming from a host command
+
+A function passed in the arguments of `context.invoke` becomes a channel: the command streams
+messages to it while the call is running. `invoke` resolves when the command returns, and messages
+can still arrive briefly after that.
+
+```ts
+const total = await context.invoke<number>('agent_voice_tts', {
+  text,
+  voiceId,
+  model,
+  onChunk: (pcm: ArrayBuffer) => player.push(pcm),
+})
+```
+
+A plugin therefore never imports `@tauri-apps/api`, whose channel format must match the app's own
+Tauri version.
 
 ### Agent providers
 
@@ -371,6 +492,10 @@ catalogue can afford to be an open directory.
 An empty `plugins` array is a valid index and the correct thing to publish while nothing is ready:
 the app shows an empty catalogue instead of an error.
 
+`builtIn` lists the plugins that ship inside the app (`id`, `name`, `description`, `version`,
+`capabilities`). The app ignores it; the website's plugin page reads it so it can show every plugin
+from this one file. `src/plugins/catalogue.test.ts` fails when it drifts from `BUNDLED_PLUGINS`.
+
 `package` is optional and older builds ignore it, so adding one does not need a schema bump and does
 not break an app that predates installing.
 
@@ -396,7 +521,11 @@ The plugin's `main.js` must be a bundle that binds against `window.alethe` rathe
 host. Do not bundle React — take it from `window.alethe.react`, which is why the surface is
 string-keyed: the app is minified with `mangle.toplevel`, so nothing is reachable by module name.
 `docs/examples/notes-plugin/` is a working plugin in plain JavaScript with no build step at all, and
-is the shortest way to see the contract.
+is the shortest way to see the contract. Jev (`alethe.jev`, in `Kc1t/alethe-jev`) is the full-size
+case: TypeScript and CSS Modules built by Vite into one IIFE that takes React from
+`window.alethe.react`, using overlays, settings sections, a sidebar view, the workspace API and the
+speech commands. When a built-in feature moves out like this, `legacyMigration.ts` hands its old
+preferences to the plugin's storage as `legacyPreferences`, and the plugin converts them once.
 
 ## Where things live
 
@@ -407,6 +536,12 @@ is the shortest way to see the contract.
 | `src/lib/plugins/permissions.ts` | capability matching and the forbidden-command list |
 | `src/lib/plugins/localTransport.ts` | `window.alethe` and the local `<script>` loader |
 | `src/lib/plugins/storage.ts` | `context.storage` — the per-plugin persisted record |
+| `src/lib/plugins/workspace.ts` | `context.workspace` — snapshot, terminal control and input |
+| `src/lib/plugins/terminals.ts` | `context.terminals` — sessions, their output, exit, size and input |
+| `src/lib/plugins/presentation.tsx` | `context.agents` and `context.components` |
+| `src/lib/plugins/legacyMigration.ts` | hands settings of features that became plugins to their storage |
+| `src/components/ContributedOverlays/` | mounts every contributed overlay behind its own error boundary |
+| `src/components/modals/preferences/ContributedSettings.tsx` | renders contributed settings sections |
 | `src/lib/plugins/icons.ts` | the icon names a manifest may use |
 | `src/lib/themeTokens.ts` | theme token sanitization and stylesheet injection |
 | `src/lib/tauri/plugins.ts` | IPC bindings |

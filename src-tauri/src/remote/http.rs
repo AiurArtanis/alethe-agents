@@ -186,25 +186,25 @@ fn handle_http(
     }
 
     match path {
-        "/" | "/index.html" => respond(
+        "/" | "/index.html" => respond_large(
             stream,
             200,
             "text/html; charset=utf-8",
             include_str!("../../remote/index.html"),
         ),
-        "/app.js" => respond(
+        "/app.js" => respond_large(
             stream,
             200,
             "text/javascript; charset=utf-8",
             include_str!("../../remote/app.js"),
         ),
-        "/locales.js" => respond(
+        "/locales.js" => respond_large(
             stream,
             200,
             "application/javascript; charset=utf-8",
             include_str!("../../remote/locales.js"),
         ),
-        "/app.css" => respond(
+        "/app.css" => respond_large(
             stream,
             200,
             "text/css; charset=utf-8",
@@ -530,24 +530,41 @@ fn handle_api(
                 r#"{"error":"Only Codex and Claude Code can be controlled remotely"}"#,
             );
         }
-        if payload.action != "interrupt" {
-            return respond(
-                stream,
-                400,
-                "application/json",
-                r#"{"error":"Unknown agent control action"}"#,
-            );
+        // Claude Code queues a message typed while a turn is running and only
+        // offers `ctrl+x ctrl+s` to send it now — a chord a phone keyboard
+        // cannot type.
+        let (keys, preview): (&[&str], &str) = match payload.action.as_str() {
+            "interrupt" => (&["\x03"], "Interrupted the active agent turn"),
+            "send_now" if agent == "claude" => (&["\x18", "\x13"], "Sent the queued message now"),
+            _ => {
+                return respond(
+                    stream,
+                    400,
+                    "application/json",
+                    r#"{"error":"Unknown agent control action"}"#,
+                );
+            }
+        };
+        let mut written = true;
+        for (index, key) in keys.iter().enumerate() {
+            if index > 0 {
+                // Each half of the chord must arrive as its own keypress.
+                thread::sleep(Duration::from_millis(60));
+            }
+            written = hub.with_active_session(generation, session_id, || {
+                write_remote(sessions, &payload.pty_id, key)
+            })?;
+            if !written {
+                break;
+            }
         }
-        let written = hub.with_active_session(generation, session_id, || {
-            write_remote(sessions, &payload.pty_id, "\x03")
-        })?;
         if !written {
             return respond_session_inactive(stream);
         }
         let device_name = hub.device_name(session_id);
         eprintln!(
-            "[remote] {device_name} (device {session_id}) interrupted {}",
-            payload.pty_id
+            "[remote] {device_name} (device {session_id}) {} {}",
+            payload.action, payload.pty_id
         );
         let _ = app.emit(
             "remote://message",
@@ -555,7 +572,7 @@ fn handle_api(
                 "ptyId": payload.pty_id,
                 "deviceId": session_id,
                 "deviceName": device_name,
-                "preview": "Interrupted the active agent turn",
+                "preview": preview,
             }),
         );
         return respond(stream, 204, "text/plain", "");
@@ -964,6 +981,18 @@ fn respond_bytes_with_limit(
 #[cfg(test)]
 mod tests {
     use super::{bearer_token, find_headers_end, header_value, question_answer_input};
+
+    #[test]
+    fn every_static_asset_fits_the_asset_limit() {
+        for asset in [
+            include_str!("../../remote/index.html"),
+            include_str!("../../remote/app.js"),
+            include_str!("../../remote/locales.js"),
+            include_str!("../../remote/app.css"),
+        ] {
+            assert!(asset.len() <= super::super::MAX_STATIC_ASSET);
+        }
+    }
     use crate::handoff::{RemoteQuestion, RemoteQuestionOption};
 
     #[test]

@@ -10,6 +10,7 @@ mod backup;
 mod browser_pane;
 mod browser_session;
 mod cdp;
+mod child_env;
 mod claude_sessions;
 mod claude_usage;
 mod cli_launch;
@@ -73,6 +74,7 @@ mod resource_manager;
 mod resources;
 mod router9;
 mod scheduler;
+mod agent_voice;
 mod secure_store;
 mod session_watcher;
 // The handoff it reports goes over D-Bus, which only the Linux build links (zbus).
@@ -132,21 +134,22 @@ use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // bugs conhecidos no Wayland — escala fracionada quebrando layout,
+    let args: Vec<String> = std::env::args().collect();
+    let action = cli_launch::parse_cli_action(&args);
+    if let Some(exit) = cli_launch::cli_immediate_exit(action) {
+        cli_launch::attach_parent_console();
+        cli_launch::write_cli_exit(&exit);
+        std::process::exit(exit.code);
+    }
 
-    // ("Error 71") em alguns drivers de GPU — documentados oficialmente em
-    // https://v2.tauri.app/develop/debug/linux-graphics/. Desligar o
-
+    // Work around known Wayland/DMABUF WebKitGTK rendering bugs ("Error 71") on Linux:
+    // https://v2.tauri.app/develop/debug/linux-graphics/
     #[cfg(target_os = "linux")]
     std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
 
     let _ = dotenvy::dotenv();
-    // `npm run app` (dev) injeta EDITOR=vi e GIT_EDITOR=true no ambiente do
-
-    // o vi-mode (Ctrl+R vira "redisplay", Ctrl+A/E viram self-insert — bug real
-
-    // npm (rodando sob npm run + valores exatos que o npm injeta); o ambiente
-
+    // `npm run app` injects EDITOR=vi and GIT_EDITOR=true into the environment; strip those
+    // exact npm defaults so child shells do not inherit unintended vi-mode settings.
     if std::env::var_os("npm_lifecycle_event").is_some() {
         if std::env::var("EDITOR").as_deref() == Ok("vi") {
             std::env::remove_var("EDITOR");
@@ -161,6 +164,13 @@ pub fn run() {
     // Built once and handed to `build()` below: `generate_context!` embeds the
     // whole frontend bundle, so expanding it twice would duplicate it.
     let context: tauri::Context<tauri::Wry> = tauri::generate_context!();
+
+    if action == cli_launch::CliAction::Update {
+        cli_launch::attach_parent_console();
+        let exit = cli_launch::run_cli_update(context);
+        cli_launch::write_cli_exit(&exit);
+        std::process::exit(exit.code);
+    }
 
     // `tauri-plugin-single-instance` exits the second process with status 0 and
     // prints nothing, so a stale owner looks exactly like a broken install.
@@ -256,10 +266,10 @@ pub fn run() {
                         let (width, height) = rgba.dimensions();
                         let icon = tauri::image::Image::new_owned(rgba.into_raw(), width, height);
                         if let Err(error) = window.set_icon(icon) {
-                            eprintln!("[icon] falha ao aplicar ícone da janela: {error}");
+                            eprintln!("[icon] could not set the window icon: {error}");
                         }
                     }
-                    Err(error) => eprintln!("[icon] falha ao decodificar ícone embutido: {error}"),
+                    Err(error) => eprintln!("[icon] could not decode the embedded icon: {error}"),
                 }
                 // Required for getUserMedia / voice dictation on WebKitGTK.
                 webview_media::grant_media_permissions(&window);
@@ -324,6 +334,8 @@ pub fn run() {
             orchestrator::orchestrator_set_concurrency,
             orchestrator::orchestrator_apply_settings,
             orchestrator::orchestrator_codex_models,
+            orchestrator::orchestrator_playbooks,
+            orchestrator::orchestrator_save_playbooks,
             orchestrator::orchestrator_set_agent_fitness,
             orchestrator::orchestrator_set_rule_sets,
             orchestrator::orchestrator_default_rule_sets,
@@ -412,6 +424,8 @@ pub fn run() {
             ghostty_bridge::ghostty_spawn,
             ghostty_bridge::ghostty_sync_frame,
             ghostty_bridge::ghostty_set_hidden,
+            ghostty_bridge::ghostty_set_focus,
+            ghostty_bridge::ghostty_surface_exited,
             ghostty_bridge::ghostty_kill,
             ghostty_bridge::ghostty_kill_all,
             ghostty_bridge::ghostty_debug_send_read,
@@ -458,8 +472,22 @@ pub fn run() {
             cloud_sync::cloud_sync_device_start,
             cloud_sync::cloud_sync_device_finish,
             cloud_sync::cloud_sync_logout,
-            cloud_sync::cloud_sync_push,
-            cloud_sync::cloud_sync_pull,
+            cloud_sync::cloud_sync_me,
+            cloud_sync::cloud_sync_manifest,
+            cloud_sync::cloud_sync_get,
+            cloud_sync::cloud_sync_put,
+            cloud_sync::cloud_sync_revisions,
+            cloud_sync::cloud_sync_revision,
+            cloud_sync::cloud_sync_devices,
+            cloud_sync::cloud_sync_revoke_device,
+            cloud_sync::cloud_sync_delete_account,
+            cloud_sync::cloud_sync_export_account,
+            cloud_sync::cloud_billing_checkout,
+            cloud_sync::cloud_billing_portal,
+            cloud_sync::cloud_billing_refresh,
+            cloud_sync::cloud_sync_state_read,
+            cloud_sync::cloud_sync_machine,
+            cloud_sync::cloud_sync_state_write,
             github_pr::github_pr_find,
             github_pr::github_pr_merge,
             github_pr::github_pr_list_mine,
@@ -482,6 +510,7 @@ pub fn run() {
             git_control::git_revert_commit,
             git_control::git_reset_to_commit,
             git_control::git_incoming_outgoing,
+            git_control::git_remote_origin,
             diagnostics::open_data_folder,
             diagnostics::open_spawn_log,
             diagnostics::open_in_file_explorer,
@@ -517,6 +546,7 @@ pub fn run() {
             handoff::prepare_agent_handoff,
             handoff::materialize_agent_handoff,
             handoff::complete_agent_handoff,
+            handoff::prune_agent_handoffs,
             antigravity_sessions::snapshot_antigravity_sessions,
             cursor_sessions::create_cursor_chat,
             claude_usage::get_claude_usage,
@@ -532,6 +562,9 @@ pub fn run() {
             crash_watch::get_job_guard_status,
             set_window_opacity,
             jev::jev_decide,
+            agent_voice::agent_voice_key_status,
+            agent_voice::agent_voice_set_key,
+            agent_voice::agent_voice_tts,
             speech::speech_list_models,
             speech::speech_list_input_devices,
             speech::speech_model_states,
@@ -641,6 +674,7 @@ pub fn run() {
             skills::skills_uninstall,
             skills::skills_catalog,
             skills::skills_install_bundled,
+            skills::skills_remove_bundled,
             opencode_sessions::snapshot_opencode_sessions,
             opencode_sessions::opencode_export_session,
             ping,
@@ -648,7 +682,7 @@ pub fn run() {
         .build(context)
         .expect("error while building alethe")
         .run(move |_app_handle, event| {
-            // emitir `Exit`; esperar esse evento deixa shells/agentes vivos
+            // Tear down on ExitRequested: on Windows `Exit` can arrive late and leave shells alive.
 
             if let tauri::RunEvent::ExitRequested { .. } = event {
                 pty::kill_all_sessions_background(&sessions_for_exit);

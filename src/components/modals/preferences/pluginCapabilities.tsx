@@ -8,8 +8,18 @@ export const CAPABILITY_KEYS: Record<string, MessageKey> = {
   'ui.command': 'prefs.pluginsCapabilityCommand',
   'ui.modal': 'prefs.pluginsCapabilityModal',
   'agent.provider': 'prefs.pluginsCapabilityAgentProvider',
+  'ui.overlay': 'prefs.pluginsCapabilityOverlay',
+  'ui.settings': 'prefs.pluginsCapabilitySettings',
+  'workspace.read': 'prefs.pluginsCapabilityWorkspaceRead',
+  'workspace.control': 'prefs.pluginsCapabilityWorkspaceControl',
+  'terminal.read': 'prefs.pluginsCapabilityTerminalRead',
+  'terminal.write': 'prefs.pluginsCapabilityTerminalWrite',
   'invoke:git_*': 'prefs.pluginsCapabilityGit',
   'invoke:worktree_*': 'prefs.pluginsCapabilityWorktree',
+  'invoke:speech_*': 'prefs.pluginsCapabilitySpeech',
+  'invoke:agent_voice_*': 'prefs.pluginsCapabilityAgentVoice',
+  'invoke:jev_decide': 'prefs.pluginsCapabilityJevDecide',
+  'listen:speech*': 'prefs.pluginsCapabilitySpeechEvents',
 }
 
 export function CapabilityList({ capabilities }: { capabilities: readonly string[] }) {
