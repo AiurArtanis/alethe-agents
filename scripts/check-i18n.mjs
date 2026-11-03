@@ -338,8 +338,17 @@ function main(argv = process.argv.slice(2)) {
   )
   writeFileSync(
     hardcodedPath,
-    JSON.stringify({ sha, count: hardcoded.count, failThreshold: opts.hardcodedBaseline, lockedBaseline: HARDCODED_BASELINE, suspects: hardcoded.suspects }, null, 2) +
-      '\n',
+    JSON.stringify(
+      {
+        sha,
+        count: hardcoded.count,
+        failThreshold: opts.hardcodedBaseline,
+        lockedBaseline: HARDCODED_BASELINE,
+        suspects: hardcoded.suspects,
+      },
+      null,
+      2,
+    ) + '\n',
   )
   writeFileSync(summaryPath, formatSummary(diff, hardcoded, sha))
   writeFileSync(shaPath, sha + '\n')
