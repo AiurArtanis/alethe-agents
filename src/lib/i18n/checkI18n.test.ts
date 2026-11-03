@@ -9,8 +9,14 @@ const scriptUrl = pathToFileURL(
   path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../scripts/check-i18n.mjs'),
 ).href
 
-const { parseMessageKeys, diffKeys, compareMessageFiles, stripComments, scanHardcoded } =
-  await import(scriptUrl)
+const {
+  parseMessageKeys,
+  diffKeys,
+  compareMessageFiles,
+  stripComments,
+  scanHardcoded,
+  HARDCODED_BASELINE,
+} = await import(scriptUrl)
 
 describe('check-i18n parser', () => {
   it('parses keys and ignores comments', () => {
@@ -120,5 +126,9 @@ export function Inline() {
     expect(suspects.some((s) => s.kind === 'jsx-text')).toBe(true)
     // Translated call nearby should suppress that line
     expect(suspects.every((s) => !s.file.endsWith('Ok.tsx'))).toBe(true)
+  })
+
+  it('HARDCODED_BASELINE is locked at 14', () => {
+    expect(HARDCODED_BASELINE).toBe(14)
   })
 })

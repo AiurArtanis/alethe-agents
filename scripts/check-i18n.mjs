@@ -19,6 +19,9 @@ const MESSAGES_DIR = path.join(ROOT, 'src/lib/i18n/messages')
 
 const PROP_KEYS = new Set(['title', 'placeholder', 'aria-label', 'label', 'description'])
 
+/** Locked by 监工 2026-11-03: --fail-on-hardcoded fails only above this count. */
+export const HARDCODED_BASELINE = 14
+
 /** Strip line and block comments without trying to fully parse TS strings. */
 export function stripComments(source) {
   let out = ''
@@ -233,6 +236,7 @@ function gitSha() {
 function parseArgs(argv) {
   const opts = {
     failOnHardcoded: false,
+    hardcodedBaseline: HARDCODED_BASELINE,
     outDir: null,
     en: EN_PATH,
     zh: ZH_PATH,
@@ -241,6 +245,7 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
     if (arg === '--fail-on-hardcoded') opts.failOnHardcoded = true
+    else if (arg === '--hardcoded-baseline') opts.hardcodedBaseline = Number(argv[++i])
     else if (arg === '--out-dir') opts.outDir = argv[++i]
     else if (arg === '--en') opts.en = path.resolve(argv[++i])
     else if (arg === '--zh') opts.zh = path.resolve(argv[++i])
@@ -251,7 +256,8 @@ function parseArgs(argv) {
   --zh PATH          override zh-CN.ts
   --scan-root PATH   override src root for hardcoded scan
   --out-dir DIR      write summary artifacts
-  --fail-on-hardcoded  exit nonzero when hardcoded suspects > 0`)
+  --fail-on-hardcoded  exit nonzero when hardcoded suspects > baseline (14)
+  --hardcoded-baseline N  override baseline (default 14; used with --fail-on-hardcoded)`)
       process.exit(0)
     } else {
       console.error(`Unknown argument: ${arg}`)
@@ -270,7 +276,7 @@ function formatSummary(diff, hardcoded, sha) {
   lines.push(`missing (in en, not zh-CN): ${diff.missing.length}`)
   lines.push(`extra (in zh-CN, not en): ${diff.extra.length}`)
   lines.push(`keys identical: ${diff.identical ? 'yes' : 'no'}`)
-  lines.push(`hardcoded suspects (baseline): ${hardcoded.count}`)
+  lines.push(`hardcoded suspects: ${hardcoded.count} (fail threshold ${HARDCODED_BASELINE})`)
   lines.push('')
   if (diff.missing.length) {
     lines.push('## missing')
@@ -332,7 +338,7 @@ function main(argv = process.argv.slice(2)) {
   )
   writeFileSync(
     hardcodedPath,
-    JSON.stringify({ sha, baselineCount: hardcoded.count, suspects: hardcoded.suspects }, null, 2) +
+    JSON.stringify({ sha, count: hardcoded.count, failThreshold: opts.hardcodedBaseline, lockedBaseline: HARDCODED_BASELINE, suspects: hardcoded.suspects }, null, 2) +
       '\n',
   )
   writeFileSync(summaryPath, formatSummary(diff, hardcoded, sha))
@@ -342,7 +348,7 @@ function main(argv = process.argv.slice(2)) {
   console.log(`zh-CN keys: ${diff.zhCount}`)
   console.log(`missing: ${diff.missing.length}`)
   console.log(`extra: ${diff.extra.length}`)
-  console.log(`hardcoded suspects (baseline): ${hardcoded.count}`)
+  console.log(`hardcoded suspects: ${hardcoded.count} (fail threshold ${opts.hardcodedBaseline})`)
   console.log(`artifacts: ${outDir}`)
   if (!diff.identical) {
     console.error('FAIL: en / zh-CN keys diverge')
@@ -352,8 +358,10 @@ function main(argv = process.argv.slice(2)) {
     console.log('PASS: en / zh-CN keys identical')
   }
 
-  if (opts.failOnHardcoded && hardcoded.count > 0) {
-    console.error(`FAIL: hardcoded suspects=${hardcoded.count} (--fail-on-hardcoded)`)
+  if (opts.failOnHardcoded && hardcoded.count > opts.hardcodedBaseline) {
+    console.error(
+      `FAIL: hardcoded suspects=${hardcoded.count} > baseline ${opts.hardcodedBaseline} (--fail-on-hardcoded)`,
+    )
     process.exit(1)
   }
 
