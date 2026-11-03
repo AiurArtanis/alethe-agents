@@ -20,6 +20,7 @@
     "test:rust": "cd src-tauri && cargo test --lib",
     "test:ghostty": "cd src-tauri && cargo test --lib -- --ignored --test-threads=1 terminal_runs",
     "test": "vitest run",
+    "check:i18n": "node scripts/check-i18n.mjs",
     "test:e2e:build": "npm run build && cross-env CARGO_TARGET_DIR=target-e2e tauri build --debug --no-bundle",
     "test:e2e": "wdio run e2e/wdio.conf.ts",
     "test:e2e:git-pipeline": "wdio run e2e/wdio.conf.ts --spec e2e/specs/git-pipeline.spec.ts",
