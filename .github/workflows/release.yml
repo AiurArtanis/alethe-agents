@@ -62,6 +62,12 @@ jobs:
         with:
           workspaces: './src-tauri -> target'
 
+      # rust-cache can restore sherpa-onnx-prebuilt/ without the static libraries inside it
+      - name: Download sherpa-onnx libraries again
+        working-directory: src-tauri
+        shell: bash
+        run: rm -rf target/sherpa-onnx-prebuilt && cargo clean -p sherpa-onnx-sys
+
       - name: Install frontend dependencies
         run: npm ci
 
