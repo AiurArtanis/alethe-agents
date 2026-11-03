@@ -1478,6 +1478,7 @@ export const ptBR: Record<MessageKey, string> = {
   'whatsNew.update': 'Ver atualização',
   'whatsNew.releaseHeading': 'v{version} — {date}',
   'whatsNew.v1702.note1':
+  'whatsNew.v1703.note1': 'Rebuild do fork Aiur: carimbo 1.7.0-3 após sincronizar o main upstream@907269a (plugin externo Agent Voice e demais updates) e regenerar os instaladores.',
     'Rebuild do fork Aiur: carimbo 1.7.0-2 após sincronizar o main upstream e regenerar os instaladores.',
   'whatsNew.v170.note1':
     'Recursos agora carregam como plugins: Git Control, Todo List e o Theme Pack viram plugins oficiais, e um plugin pode ser importado a partir da sua pasta.',
